@@ -17,8 +17,7 @@ const getDashboardPath = (userType) => {
         case 'sub_admin':
             return '/admin/dashboard';
         case 'seller':
-        case 'seller_employee':
-            return '/';
+            return '/seller/dashboard';
         case 'customer':
         default:
             return '/';
@@ -44,15 +43,12 @@ const Login = () => {
             const result = await dispatch(loginUser(data));
 
             if (result.meta.requestStatus === 'fulfilled') {
-                // Success - toast already in authSlice
-                // AuthForm will clear fields on success
-            } else {
-                // Failed - keep fields filled
-                const errorMsg = result.payload || 'Invalid credentials';
-                toast.error(errorMsg);
+                const loggedInUser = result.payload?.user;
+                const userType = loggedInUser?.user_type || loggedInUser?.role?.role_type || 'customer';
+                navigate(getDashboardPath(userType), { replace: true });
             }
         } catch (error) {
-            toast.error(error.message || 'Login failed');
+            console.error('Login error:', error);
         }
     };
 

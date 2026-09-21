@@ -404,7 +404,7 @@ router.get(
 router.get(
     '/seller/products',
     auth,
-    authorize('seller', 'seller_employee'),
+    authorize('seller'),
     validate(productValidation.getProducts),
     productController.getSellerProducts
 );

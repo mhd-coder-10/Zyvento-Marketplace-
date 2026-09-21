@@ -36,6 +36,7 @@ const paymentRoutes = require('./routes/payment/payment.routes');
 const notificationRoutes = require('./routes/notification/notification.routes');
 
 const reportRoutes = require('./routes/report/report.routes');
+const reviewRoutes = require('./routes/review/review.route');
 
 
 // MOUNT ALL ROUTES
@@ -69,6 +70,7 @@ router.use('/payment', paymentRoutes);
 router.use('/notification', notificationRoutes);
 
 router.use('/report', reportRoutes);
+router.use('/review', reviewRoutes);
 
 
 module.exports = router;

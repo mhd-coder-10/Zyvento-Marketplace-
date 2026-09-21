@@ -1,8 +1,3 @@
-
-// MY PROFILE PAGE - COMPLETE WITH ALL FEATURES
-// Description: User profile with edit, change/reset password, stats
-// APIs: getProfile, updateProfile, uploadProfileImage, changePassword, forgotPassword
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
@@ -34,6 +29,11 @@ import {
     FiArrowLeft,
     FiSend,
     FiKey,
+    FiCompass,
+    FiBriefcase,
+    FiExternalLink,
+    FiCheckCircle,
+    FiAlertCircle
 } from 'react-icons/fi';
 import ApiService from '../../api/ApiService';
 import { logoutUser } from '../../store/slices/authSlice';
@@ -48,6 +48,8 @@ const Profile = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [showChangePassword, setShowChangePassword] = useState(false);
     const [showResetPassword, setShowResetPassword] = useState(false);
+    const [activeTab, setActiveTab] = useState('overview'); // overview, orders, addresses, security
+    
     const [profileData, setProfileData] = useState({
         first_name: '',
         last_name: '',
@@ -55,22 +57,26 @@ const Profile = () => {
         mobile_number: '',
         profile_image: '',
         created_at: '',
+        role: 'customer'
     });
+    
     const [passwordData, setPasswordData] = useState({
         current_password: '',
         new_password: '',
         confirm_password: '',
     });
+    
     const [resetEmail, setResetEmail] = useState('');
     const [resetLoading, setResetLoading] = useState(false);
-    const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
     const [stats, setStats] = useState({
         orders: 0,
         wishlist: 0,
         reviews: 0,
-        coupons: 0,
+        addresses: 0,
     });
+    const [recentOrders, setRecentOrders] = useState([]);
+    const [addresses, setAddresses] = useState([]);
 
     // Load profile data
     useEffect(() => {
@@ -82,34 +88,38 @@ const Profile = () => {
                 mobile_number: user.mobile_number || '',
                 profile_image: user.profile_image || '',
                 created_at: user.created_at || '',
+                role: user.role || 'customer'
             });
             setResetEmail(user.email || '');
         }
-        loadStats();
+        loadDashboardData();
     }, [user]);
 
-    // Load user stats
-    const loadStats = async () => {
+    // Load dashboard stats and recent data
+    const loadDashboardData = async () => {
         try {
-            // Fetch orders count
-            const ordersRes = await ApiService.getCustomerOrders({ page: 1, limit: 1 });
+            // Orders
+            const ordersRes = await ApiService.getCustomerOrders({ page: 1, limit: 5 });
             if (ordersRes.data.success) {
                 setStats(prev => ({ ...prev, orders: ordersRes.data.data.total || 0 }));
+                setRecentOrders(ordersRes.data.data.orders?.slice(0, 3) || []);
             }
 
-            // Fetch wishlist count
+            // Wishlist
             const wishlistRes = await ApiService.getWishlist({ page: 1, limit: 1 });
             if (wishlistRes.data.success) {
                 setStats(prev => ({ ...prev, wishlist: wishlistRes.data.data.total || 0 }));
             }
 
-            // Fetch reviews count
-            const reviewsRes = await ApiService.getUserReviews({ page: 1, limit: 1 });
-            if (reviewsRes.data.success) {
-                setStats(prev => ({ ...prev, reviews: reviewsRes.data.data.total || 0 }));
+            // Addresses
+            const addrRes = await ApiService.getAddresses();
+            if (addrRes.data.success) {
+                const addrs = addrRes.data.data || [];
+                setAddresses(addrs);
+                setStats(prev => ({ ...prev, addresses: addrs.length }));
             }
         } catch (error) {
-            console.error('Failed to load stats:', error);
+            console.error('Failed to load profile dashboard data:', error);
         }
     };
 
@@ -126,11 +136,10 @@ const Profile = () => {
             });
 
             if (response.data.success) {
-                toast.success('Profile updated successfully!');
+                toast.success('Profile details updated successfully!');
                 setIsEditing(false);
                 const updatedUser = { ...user, ...profileData };
                 localStorage.setItem('user', JSON.stringify(updatedUser));
-                window.location.reload();
             }
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to update profile');
@@ -145,12 +154,12 @@ const Profile = () => {
         if (!file) return;
 
         if (!file.type.startsWith('image/')) {
-            toast.error('Please upload an image file');
+            toast.error('Please upload an image file (PNG, JPG, WebP)');
             return;
         }
 
         if (file.size > 5 * 1024 * 1024) {
-            toast.error('Image size should be less than 5MB');
+            toast.error('Image size must be less than 5MB');
             return;
         }
 
@@ -158,16 +167,14 @@ const Profile = () => {
         formData.append('profileImage', file);
 
         setLoading(true);
-
         try {
             const response = await ApiService.uploadProfileImage(formData);
-
             if (response.data.success) {
-                toast.success('Profile picture updated!');
-                setImagePreview(URL.createObjectURL(file));
-                const updatedUser = { ...user, profile_image: response.data.data.profileImage };
+                toast.success('Profile avatar updated!');
+                const newImg = response.data.data?.profileImage || URL.createObjectURL(file);
+                setImagePreview(newImg);
+                const updatedUser = { ...user, profile_image: newImg };
                 localStorage.setItem('user', JSON.stringify(updatedUser));
-                window.location.reload();
             }
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to upload image');
@@ -178,24 +185,19 @@ const Profile = () => {
 
     const handleChangePassword = async (e) => {
         e.preventDefault();
-
-        // Prevent double submission
         if (loading) return;
 
         if (passwordData.new_password !== passwordData.confirm_password) {
-            toast.error('New passwords do not match');
+            toast.error('New password and confirmation do not match');
             return;
         }
 
-        // Validate password strength
-        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/;
-        if (!passwordRegex.test(passwordData.new_password)) {
-            toast.error('Password must contain uppercase, lowercase, number, and special character (@$!%*?&)');
+        if (passwordData.new_password.length < 6) {
+            toast.error('Password must be at least 6 characters long');
             return;
         }
 
         setLoading(true);
-
         try {
             const response = await ApiService.changePassword({
                 current_password: passwordData.current_password,
@@ -213,36 +215,24 @@ const Profile = () => {
                 });
             }
         } catch (error) {
-            console.log('Error:', error.response?.data);
             toast.error(error.response?.data?.message || 'Failed to change password');
         } finally {
             setLoading(false);
         }
     };
 
-
-    // Handle reset password (Forgot Password)
     const handleResetPassword = async (e) => {
         e.preventDefault();
-
         if (!resetEmail.trim()) {
             toast.error('Please enter your email address');
             return;
         }
 
-        // Check if email matches registered email
-        if (resetEmail.trim() !== user?.email) {
-            toast.error('Email does not match your registered email');
-            return;
-        }
-
         setResetLoading(true);
-
         try {
             const response = await ApiService.forgotPassword({ email: resetEmail });
-
             if (response.data.success) {
-                toast.success('Password reset link sent to your email!');
+                toast.success('Password reset link sent to your registered email!');
                 setShowResetPassword(false);
                 setShowChangePassword(false);
             }
@@ -253,356 +243,528 @@ const Profile = () => {
         }
     };
 
-    // Handle logout
-       const handleLogout = async () => {
+    const handleLogout = async () => {
         try {
-            const result = await dispatch(logoutUser());
-
-            // Toast already shown in authSlice
-            // Navigation handled here
-            if (result.meta.requestStatus === 'fulfilled') {
-                navigate('/login', { replace: true });
-            } else {
-                navigate('/login', { replace: true });
-            }
+            await dispatch(logoutUser());
+            navigate('/login', { replace: true });
         } catch (error) {
-            console.error('Logout error:', error);
             navigate('/login', { replace: true });
         }
     };
 
-
-    // Format date
     const formatDate = (date) => {
-        if (!date) return 'N/A';
+        if (!date) return 'Recently';
         return new Date(date).toLocaleDateString('en-IN', {
             day: 'numeric',
-            month: 'long',
+            month: 'short',
             year: 'numeric',
         });
     };
 
-    // Quick action items with counts
-    const quickActions = [
-        { icon: <FiPackage />, label: 'My Orders', path: '/orders', count: stats.orders },
-        { icon: <FiHeart />, label: 'Wishlist', path: '/wishlist', count: stats.wishlist },
-        { icon: <FiMapPin />, label: 'Saved Addresses', path: '/addresses' },
-        { icon: <FiBell />, label: 'Notifications', path: '/notifications' },
-        { icon: <FiCreditCard />, label: 'Payment Methods', path: '/payment-methods' },
-        { icon: <FiSettings />, label: 'Settings', path: '/settings' },
-    ];
+    const userRole = user?.role || 'customer';
+    const isAdmin = userRole === 'super_admin' || userRole === 'sub_admin' || userRole === 'admin';
+    const isSeller = userRole === 'seller';
 
     return (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="min-h-screen bg-slate-50/50 py-8 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-6xl mx-auto space-y-6">
 
-            {/* ============ BACK BUTTON ============ */}
-            <button
-                onClick={() => navigate(-1)}
-                className="flex items-center gap-2 text-sm text-gray-500 hover:text-indigo-600 transition-colors mb-4"
-            >
-                <FiArrowLeft className="w-4 h-4" />
-                Back
-            </button>
-
-            {/* ============ PAGE HEADER ============ */}
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Account</h1>
-                    <p className="text-sm text-gray-500">Manage your profile and account settings</p>
+                {/* ============ BREADCRUMB & BACK ============ */}
+                <div className="flex items-center justify-between">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors"
+                    >
+                        <FiArrowLeft className="w-4 h-4" />
+                        Back
+                    </button>
+                    
+                    <button
+                        onClick={handleLogout}
+                        className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all border border-rose-200"
+                    >
+                        <FiLogOut className="w-3.5 h-3.5" />
+                        Sign Out
+                    </button>
                 </div>
-                <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                    <FiLogOut className="w-4 h-4" />
-                    <span className="hidden sm:inline">Logout</span>
-                </button>
-            </div>
 
-            {/* ============ PROFILE CARD ============ */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-6 sm:p-8">
-
-                    {/* ===== Profile Header ===== */}
-                    <div className="flex flex-col sm:flex-row items-center gap-6">
-                        {/* Avatar */}
-                        <div className="relative group">
-                            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center overflow-hidden border-4 border-indigo-200 shadow-lg">
-                                {imagePreview || profileData.profile_image ? (
-                                    <img
-                                        src={imagePreview || profileData.profile_image || `https://ui-avatars.com/api/?name=${profileData.first_name}+${profileData.last_name}&size=128&background=4F46E5&color=fff`}
-                                        alt="Profile"
-                                        className="w-full h-full object-cover"
-                                    />
-                                ) : (
-                                    <FiUser className="w-12 h-12 text-indigo-400" />
-                                )}
+                {/* ============ ROLE-BASED DASHBOARD SWITCHER BANNER ============ */}
+                {isAdmin ? (
+                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 p-6 sm:p-8 text-white shadow-xl shadow-indigo-950/20 border border-indigo-800/40">
+                        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+                        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div className="space-y-2">
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-bold uppercase tracking-wider border border-indigo-400/30">
+                                    <FiShield className="w-3.5 h-3.5" />
+                                    {userRole === 'super_admin' ? 'Super Administrator' : 'Administrator Control'}
+                                </div>
+                                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                                    Admin Command Center
+                                </h2>
+                                <p className="text-sm text-slate-300 max-w-xl">
+                                    Manage platform stores, seller approvals, sub-admins, live catalog, financial audits, and master system settings.
+                                </p>
                             </div>
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="absolute bottom-0 right-0 p-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition-colors shadow-lg"
-                                disabled={loading}
+                            <div className="flex flex-wrap items-center gap-3">
+                                <Link
+                                    to="/admin/dashboard"
+                                    className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm shadow-lg shadow-blue-600/30 hover:shadow-blue-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                >
+                                    <FiCompass className="w-4 h-4" />
+                                    Launch Admin Dashboard
+                                    <FiExternalLink className="w-4 h-4 opacity-70" />
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                ) : isSeller ? (
+                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-sky-950 to-blue-900 p-6 sm:p-8 text-white shadow-xl shadow-sky-950/20 border border-sky-800/40">
+                        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
+                        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div className="space-y-2">
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 text-xs font-bold uppercase tracking-wider border border-sky-400/30">
+                                    <FiBriefcase className="w-3.5 h-3.5" />
+                                    Verified Merchant Store
+                                </div>
+                                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                                    Seller Merchant Portal
+                                </h2>
+                                <p className="text-sm text-slate-300 max-w-xl">
+                                    Monitor your live store catalog, fulfill customer orders, manage product stock, and track seller payouts.
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <Link
+                                    to="/seller/dashboard"
+                                    className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold text-sm shadow-lg shadow-sky-600/30 hover:shadow-sky-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                >
+                                    <FiShoppingBag className="w-4 h-4" />
+                                    Launch Seller Dashboard
+                                    <FiExternalLink className="w-4 h-4 opacity-70" />
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-700 p-6 sm:p-8 text-white shadow-xl shadow-blue-600/20 border border-blue-400/30">
+                        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div className="space-y-2">
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-white text-xs font-bold uppercase tracking-wider backdrop-blur-md">
+                                    <FiTag className="w-3.5 h-3.5" />
+                                    Sell on Zyvento
+                                </div>
+                                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                                    Want to grow your business with Zyvento?
+                                </h2>
+                                <p className="text-sm text-blue-100 max-w-xl">
+                                    Reach millions of buyers across 19,000+ pin codes. Register your store today with 0% setup fee and quick onboarding.
+                                </p>
+                            </div>
+                            <Link
+                                to="/become-seller"
+                                className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-white text-blue-700 font-bold text-sm shadow-lg hover:bg-blue-50 hover:scale-[1.02] active:scale-[0.98] transition-all whitespace-nowrap"
                             >
-                                <FiCamera className="w-4 h-4" />
-                            </button>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*"
-                                onChange={handleImageUpload}
-                                className="hidden"
-                            />
+                                <FiBriefcase className="w-4 h-4 text-blue-600" />
+                                Become a Seller
+                                <FiChevronRight className="w-4 h-4" />
+                            </Link>
                         </div>
+                    </div>
+                )}
 
-                        {/* User Info */}
-                        <div className="flex-1 text-center sm:text-left">
-                            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-                                {profileData.first_name} {profileData.last_name}
-                            </h2>
-                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-sm text-gray-500 mt-1">
-                                <span className="flex items-center gap-1">
-                                    <FiMail className="w-4 h-4" />
-                                    {profileData.email}
-                                </span>
-                                <span className="hidden sm:inline text-gray-300">|</span>
-                                <span className="flex items-center gap-1">
-                                    <FiPhone className="w-4 h-4" />
-                                    {profileData.mobile_number || 'No phone'}
-                                </span>
+                {/* ============ MAIN PROFILE CARD & STATS ============ */}
+                <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                    <div className="p-6 sm:p-8">
+                        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                            {/* Avatar */}
+                            <div className="relative group">
+                                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 p-1 shadow-lg shadow-blue-500/20 flex items-center justify-center">
+                                    <div className="w-full h-full rounded-[14px] bg-white overflow-hidden flex items-center justify-center">
+                                        {imagePreview || profileData.profile_image ? (
+                                            <img
+                                                src={imagePreview || profileData.profile_image}
+                                                alt="User Profile"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-3xl">
+                                                {profileData.first_name ? profileData.first_name.charAt(0).toUpperCase() : 'U'}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="absolute -bottom-2 -right-2 p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md shadow-blue-600/30 transition-all hover:scale-110 active:scale-95"
+                                    title="Change Avatar"
+                                    disabled={loading}
+                                >
+                                    <FiCamera className="w-4 h-4" />
+                                </button>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleImageUpload}
+                                    className="hidden"
+                                />
                             </div>
-                            <p className="text-xs text-gray-400 mt-1">
-                                Member since {formatDate(profileData.created_at)}
-                            </p>
+
+                            {/* User Header Details */}
+                            <div className="flex-1 text-center sm:text-left space-y-1.5">
+                                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900">
+                                        {profileData.first_name || 'Customer'} {profileData.last_name || ''}
+                                    </h1>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                                        isAdmin
+                                            ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                                            : isSeller
+                                            ? 'bg-sky-100 text-sky-700 border border-sky-200'
+                                            : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                    }`}>
+                                        {userRole.replace('_', ' ')}
+                                    </span>
+                                </div>
+
+                                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 text-sm text-slate-500">
+                                    <span className="flex items-center gap-1.5">
+                                        <FiMail className="w-4 h-4 text-slate-400" />
+                                        {profileData.email}
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <FiPhone className="w-4 h-4 text-slate-400" />
+                                        {profileData.mobile_number || 'No phone added'}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-400 font-medium pt-1">
+                                    Zyvento member since {formatDate(profileData.created_at)}
+                                </p>
+                            </div>
+
+                            {/* Edit toggle button */}
+                            <button
+                                onClick={() => setIsEditing(!isEditing)}
+                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 hover:border-blue-300 bg-white hover:bg-blue-50/50 text-slate-700 hover:text-blue-600 font-semibold text-xs transition-all shadow-sm"
+                            >
+                                {isEditing ? <FiX className="w-4 h-4" /> : <FiEdit2 className="w-4 h-4" />}
+                                {isEditing ? 'Cancel Edit' : 'Edit Profile'}
+                            </button>
                         </div>
 
-                        <button
-                            onClick={() => setIsEditing(!isEditing)}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
-                        >
-                            {isEditing ? <FiX className="w-4 h-4" /> : <FiEdit2 className="w-4 h-4" />}
-                            {isEditing ? 'Cancel' : 'Edit Profile'}
-                        </button>
-                    </div>
-
-                    {/* ===== Stats Cards ===== */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-6 pt-6 border-t border-gray-100">
-                        <Link to="/orders" className="text-center p-3 bg-gray-50 rounded-xl hover:bg-indigo-50 transition-colors cursor-pointer">
-                            <p className="text-2xl font-bold text-indigo-600">{stats.orders}</p>
-                            <p className="text-xs text-gray-500">Orders</p>
-                        </Link>
-                        <Link to="/wishlist" className="text-center p-3 bg-gray-50 rounded-xl hover:bg-pink-50 transition-colors cursor-pointer">
-                            <p className="text-2xl font-bold text-pink-500">{stats.wishlist}</p>
-                            <p className="text-xs text-gray-500">Wishlist</p>
-                        </Link>
-                        <Link to="/reviews" className="text-center p-3 bg-gray-50 rounded-xl hover:bg-yellow-50 transition-colors cursor-pointer">
-                            <p className="text-2xl font-bold text-yellow-500">{stats.reviews}</p>
-                            <p className="text-xs text-gray-500">Reviews</p>
-                        </Link>
-                        <Link to="/coupons" className="text-center p-3 bg-gray-50 rounded-xl hover:bg-green-50 transition-colors cursor-pointer">
-                            <p className="text-2xl font-bold text-green-500">{stats.coupons}</p>
-                            <p className="text-xs text-gray-500">Coupons</p>
-                        </Link>
-                    </div>
-
-                    {/* ===== Edit Profile Form ===== */}
-                    {isEditing && (
-                        <form onSubmit={handleUpdateProfile} className="mt-6 pt-6 border-t border-gray-100">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Profile</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Edit Form Drawer */}
+                        {isEditing && (
+                            <form onSubmit={handleUpdateProfile} className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
                                         First Name
                                     </label>
                                     <input
                                         type="text"
+                                        required
                                         value={profileData.first_name}
                                         onChange={(e) => setProfileData({ ...profileData, first_name: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
                                         Last Name
                                     </label>
                                     <input
                                         type="text"
+                                        required
                                         value={profileData.last_name}
                                         onChange={(e) => setProfileData({ ...profileData, last_name: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                                     />
                                 </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Mobile Number
-                                </label>
-                                <input
-                                    type="tel"
-                                    value={profileData.mobile_number}
-                                    onChange={(e) => setProfileData({ ...profileData, mobile_number: e.target.value })}
-                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                />
-                            </div>
-                            <div className="flex gap-3 mt-4">
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                                >
-                                    {loading ? 'Saving...' : <><FiSave className="w-4 h-4" /> Save Changes</>}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsEditing(false)}
-                                    className="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </form>
-                    )}
-                </div>
-            </div>
-
-            {/* ============ QUICK ACTIONS ============ */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                {quickActions.map((action, index) => (
-                    <Link
-                        key={index}
-                        to={action.path}
-                        className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md hover:border-indigo-200 transition-all group flex items-center justify-between"
-                    >
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600 group-hover:bg-indigo-100 transition-colors">
-                                {action.icon}
-                            </div>
-                            <div>
-                                <p className="font-medium text-gray-900">{action.label}</p>
-                                {action.count !== undefined && (
-                                    <p className="text-xs text-gray-500">{action.count} items</p>
-                                )}
-                            </div>
-                        </div>
-                        <FiChevronRight className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                    </Link>
-                ))}
-            </div>
-
-            {/* ============ CHANGE PASSWORD & RESET PASSWORD ============ */}
-            <div className="mt-6">
-                <button
-                    onClick={() => {
-                        setShowChangePassword(!showChangePassword);
-                        setShowResetPassword(false);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                >
-                    <FiLock className="w-4 h-4" />
-                    {showChangePassword ? 'Cancel' : 'Change Password'}
-                </button>
-
-                {showChangePassword && (
-                    <div className="mt-3 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                            {/* ===== LEFT: Change Password ===== */}
-                            <div>
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h3>
-                                <form onSubmit={handleChangePassword} className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Current Password
-                                        </label>
-                                        <input
-                                            type="password"
-                                            value={passwordData.current_password}
-                                            onChange={(e) => setPasswordData({ ...passwordData, current_password: e.target.value })}
-                                            required
-                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            New Password
-                                        </label>
-                                        <input
-                                            type="password"
-                                            value={passwordData.new_password}
-                                            onChange={(e) => setPasswordData({ ...passwordData, new_password: e.target.value })}
-                                            required
-                                            minLength={8}
-                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Confirm New Password
-                                        </label>
-                                        <input
-                                            type="password"
-                                            value={passwordData.confirm_password}
-                                            onChange={(e) => setPasswordData({ ...passwordData, confirm_password: e.target.value })}
-                                            required
-                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                        />
-                                    </div>
+                                <div className="sm:col-span-2">
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                                        Phone Number
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        value={profileData.mobile_number}
+                                        onChange={(e) => setProfileData({ ...profileData, mobile_number: e.target.value })}
+                                        placeholder="+91 98765 43210"
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                    />
+                                </div>
+                                <div className="sm:col-span-2 flex gap-3 pt-2">
                                     <button
                                         type="submit"
                                         disabled={loading}
-                                        className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                                        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-all disabled:opacity-50"
                                     >
-                                        {loading ? 'Updating...' : <><FiCheck className="w-4 h-4" /> Update Password</>}
+                                        <FiSave className="w-4 h-4" />
+                                        {loading ? 'Saving…' : 'Save Changes'}
                                     </button>
-                                </form>
-                            </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsEditing(false)}
+                                        className="px-5 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        )}
 
-                            {/* ===== RIGHT: Reset Password ===== */}
-                            <div className="border-t md:border-t-0 md:border-l border-gray-200 pt-6 md:pt-0 md:pl-6">
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                    <FiKey className="text-indigo-600" />
-                                    Forgot Password?
-                                </h3>
-                                <p className="text-sm text-gray-500 mb-4">
-                                    If you forgot your current password, enter your registered email to receive a reset link.
+                        {/* Quick Stats Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-8 pt-6 border-t border-slate-100">
+                            <Link
+                                to="/orders"
+                                className="group p-4 rounded-2xl bg-blue-50/50 hover:bg-blue-100/60 border border-blue-100/80 transition-all text-center"
+                            >
+                                <p className="text-2xl sm:text-3xl font-black text-blue-600 group-hover:scale-105 transition-transform">
+                                    {stats.orders}
                                 </p>
+                                <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">My Orders</p>
+                            </Link>
 
+                            <Link
+                                to="/wishlist"
+                                className="group p-4 rounded-2xl bg-rose-50/50 hover:bg-rose-100/60 border border-rose-100/80 transition-all text-center"
+                            >
+                                <p className="text-2xl sm:text-3xl font-black text-rose-600 group-hover:scale-105 transition-transform">
+                                    {stats.wishlist}
+                                </p>
+                                <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Wishlist</p>
+                            </Link>
+
+                            <Link
+                                to="/addresses"
+                                className="group p-4 rounded-2xl bg-emerald-50/50 hover:bg-emerald-100/60 border border-emerald-100/80 transition-all text-center"
+                            >
+                                <p className="text-2xl sm:text-3xl font-black text-emerald-600 group-hover:scale-105 transition-transform">
+                                    {stats.addresses}
+                                </p>
+                                <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Saved Addrs</p>
+                            </Link>
+
+                            <Link
+                                to="/cart"
+                                className="group p-4 rounded-2xl bg-amber-50/50 hover:bg-amber-100/60 border border-amber-100/80 transition-all text-center"
+                            >
+                                <p className="text-2xl sm:text-3xl font-black text-amber-600 group-hover:scale-105 transition-transform">
+                                    <FiShoppingBag className="inline w-6 h-6 -mt-1" />
+                                </p>
+                                <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Active Cart</p>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ============ NAVIGATION TILES GRID ============ */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <Link
+                        to="/orders"
+                        className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                <FiPackage className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">Your Orders</h3>
+                                <p className="text-xs text-slate-500">Track packages & return items</p>
+                            </div>
+                        </div>
+                        <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                    </Link>
+
+                    <Link
+                        to="/wishlist"
+                        className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-lg group-hover:bg-rose-600 group-hover:text-white transition-colors">
+                                <FiHeart className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-900 group-hover:text-rose-600 transition-colors">Your Wishlist</h3>
+                                <p className="text-xs text-slate-500">Saved favorite items & deals</p>
+                            </div>
+                        </div>
+                        <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-rose-600 group-hover:translate-x-1 transition-all" />
+                    </Link>
+
+                    <Link
+                        to="/addresses"
+                        className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                <FiMapPin className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">Saved Addresses</h3>
+                                <p className="text-xs text-slate-500">Delivery locations & pincodes</p>
+                            </div>
+                        </div>
+                        <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
+                    </Link>
+
+                    <Link
+                        to="/notifications"
+                        className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                <FiBell className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">Notifications</h3>
+                                <p className="text-xs text-slate-500">Price alerts & order updates</p>
+                            </div>
+                        </div>
+                        <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                    </Link>
+
+                    <Link
+                        to="/settings"
+                        className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-lg group-hover:bg-slate-900 group-hover:text-white transition-colors">
+                                <FiSettings className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">Account Settings</h3>
+                                <p className="text-xs text-slate-500">Preferences & privacy options</p>
+                            </div>
+                        </div>
+                        <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                    </Link>
+
+                    <Link
+                        to="/help-center"
+                        className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                                <FiHelpCircle className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-900 group-hover:text-amber-600 transition-colors">24x7 Help Center</h3>
+                                <p className="text-xs text-slate-500">Customer care & FAQs</p>
+                            </div>
+                        </div>
+                        <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-1 transition-all" />
+                    </Link>
+                </div>
+
+                {/* ============ SECURITY & PASSWORD ACCORDION ============ */}
+                <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden p-6 sm:p-8">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3.5">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                                <FiShield className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900">Security & Credentials</h3>
+                                <p className="text-xs text-slate-500">Update your account password or request a reset link</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => {
+                                setShowChangePassword(!showChangePassword);
+                                setShowResetPassword(false);
+                            }}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 hover:border-indigo-300 text-xs font-bold text-indigo-600 hover:bg-indigo-50/60 transition-all self-start sm:self-auto"
+                        >
+                            <FiLock className="w-3.5 h-3.5" />
+                            {showChangePassword ? 'Close Security' : 'Manage Password'}
+                        </button>
+                    </div>
+
+                    {showChangePassword && (
+                        <div className="mt-6 pt-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Direct Password Update */}
+                            <form onSubmit={handleChangePassword} className="space-y-4">
+                                <h4 className="text-sm font-bold text-slate-900">Update Current Password</h4>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Current Password</label>
+                                    <input
+                                        type="password"
+                                        required
+                                        value={passwordData.current_password}
+                                        onChange={(e) => setPasswordData({ ...passwordData, current_password: e.target.value })}
+                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1">New Password</label>
+                                    <input
+                                        type="password"
+                                        required
+                                        minLength={6}
+                                        value={passwordData.new_password}
+                                        onChange={(e) => setPasswordData({ ...passwordData, new_password: e.target.value })}
+                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        placeholder="At least 6 characters"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Confirm New Password</label>
+                                    <input
+                                        type="password"
+                                        required
+                                        value={passwordData.confirm_password}
+                                        onChange={(e) => setPasswordData({ ...passwordData, confirm_password: e.target.value })}
+                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition-all disabled:opacity-50"
+                                >
+                                    {loading ? 'Updating…' : 'Save New Password'}
+                                </button>
+                            </form>
+
+                            {/* Forgot Password Link */}
+                            <div className="border-t md:border-t-0 md:border-l border-slate-100 pt-6 md:pt-0 md:pl-8 space-y-4">
+                                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                    <FiKey className="text-indigo-600" />
+                                    Forgot Your Current Password?
+                                </h4>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    We can email a secure one-click reset link to your registered email address ({profileData.email}).
+                                </p>
                                 {!showResetPassword ? (
                                     <button
+                                        type="button"
                                         onClick={() => setShowResetPassword(true)}
-                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                                        className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-all"
                                     >
-                                        Reset Password
+                                        Send Reset Email
                                     </button>
                                 ) : (
-                                    <form onSubmit={handleResetPassword} className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Registered Email
-                                            </label>
-                                            <input
-                                                type="email"
-                                                value={resetEmail}
-                                                onChange={(e) => setResetEmail(e.target.value)}
-                                                placeholder="Enter your registered email"
-                                                required
-                                                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            />
-                                            <p className="text-xs text-gray-400 mt-1">
-                                                Password reset link will be sent to this email
-                                            </p>
-                                        </div>
-                                        <div className="flex gap-3">
+                                    <form onSubmit={handleResetPassword} className="space-y-3">
+                                        <input
+                                            type="email"
+                                            required
+                                            value={resetEmail}
+                                            onChange={(e) => setResetEmail(e.target.value)}
+                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                                        />
+                                        <div className="flex gap-2">
                                             <button
                                                 type="submit"
                                                 disabled={resetLoading}
-                                                className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                                                className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 disabled:opacity-50"
                                             >
-                                                {resetLoading ? 'Sending...' : <><FiSend className="w-4 h-4" /> Send Reset Link</>}
+                                                {resetLoading ? 'Sending…' : 'Send Link Now'}
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setShowResetPassword(false)}
-                                                className="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                                                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600"
                                             >
                                                 Cancel
                                             </button>
@@ -611,25 +773,9 @@ const Profile = () => {
                                 )}
                             </div>
                         </div>
-                    </div>
-                )}
-            </div>
-
-            {/* ============ SUPPORT SECTION ============ */}
-            <div className="mt-6 bg-gray-50 rounded-xl border border-gray-200 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <FiHelpCircle className="text-2xl text-indigo-600" />
-                    <div>
-                        <p className="font-medium text-gray-900">Need Help?</p>
-                        <p className="text-sm text-gray-500">Our support team is here to assist you</p>
-                    </div>
+                    )}
                 </div>
-                <Link
-                    to="/help"
-                    className="px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-                >
-                    Visit Help Center
-                </Link>
+
             </div>
         </div>
     );

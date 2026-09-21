@@ -19,6 +19,7 @@ const DATA_SCOPE_OPTIONS = [
 
 const RoleFormModal = ({ isOpen, onClose, onSuccess, editingRole }) => {
     const isEdit = Boolean(editingRole);
+    const isSystemRole = Boolean(editingRole?.is_system_role);
 
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -61,7 +62,7 @@ const RoleFormModal = ({ isOpen, onClose, onSuccess, editingRole }) => {
         setFormData((prev) => ({ ...prev, [name]: value }));
         if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
 
-        // Auto-generate role_key from role_name
+        // Auto-generate role_key from role_name on create
         if (name === 'role_name' && !isEdit) {
             const key = value
                 .toUpperCase()
@@ -97,7 +98,10 @@ const RoleFormModal = ({ isOpen, onClose, onSuccess, editingRole }) => {
             };
 
             if (isEdit) {
-                delete payload.role_key; // role_key can't be changed on edit
+                if (isSystemRole) {
+                    delete payload.role_key;
+                    delete payload.role_type;
+                }
                 await ApiService.updateRole(editingRole._id, payload);
                 toast.success('Role updated successfully');
             } else {
@@ -179,10 +183,10 @@ const RoleFormModal = ({ isOpen, onClose, onSuccess, editingRole }) => {
                             name="role_key"
                             value={formData.role_key}
                             onChange={handleChange}
-                            disabled={isEdit}
+                            disabled={isSystemRole}
                             placeholder="ORDER_MANAGER"
                             className={`w-full rounded-xl border px-3 py-2.5 text-sm font-mono uppercase outline-none transition-all ${
-                                isEdit
+                                isSystemRole
                                     ? 'bg-slate-50 text-slate-400 cursor-not-allowed border-slate-200'
                                     : errors.role_key
                                     ? 'border-red-300 focus:border-red-500'
@@ -194,8 +198,8 @@ const RoleFormModal = ({ isOpen, onClose, onSuccess, editingRole }) => {
                                 <FiAlertCircle size={12} /> {errors.role_key}
                             </p>
                         )}
-                        {isEdit && (
-                            <p className="text-[11px] text-slate-400 mt-1">Role key cannot be changed after creation</p>
+                        {isSystemRole && (
+                            <p className="text-[11px] text-slate-400 mt-1">System role key is locked</p>
                         )}
                     </div>
 
@@ -208,9 +212,9 @@ const RoleFormModal = ({ isOpen, onClose, onSuccess, editingRole }) => {
                                 name="role_type"
                                 value={formData.role_type}
                                 onChange={handleChange}
-                                disabled={isEdit}
+                                disabled={isSystemRole}
                                 className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition-all ${
-                                    isEdit
+                                    isSystemRole
                                         ? 'bg-slate-50 text-slate-400 cursor-not-allowed border-slate-200'
                                         : 'border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
                                 }`}

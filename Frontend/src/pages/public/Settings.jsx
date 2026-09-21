@@ -1,3 +1,9 @@
+// ============================================================
+// SETTINGS / PREFERENCES PAGE
+// Description: User account, notification, and regional settings
+// APIs: getNotificationPreferences, updateNotificationPreferences
+// ============================================================
+
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import {
@@ -8,22 +14,29 @@ import {
     FiShield,
     FiLock,
     FiSave,
-    FiCheck
+    FiCheck,
+    FiSliders,
+    FiMoon,
+    FiSun,
+    FiCheckCircle,
+    FiPackage,
+    FiTag,
+    FiMessageSquare,
+    FiStar
 } from 'react-icons/fi';
 import ApiService from '../../api/ApiService';
 
 const Settings = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    
-    // ✅ Default preferences
+
     const defaultPreferences = {
         notifications: { email: true, push: true, sms: false },
         language: 'en',
-        timezone: 'UTC',
+        timezone: 'Asia/Kolkata',
         theme: 'light',
     };
-    
+
     const defaultNotificationTypes = {
         order_updates: true,
         promotions: false,
@@ -43,27 +56,20 @@ const Settings = () => {
         setLoading(true);
         try {
             const response = await ApiService.getNotificationPreferences();
-            
-            console.log('📦 API Response:', response.data);
-
             if (response.data?.success) {
                 const data = response.data.data || {};
-                
                 setPreferences({
                     notifications: data.notifications || defaultPreferences.notifications,
                     language: data.language || 'en',
-                    timezone: data.timezone || 'UTC',
+                    timezone: data.timezone || 'Asia/Kolkata',
                     theme: data.theme || 'light',
                 });
-                
                 if (data.notification_types) {
                     setNotificationTypes(data.notification_types);
                 }
             }
         } catch (error) {
-            // ✅ If 422, use defaults (no toast for load error)
             if (error.response?.status === 422) {
-                console.log('⚠️ No preferences found, using defaults');
                 setPreferences(defaultPreferences);
                 setNotificationTypes(defaultNotificationTypes);
             } else {
@@ -91,207 +97,241 @@ const Settings = () => {
                     review_requests: !!notificationTypes.review_requests,
                 },
                 language: preferences.language || 'en',
-                timezone: preferences.timezone || 'UTC',
+                timezone: preferences.timezone || 'Asia/Kolkata',
                 theme: preferences.theme || 'light',
             };
 
-            console.log('📤 Sending payload:', payload);
-
             const response = await ApiService.updateNotificationPreferences(payload);
-
             if (response.data?.success) {
-                toast.success('Settings saved successfully!');
+                toast.success('Settings updated successfully!');
             }
         } catch (error) {
-            console.error('❌ Save error:', error.response?.data);
-            toast.error(error.response?.data?.message || 'Failed to save settings');
+            toast.error(error.response?.data?.message || 'Failed to update preferences');
         } finally {
             setSaving(false);
         }
     };
 
-    const languages = [
-        { value: 'en', label: 'English' },
-        { value: 'hi', label: 'Hindi' },
-        { value: 'te', label: 'Telugu' },
-        { value: 'ta', label: 'Tamil' },
-        { value: 'bn', label: 'Bengali' },
-    ];
+    return (
+        <div className="min-h-screen bg-slate-50 text-slate-800 pb-20">
+            {/* ============ HERO ============ */}
+            <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white pt-16 pb-20 px-4 sm:px-6 lg:px-8 border-b border-indigo-950/50">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.25),rgba(255,255,255,0))]"></div>
+                <div className="relative max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                    <div>
+                        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 text-xs font-semibold uppercase tracking-wider mb-4 backdrop-blur-md">
+                            <FiSliders className="text-sm text-indigo-400" />
+                            Account Preferences
+                        </div>
+                        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+                            Account Settings
+                        </h1>
+                        <p className="text-sm text-slate-300 mt-2 max-w-xl">
+                            Tailor your notification alerts, regional display settings, and shopping experience.
+                        </p>
+                    </div>
+                    <div>
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="px-7 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 disabled:opacity-60 cursor-pointer"
+                        >
+                            {saving ? (
+                                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving...</>
+                            ) : (
+                                <><FiSave className="text-sm" /> Save All Preferences</>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </section>
 
-    const timezones = [
-        { value: 'UTC', label: 'UTC' },
-        { value: 'IST', label: 'IST (UTC+5:30)' },
-        { value: 'EST', label: 'EST (UTC-5)' },
-        { value: 'PST', label: 'PST (UTC-8)' },
-    ];
+            {/* ============ MAIN CONTENT ============ */}
+            <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 relative z-10 space-y-6">
 
-    if (loading) {
-        return (
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="animate-pulse space-y-4">
-                    <div className="h-8 bg-gray-200 rounded w-48"></div>
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
-                        <div className="h-6 bg-gray-200 rounded w-32"></div>
-                        <div className="space-y-2">
-                            {[1, 2, 3].map((i) => (
-                                <div key={i} className="flex items-center gap-4">
-                                    <div className="w-6 h-4 bg-gray-200 rounded"></div>
-                                    <div className="h-4 bg-gray-200 rounded w-24"></div>
+                {/* 1. Notification Channels */}
+                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
+                    <div className="flex items-center gap-3 pb-5 border-b border-slate-100">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg">
+                            <FiBell />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-900">Notification Channels</h2>
+                            <p className="text-xs text-slate-500">Choose how you want Zyvento to reach you.</p>
+                        </div>
+                    </div>
+
+                    <div className="divide-y divide-slate-100 mt-2">
+                        {[
+                            { key: 'email', icon: FiMail, label: 'Email Notifications', desc: 'Order receipts, tracking links, and critical security alerts.' },
+                            { key: 'push', icon: FiBell, label: 'Browser Push Notifications', desc: 'Instant flash deal alerts and live delivery updates on this device.' },
+                            { key: 'sms', icon: FiPhone, label: 'SMS / Text Messages', desc: 'Delivery OTP verification and carrier dispatch alerts.' },
+                        ].map((item) => {
+                            const Icon = item.icon;
+                            const isChecked = !!preferences.notifications[item.key];
+                            return (
+                                <div key={item.key} className="py-4 flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3.5">
+                                        <div className="w-9 h-9 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center text-sm flex-shrink-0">
+                                            <Icon />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-slate-900">{item.label}</p>
+                                            <p className="text-[11px] text-slate-400 mt-0.5">{item.desc}</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPreferences({
+                                            ...preferences,
+                                            notifications: {
+                                                ...preferences.notifications,
+                                                [item.key]: !isChecked
+                                            }
+                                        })}
+                                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                            isChecked ? 'bg-indigo-600' : 'bg-slate-200'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                                isChecked ? 'translate-x-5' : 'translate-x-0'
+                                            }`}
+                                        />
+                                    </button>
                                 </div>
-                            ))}
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* 2. Notification Types */}
+                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
+                    <div className="flex items-center gap-3 pb-5 border-b border-slate-100">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
+                            <FiPackage />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-900">Activity & Updates</h2>
+                            <p className="text-xs text-slate-500">Pick which specific notifications you wish to receive.</p>
+                        </div>
+                    </div>
+
+                    <div className="divide-y divide-slate-100 mt-2">
+                        {[
+                            { key: 'order_updates', icon: FiPackage, label: 'Order Status & Shipping', desc: 'Updates when your order is packed, shipped, out for delivery, or completed.' },
+                            { key: 'promotions', icon: FiTag, label: 'Discounts & Promotional Offers', desc: 'Special flash sale coupons, festive offers, and personalized discounts.' },
+                            { key: 'seller_messages', icon: FiMessageSquare, label: 'Seller & Support Messages', desc: 'Direct messages regarding inquiries, product customizations, or ticket resolutions.' },
+                            { key: 'review_requests', icon: FiStar, label: 'Product Review Invitations', desc: 'Help other shoppers by reviewing items after delivery.' },
+                        ].map((item) => {
+                            const Icon = item.icon;
+                            const isChecked = !!notificationTypes[item.key];
+                            return (
+                                <div key={item.key} className="py-4 flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3.5">
+                                        <div className="w-9 h-9 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center text-sm flex-shrink-0">
+                                            <Icon />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-slate-900">{item.label}</p>
+                                            <p className="text-[11px] text-slate-400 mt-0.5">{item.desc}</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setNotificationTypes({
+                                            ...notificationTypes,
+                                            [item.key]: !isChecked
+                                        })}
+                                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                            isChecked ? 'bg-indigo-600' : 'bg-slate-200'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                                isChecked ? 'translate-x-5' : 'translate-x-0'
+                                            }`}
+                                        />
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* 3. Regional & Display */}
+                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
+                    <div className="flex items-center gap-3 pb-5 border-b border-slate-100">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                            <FiGlobe />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-900">Regional & Display</h2>
+                            <p className="text-xs text-slate-500">Configure language, timezone, and appearance.</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-6">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                                Language
+                            </label>
+                            <select
+                                value={preferences.language}
+                                onChange={(e) => setPreferences({ ...preferences, language: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                            >
+                                <option value="en">English (India)</option>
+                                <option value="hi">हिन्दी (Hindi)</option>
+                                <option value="mr">मराठी (Marathi)</option>
+                                <option value="ta">தமிழ் (Tamil)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                                Timezone
+                            </label>
+                            <select
+                                value={preferences.timezone}
+                                onChange={(e) => setPreferences({ ...preferences, timezone: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                            >
+                                <option value="Asia/Kolkata">Asia/Kolkata (IST +5:30)</option>
+                                <option value="UTC">UTC (Coordinated Universal Time)</option>
+                                <option value="America/New_York">America/New York (EST)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                                Theme
+                            </label>
+                            <select
+                                value={preferences.theme}
+                                onChange={(e) => setPreferences({ ...preferences, theme: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                            >
+                                <option value="light">☀️ Light Theme</option>
+                                <option value="dark">🌙 Dark Theme (Coming Soon)</option>
+                                <option value="system">🖥️ System Default</option>
+                            </select>
                         </div>
                     </div>
                 </div>
-            </div>
-        );
-    }
 
-    return (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-                <p className="text-sm text-gray-500">Manage your preferences and notifications</p>
-            </div>
-
-            <div className="space-y-6">
-                {/* Notification Channels */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Notification Channels</h3>
-                    <div className="space-y-3">
-                        {[
-                            { key: 'email', icon: <FiMail />, label: 'Email Notifications' },
-                            { key: 'push', icon: <FiBell />, label: 'Push Notifications' },
-                            { key: 'sms', icon: <FiPhone />, label: 'SMS Notifications' },
-                        ].map(({ key, icon, label }) => (
-                            <label key={key} className="flex items-center gap-3 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={!!preferences.notifications[key]}
-                                    onChange={(e) => setPreferences({
-                                        ...preferences,
-                                        notifications: { ...preferences.notifications, [key]: e.target.checked }
-                                    })}
-                                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                                />
-                                <span className="text-gray-700">{icon} {label}</span>
-                            </label>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Notification Types */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">What to Notify</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {[
-                            { key: 'order_updates', label: 'Order Updates' },
-                            { key: 'promotions', label: 'Promotions & Deals' },
-                            { key: 'reminders', label: 'Reminders' },
-                            { key: 'seller_messages', label: 'Seller Messages' },
-                            { key: 'review_requests', label: 'Review Requests' },
-                        ].map(({ key, label }) => (
-                            <label key={key} className="flex items-center gap-3 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={!!notificationTypes[key]}
-                                    onChange={(e) => setNotificationTypes({
-                                        ...notificationTypes,
-                                        [key]: e.target.checked
-                                    })}
-                                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                                />
-                                <span className="text-sm text-gray-700">{label}</span>
-                            </label>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Language & Timezone */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                            <FiGlobe /> Language
-                        </h4>
-                        <select
-                            value={preferences.language || 'en'}
-                            onChange={(e) => setPreferences({ ...preferences, language: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        >
-                            {languages.map((lang) => (
-                                <option key={lang.value} value={lang.value}>{lang.label}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                            <FiShield /> Timezone
-                        </h4>
-                        <select
-                            value={preferences.timezone || 'UTC'}
-                            onChange={(e) => setPreferences({ ...preferences, timezone: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        >
-                            {timezones.map((tz) => (
-                                <option key={tz.value} value={tz.value}>{tz.label}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
-                {/* Theme */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Theme</h3>
-                    <div className="flex gap-4">
-                        {[
-                            { key: 'light', label: 'Light' },
-                            { key: 'dark', label: 'Dark' },
-                        ].map(({ key, label }) => (
-                            <button
-                                key={key}
-                                onClick={() => setPreferences({ ...preferences, theme: key })}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
-                                    preferences.theme === key
-                                        ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
-                                        : 'border-gray-300 hover:bg-gray-50'
-                                }`}
-                            >
-                                {key === 'light' ? '☀️' : '🌙'}
-                                {label}
-                                {preferences.theme === key && <FiCheck className="w-4 h-4" />}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Privacy */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Privacy & Security</h3>
-                    <div className="space-y-3">
-                        <button 
-                            onClick={() => window.location.href = '/profile#change-password'}
-                            className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
-                        >
-                            <FiLock /> Change Password
-                        </button>
-                        <button className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
-                            <FiShield /> Privacy Settings
-                        </button>
-                    </div>
-                </div>
-
-                {/* Save Button */}
-                <div className="flex justify-end">
+                {/* Save Footer Bar */}
+                <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex items-center justify-between">
+                    <p className="text-xs text-slate-500 font-medium">Remember to save your updated configuration.</p>
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-200 transition-all flex items-center gap-2 disabled:opacity-60"
                     >
-                        <FiSave />
-                        {saving ? 'Saving...' : 'Save Settings'}
+                        {saving ? 'Saving...' : <><FiCheck /> Save Changes</>}
                     </button>
                 </div>
-            </div>
+            </section>
         </div>
     );
 };

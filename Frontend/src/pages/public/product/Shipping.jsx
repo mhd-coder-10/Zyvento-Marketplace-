@@ -1,9 +1,4 @@
-// SHIPPING PAGE
-// Description: Shipping policy, methods, charges, and tracking
-// Features: Shipping methods, charges table, tracking info
-
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     FiTruck,
@@ -12,120 +7,224 @@ import {
     FiBox,
     FiDollarSign,
     FiCheckCircle,
-    FiChevronRight
+    FiChevronRight,
+    FiShield,
+    FiPackage,
+    FiSearch
 } from 'react-icons/fi';
 
 const Shipping = () => {
-    const shippingMethods = [
+    const [pincode, setPincode] = useState('');
+    const [checkResult, setCheckResult] = useState(null);
+    const [checking, setChecking] = useState(false);
+
+    const shippingTiers = [
         {
             id: 'standard',
-            icon: <FiTruck />,
+            icon: FiTruck,
             name: 'Standard Delivery',
-            duration: '3-5 Business Days',
-            charge: 'Free on orders above ₹999',
-            description: 'Reliable delivery with real-time tracking.',
+            duration: '3–5 Business Days',
+            charge: 'FREE above ₹999 (₹49 otherwise)',
+            color: 'from-blue-600 to-indigo-600',
+            features: ['Covers 27,000+ Pin Codes', 'Full Real-time Tracking', 'Safe Contactless Handover']
         },
         {
             id: 'express',
-            icon: <FiClock />,
-            name: 'Express Delivery',
-            duration: '1-2 Business Days',
-            charge: '₹99 - ₹199',
-            description: 'Available in select cities. Faster delivery at your doorstep.',
+            icon: FiClock,
+            name: 'Express Superfast',
+            duration: '1–2 Business Days',
+            charge: 'Flat ₹99',
+            color: 'from-indigo-600 to-purple-600',
+            features: ['Priority Warehouse Dispatch', 'Metro Cities & Capitals', 'Guaranteed Time Slot']
         },
         {
-            id: 'same-day',
-            icon: <FiBox />,
-            name: 'Same Day Delivery',
-            duration: 'Same Day',
-            charge: '₹299 - ₹499',
-            description: 'Order before 12 PM for same-day delivery in select areas.',
+            id: 'sameday',
+            icon: FiBox,
+            name: 'Same-Day Prime',
+            duration: 'Delivered in 4–8 Hours',
+            charge: '₹149',
+            color: 'from-amber-600 to-orange-600',
+            features: ['Order before 1:00 PM', 'Available in Tier 1 Cities', 'Live Agent GPS Tracking']
         },
     ];
 
-    const shippingCharges = [
-        { orderValue: 'Below ₹499', charge: '₹50', delivery: '3-5 Business Days' },
-        { orderValue: '₹499 - ₹999', charge: '₹30', delivery: '3-5 Business Days' },
-        { orderValue: 'Above ₹999', charge: 'Free', delivery: '3-5 Business Days' },
-        { orderValue: 'Any (Express)', charge: '₹99 - ₹199', delivery: '1-2 Business Days' },
+    const shippingRates = [
+        { cartValue: 'Under ₹499', standardFee: '₹49', expressFee: '₹99', estimatedTime: '3–5 Days' },
+        { cartValue: '₹499 – ₹999', standardFee: '₹49', expressFee: '₹99', estimatedTime: '3–5 Days' },
+        { cartValue: 'Above ₹999', standardFee: 'FREE Delivery', expressFee: '₹99', estimatedTime: '2–4 Days' },
+        { cartValue: 'Zyvento Prime Members', standardFee: 'FREE Delivery', expressFee: 'FREE Delivery', estimatedTime: '1–2 Days' },
     ];
 
+    const handleCheckPincode = (e) => {
+        e.preventDefault();
+        if (!pincode || pincode.length !== 6 || isNaN(pincode)) {
+            setCheckResult({ success: false, message: 'Please enter a valid 6-digit Indian PIN code.' });
+            return;
+        }
+
+        setChecking(true);
+        setTimeout(() => {
+            setChecking(false);
+            setCheckResult({
+                success: true,
+                pincode: pincode,
+                standard: 'Estimated 2–3 Days (FREE for orders > ₹999)',
+                express: 'Available (Next Day Delivery available)',
+                cod: 'Available for this area'
+            });
+        }, 800);
+    };
+
     return (
-        <div className="space-y-10 pb-12">
-
+        <div className="min-h-screen bg-slate-50 text-slate-800 pb-20">
             {/* ============ HERO SECTION ============ */}
-            <section className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-                <div className="absolute inset-0">
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
-                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
-                </div>
+            <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white pt-16 pb-20 px-4 sm:px-6 lg:px-8 border-b border-indigo-950/50">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.25),rgba(255,255,255,0))]"></div>
+                <div className="absolute top-10 right-10 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
-                    <div className="max-w-3xl">
-                        <div className="flex items-center gap-3 text-sm text-white/70 mb-4">
-                            <Link to="/" className="hover:text-white transition-colors">Home</Link>
-                            <FiChevronRight className="text-xs" />
-                            <span className="text-white">Shipping Policy</span>
-                        </div>
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                                <FiTruck className="text-3xl" />
-                            </div>
-                            <div>
-                                <h1 className="text-4xl md:text-5xl font-bold">
-                                    Shipping Information
-                                </h1>
-                            </div>
-                        </div>
-                        <p className="text-lg text-white/80">
-                            We deliver to every corner of the country. Choose the shipping method that works for you.
-                        </p>
+                <div className="relative max-w-4xl mx-auto text-center">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 text-xs font-semibold uppercase tracking-wider mb-6 backdrop-blur-md">
+                        <FiTruck className="text-sm text-indigo-400" />
+                        Logistics & Fulfillment Policy
                     </div>
+                    
+                    <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white mb-4">
+                        Fast, Reliable & Pan-India Shipping
+                    </h1>
+                    <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto font-normal">
+                        Every package is handled with premier care through our logistics partner network across 27,000+ pin codes.
+                    </p>
                 </div>
             </section>
 
-            {/* ============ SHIPPING METHODS ============ */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Shipping Methods</h2>
+            {/* ============ PINCODE CHECKER ============ */}
+            <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 relative z-10">
+                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xl shadow-slate-200/50">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="max-w-md">
+                            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                <FiMapPin className="text-indigo-600" />
+                                Check Delivery Speed in Your Area
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1">
+                                Enter your 6-digit postal PIN code to see available speeds and Cash on Delivery availability.
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleCheckPincode} className="flex-1 max-w-sm flex gap-2">
+                            <input
+                                type="text"
+                                maxLength="6"
+                                placeholder="Enter 6-digit PIN code"
+                                value={pincode}
+                                onChange={(e) => setPincode(e.target.value)}
+                                className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-mono"
+                            />
+                            <button
+                                type="submit"
+                                disabled={checking}
+                                className="px-5 py-3 bg-indigo-600 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors disabled:opacity-60 whitespace-nowrap"
+                            >
+                                {checking ? 'Checking...' : 'Check'}
+                            </button>
+                        </form>
+                    </div>
+
+                    {checkResult && (
+                        <div className={`mt-6 p-4 rounded-2xl border text-xs leading-relaxed transition-all ${
+                            checkResult.success ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-800'
+                        }`}>
+                            {checkResult.success ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div className="flex items-center gap-2 font-semibold">
+                                        <FiCheckCircle className="text-emerald-600 text-base flex-shrink-0" />
+                                        <span>PIN: {checkResult.pincode} Serviceable</span>
+                                    </div>
+                                    <div>⚡ Standard: {checkResult.standard}</div>
+                                    <div>📦 COD: {checkResult.cod}</div>
+                                </div>
+                            ) : (
+                                <p className="font-medium">{checkResult.message}</p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* ============ SHIPPING TIERS ============ */}
+            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-14">
+                <div className="text-center max-w-2xl mx-auto mb-10">
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">Delivery Speeds & Options</h2>
+                    <p className="text-sm text-slate-500 mt-2">Choose the delivery speed tailored to your schedule</p>
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {shippingMethods.map((method) => (
-                        <div key={method.id} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 text-2xl mb-4">
-                                {method.icon}
+                    {shippingTiers.map((tier) => {
+                        const Icon = tier.icon;
+                        return (
+                            <div
+                                key={tier.id}
+                                className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+                            >
+                                <div>
+                                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-tr ${tier.color} flex items-center justify-center text-white text-2xl shadow-lg mb-6`}>
+                                        <Icon />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-slate-900">{tier.name}</h3>
+                                    <div className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full mt-2">
+                                        <FiClock className="text-xs" />
+                                        {tier.duration}
+                                    </div>
+                                    <p className="text-sm font-semibold text-slate-800 mt-4">
+                                        {tier.charge}
+                                    </p>
+
+                                    <ul className="space-y-2.5 mt-6 border-t border-slate-100 pt-6">
+                                        {tier.features.map((feat, i) => (
+                                            <li key={i} className="flex items-center gap-2 text-xs text-slate-600">
+                                                <FiCheckCircle className="text-emerald-500 flex-shrink-0 text-sm" />
+                                                <span>{feat}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
                             </div>
-                            <h3 className="text-lg font-semibold text-gray-900">{method.name}</h3>
-                            <div className="flex items-center gap-2 text-sm text-indigo-600 font-medium mt-1">
-                                <FiClock className="text-sm" />
-                                {method.duration}
-                            </div>
-                            <p className="text-sm text-gray-500 mt-2">{method.description}</p>
-                            <p className="text-sm font-semibold text-gray-900 mt-3">{method.charge}</p>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </section>
 
-            {/* ============ SHIPPING CHARGES ============ */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Shipping Charges</h2>
+            {/* ============ RATES MATRIX TABLE ============ */}
+            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
+                <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden p-6 sm:p-8">
+                    <div className="mb-6">
+                        <h3 className="text-xl font-bold text-slate-900">Shipping Rates Breakdown</h3>
+                        <p className="text-xs text-slate-500 mt-1">Clear and upfront pricing with no hidden charges at checkout</p>
+                    </div>
 
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Order Value</th>
-                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Shipping Charge</th>
-                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Delivery Time</th>
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-200 bg-slate-50 text-slate-700 text-xs font-bold uppercase tracking-wider">
+                                    <th className="py-4 px-6 rounded-l-xl">Order Cart Value</th>
+                                    <th className="py-4 px-6">Standard Shipping</th>
+                                    <th className="py-4 px-6">Express Shipping</th>
+                                    <th className="py-4 px-6 rounded-r-xl">Est. Delivery Window</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {shippingCharges.map((item, index) => (
-                                    <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-3 text-sm text-gray-900">{item.orderValue}</td>
-                                        <td className="px-6 py-3 text-sm font-medium text-gray-900">{item.charge}</td>
-                                        <td className="px-6 py-3 text-sm text-gray-600">{item.delivery}</td>
+                            <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
+                                {shippingRates.map((rate, idx) => (
+                                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="py-4 px-6 font-semibold text-slate-900">{rate.cartValue}</td>
+                                        <td className="py-4 px-6">
+                                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                                                rate.standardFee.includes('FREE') ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-700'
+                                            }`}>
+                                                {rate.standardFee}
+                                            </span>
+                                        </td>
+                                        <td className="py-4 px-6 font-medium text-slate-800">{rate.expressFee}</td>
+                                        <td className="py-4 px-6 text-slate-500 font-medium">{rate.estimatedTime}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -134,35 +233,46 @@ const Shipping = () => {
                 </div>
             </section>
 
-            {/* ============ SHIPPING FEATURES ============ */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100">
-                        <FiCheckCircle className="text-indigo-600 text-xl mt-0.5" />
+            {/* ============ PACKAGING & GUARANTEES ============ */}
+            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-14">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl flex-shrink-0">
+                            <FiShield />
+                        </div>
                         <div>
-                            <h4 className="font-semibold text-gray-900 text-sm">Free Shipping</h4>
-                            <p className="text-xs text-gray-500">On orders above ₹999</p>
+                            <h4 className="font-bold text-slate-900 text-sm">Secure Packaging</h4>
+                            <p className="text-xs text-slate-500 mt-1">Multi-layer tamper-evident box & bubble insulation.</p>
                         </div>
                     </div>
-                    <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100">
-                        <FiMapPin className="text-indigo-600 text-xl mt-0.5" />
+
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl flex-shrink-0">
+                            <FiTruck />
+                        </div>
                         <div>
-                            <h4 className="font-semibold text-gray-900 text-sm">Pan India Delivery</h4>
-                            <p className="text-xs text-gray-500">20,000+ pin codes covered</p>
+                            <h4 className="font-bold text-slate-900 text-sm">27,000+ PIN Codes</h4>
+                            <p className="text-xs text-slate-500 mt-1">Deep nationwide coverage including remote regions.</p>
                         </div>
                     </div>
-                    <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100">
-                        <FiClock className="text-indigo-600 text-xl mt-0.5" />
+
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl flex-shrink-0">
+                            <FiPackage />
+                        </div>
                         <div>
-                            <h4 className="font-semibold text-gray-900 text-sm">Real-Time Tracking</h4>
-                            <p className="text-xs text-gray-500">Track your order anytime</p>
+                            <h4 className="font-bold text-slate-900 text-sm">Live GPS Tracking</h4>
+                            <p className="text-xs text-slate-500 mt-1">Milestone status alerts via SMS, WhatsApp & Email.</p>
                         </div>
                     </div>
-                    <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-100">
-                        <FiDollarSign className="text-indigo-600 text-xl mt-0.5" />
+
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-xl flex-shrink-0">
+                            <FiClock />
+                        </div>
                         <div>
-                            <h4 className="font-semibold text-gray-900 text-sm">Secure Packaging</h4>
-                            <p className="text-xs text-gray-500">Items delivered safely</p>
+                            <h4 className="font-bold text-slate-900 text-sm">On-Time Guarantee</h4>
+                            <p className="text-xs text-slate-500 mt-1">Guaranteed delivery or shipping cost reimbursed.</p>
                         </div>
                     </div>
                 </div>

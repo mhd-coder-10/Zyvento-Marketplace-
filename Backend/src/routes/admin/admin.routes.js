@@ -754,13 +754,13 @@ router.get(
 );
 
 router.get(
-    'setttings/group/:group',
+    '/settings/group/:group',
     checkPermission('SETTINGS_READ'),
     adminController.getSettingsByGroup
 );
 
 router.put(
-    'settings/group/:group',
+    '/settings/group/:group',
     checkPermission('SETTINGS_UPDATE'),
     adminController.updateSettingsByGroup
 );

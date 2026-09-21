@@ -366,7 +366,7 @@ class AuthService {
 
         let additionalData = {};
 
-        if (user.user_type === 'seller' || user.user_type === 'seller_employee') {
+        if (user.user_type === 'seller') {
             if (user.seller_id) {
                 const seller = await Seller.findById(user.seller_id)
                     .select('business_name business_type verification_status account_status');
@@ -374,16 +374,20 @@ class AuthService {
             }
         }
 
-        if (user.user_type === 'seller_employee') {
-            if (user.employee_id) {
-                const employee = await Employee.findById(user.employee_id)
-                    .select('employee_type designations status joining_date');
-                additionalData.employee = employee;
-            }
+        let permissions = [];
+        try {
+            permissions = await permissionService.getUserPermissionKeys(userId);
+        } catch (permErr) {
+            logger.error('Failed to fetch user permissions in getProfile:', permErr);
+            permissions = [];
         }
 
+        const userObj = user.toObject();
+        userObj.permissions = permissions;
+
         return {
-            user,
+            user: userObj,
+            permissions,
             ...additionalData
         };
     }

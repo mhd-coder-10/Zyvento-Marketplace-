@@ -1,7 +1,3 @@
-// ORDER TRACKING PAGE
-// Description: Track your order status with order ID
-// Features: Form to enter order ID, status display, timeline
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -10,10 +6,12 @@ import {
     FiClock,
     FiPackage,
     FiTruck,
-    FiCheck,
     FiAlertCircle,
     FiChevronRight,
-    FiMail
+    FiMail,
+    FiMapPin,
+    FiShield,
+    FiHelpCircle
 } from 'react-icons/fi';
 
 const OrderTracking = () => {
@@ -22,212 +20,281 @@ const OrderTracking = () => {
     const [orderStatus, setOrderStatus] = useState(null);
     const [error, setError] = useState('');
 
-    // Simulate API call
     const handleTrackOrder = (e) => {
         e.preventDefault();
-
         if (!orderId.trim()) {
             setError('Please enter your order ID');
             return;
         }
-
         setLoading(true);
         setError('');
         setOrderStatus(null);
 
-        // Simulate API delay
         setTimeout(() => {
-            // Demo status data
-            const demoStatus = {
+            setOrderStatus({
                 orderId: orderId,
-                status: 'shipped', // placed, processing, shipped, delivered
+                status: 'shipped',
                 placedDate: '2024-08-10',
                 estimatedDelivery: '2024-08-15',
                 items: [
-                    { name: 'Product 1', quantity: 1 },
-                    { name: 'Product 2', quantity: 2 },
+                    { name: 'Wireless Noise Cancelling Headphones', quantity: 1, image: '🎧' },
+                    { name: 'USB-C Charging Cable (2-Pack)', quantity: 2, image: '🔌' },
                 ],
                 tracking: [
-                    { date: '2024-08-10', time: '10:30 AM', location: 'Order Placed', description: 'Your order has been confirmed.' },
-                    { date: '2024-08-11', time: '02:15 PM', location: 'Warehouse, Mumbai', description: 'Order packed and ready for shipment.' },
-                    { date: '2024-08-12', time: '09:00 AM', location: 'Transit Facility, Delhi', description: 'Order dispatched from Mumbai facility.' },
-                    { date: '2024-08-13', time: '11:30 AM', location: 'Transit Facility, Delhi', description: 'Order in transit to your location.' },
+                    { date: 'Aug 10', time: '10:30 AM', status: 'placed', location: 'Order Confirmed', description: 'Your order has been confirmed and payment verified successfully.' },
+                    { date: 'Aug 11', time: '02:15 PM', status: 'processing', location: 'Zyvento Warehouse, Mumbai', description: 'Items packed securely with tamper-evident seals.' },
+                    { date: 'Aug 12', time: '09:00 AM', status: 'shipped', location: 'Dispatched via BlueDart', description: 'Shipment AWB #BD7829341 — in transit to regional hub.' },
+                    { date: 'Aug 13', time: '11:30 AM', status: 'intransit', location: 'Transit Hub, Delhi NCR', description: 'Package arrived at Delhi sorting facility. Out for local delivery soon.' },
                 ],
-                deliveryAddress: '123 Main Street, Mumbai, Maharashtra - 400001'
-            };
-
-            setOrderStatus(demoStatus);
+                deliveryAddress: '42, Sector 15, Noida, Uttar Pradesh – 201301',
+                courier: 'BlueDart Express',
+                awb: 'BD7829341',
+            });
             setLoading(false);
         }, 1500);
     };
 
-    // Get status icon and color
-    const getStatusInfo = (status) => {
-        const statusMap = {
-            placed: { icon: <FiClock className="text-lg" />, color: 'bg-yellow-500', text: 'Order Placed' },
-            processing: { icon: <FiPackage className="text-lg" />, color: 'bg-blue-500', text: 'Processing' },
-            shipped: { icon: <FiTruck className="text-lg" />, color: 'bg-indigo-500', text: 'Shipped' },
-            delivered: { icon: <FiCheckCircle className="text-lg" />, color: 'bg-green-500', text: 'Delivered' },
-        };
-        return statusMap[status] || statusMap.placed;
+    const statusSteps = ['placed', 'processing', 'shipped', 'intransit', 'delivered'];
+    const statusLabels = { placed: 'Placed', processing: 'Packed', shipped: 'Shipped', intransit: 'In Transit', delivered: 'Delivered' };
+
+    const getActiveIndex = (status) => {
+        const map = { placed: 0, processing: 1, shipped: 2, intransit: 3, delivered: 4 };
+        return map[status] ?? 0;
     };
 
     return (
-        <div className="space-y-10 pb-12">
+        <div className="min-h-screen bg-slate-50 text-slate-800 pb-20">
+            {/* ============ HERO ============ */}
+            <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white pt-16 pb-20 px-4 sm:px-6 lg:px-8 border-b border-indigo-950/50">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.25),rgba(255,255,255,0))]"></div>
+                <div className="absolute top-10 right-10 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-            {/* ============ HERO SECTION ============ */}
-            <section className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-                <div className="absolute inset-0">
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
-                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
-                </div>
-
-                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16 text-center">
-                    <h1 className="text-4xl md:text-5xl font-bold mb-4">
+                <div className="relative max-w-4xl mx-auto text-center">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 text-xs font-semibold uppercase tracking-wider mb-6 backdrop-blur-md">
+                        <FiTruck className="text-sm text-indigo-400" />
+                        Real-Time Shipment Tracker
+                    </div>
+                    <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white mb-4">
                         Track Your Order
                     </h1>
-                    <p className="text-lg text-white/80 max-w-2xl mx-auto">
-                        Enter your order ID to get real-time status and delivery updates.
+                    <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto font-normal">
+                        Enter your order ID to get live courier updates, estimated delivery date, and milestone history.
                     </p>
                 </div>
             </section>
 
             {/* ============ TRACKING FORM ============ */}
-            <section className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm">
+            <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 relative z-10">
+                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xl shadow-slate-200/50">
                     <form onSubmit={handleTrackOrder} className="space-y-4">
-                        <div>
-                            <label htmlFor="orderId" className="block text-sm font-medium text-gray-700 mb-1.5">
-                                Order ID
-                            </label>
-                            <div className="flex gap-3">
-                                <div className="relative flex-1">
-                                    <input
-                                        type="text"
-                                        id="orderId"
-                                        placeholder="Enter your order ID (e.g., ORD-123456)"
-                                        value={orderId}
-                                        onChange={(e) => setOrderId(e.target.value)}
-                                        className="w-full px-4 py-3 pl-12 border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all"
-                                    />
-                                    <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                                </div>
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 whitespace-nowrap"
-                                >
-                                    {loading ? 'Tracking...' : 'Track'}
-                                </button>
+                        <label htmlFor="orderId" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                            Order ID or AWB Number
+                        </label>
+                        <div className="flex gap-3">
+                            <div className="relative flex-1">
+                                <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg" />
+                                <input
+                                    type="text"
+                                    id="orderId"
+                                    placeholder="e.g. ORD-123456 or AWB BD7829341"
+                                    value={orderId}
+                                    onChange={(e) => { setOrderId(e.target.value); setError(''); }}
+                                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-mono"
+                                />
                             </div>
-                            {error && (
-                                <p className="text-red-500 text-sm mt-2 flex items-center gap-1">
-                                    <FiAlertCircle />
-                                    {error}
-                                </p>
-                            )}
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="px-8 py-4 bg-indigo-600 text-white font-bold text-sm rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-60 whitespace-nowrap flex items-center gap-2"
+                            >
+                                {loading ? (
+                                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Tracking...</>
+                                ) : (
+                                    <><FiSearch /> Track</>
+                                )}
+                            </button>
                         </div>
+                        {error && (
+                            <p className="text-rose-500 text-xs font-medium flex items-center gap-1.5 mt-1">
+                                <FiAlertCircle className="text-sm" /> {error}
+                            </p>
+                        )}
                     </form>
 
-                    {/* Tips */}
-                    <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                        <p className="text-sm text-gray-500">
-                            <span className="font-medium">Where to find your order ID?</span>
+                    <div className="mt-5 p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-start gap-3">
+                        <FiHelpCircle className="text-indigo-500 text-lg mt-0.5 flex-shrink-0" />
+                        <div className="text-xs text-slate-500">
+                            <span className="font-bold text-slate-700">Where to find your Order ID?</span>
                             <br />
-                            Check your order confirmation email or go to "My Orders" in your account.
-                        </p>
+                            Check your order confirmation email, SMS, or go to <Link to="/orders" className="text-indigo-600 font-semibold hover:underline">My Orders</Link> in your account.
+                        </div>
                     </div>
                 </div>
             </section>
 
-            {/* ============ ORDER STATUS ============ */}
+            {/* ============ ORDER STATUS RESULTS ============ */}
             {orderStatus && (
-                <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 animate-fadeIn">
+                <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 space-y-6">
 
-                    {/* Status Summary */}
-                    <div className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm mb-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    {/* Progress Bar */}
+                    <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                             <div>
-                                <p className="text-sm text-gray-500">Order ID</p>
-                                <p className="text-xl font-bold text-gray-900">{orderStatus.orderId}</p>
+                                <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Order ID</p>
+                                <p className="text-xl font-extrabold text-slate-900 font-mono">{orderStatus.orderId}</p>
                             </div>
-
                             <div className="flex items-center gap-3">
-                                <div className={`${getStatusInfo(orderStatus.status).color} p-2 rounded-full text-white`}>
-                                    {getStatusInfo(orderStatus.status).icon}
+                                <div className="px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-100">
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase">Carrier</p>
+                                    <p className="text-xs font-bold text-slate-900">{orderStatus.courier}</p>
                                 </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Status</p>
-                                    <p className="text-lg font-semibold text-gray-900">
-                                        {getStatusInfo(orderStatus.status).text}
-                                    </p>
+                                <div className="px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-100">
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase">Est. Delivery</p>
+                                    <p className="text-xs font-bold text-emerald-700">{orderStatus.estimatedDelivery}</p>
                                 </div>
-                            </div>
-
-                            <div className="text-right">
-                                <p className="text-sm text-gray-500">Estimated Delivery</p>
-                                <p className="text-lg font-semibold text-gray-900">{orderStatus.estimatedDelivery}</p>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Tracking Timeline */}
-                    <div className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-6">Tracking History</h3>
-
-                        <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
-                            {orderStatus.tracking.map((event, index) => (
-                                <div key={index} className="relative">
-                                    <div className="absolute -left-6 top-0.5 w-4 h-4 bg-indigo-600 rounded-full border-4 border-white shadow"></div>
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                        <div>
-                                            <p className="font-medium text-gray-900">{event.description}</p>
-                                            <p className="text-sm text-gray-500">{event.location}</p>
+                        {/* Visual Step Bar */}
+                        <div className="relative">
+                            <div className="flex items-center justify-between relative z-10">
+                                {statusSteps.map((step, idx) => {
+                                    const active = idx <= getActiveIndex(orderStatus.status);
+                                    const current = idx === getActiveIndex(orderStatus.status);
+                                    return (
+                                        <div key={step} className="flex flex-col items-center flex-1">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 transition-all ${
+                                                current ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200 scale-110' :
+                                                active ? 'bg-indigo-600 border-indigo-600 text-white' :
+                                                'bg-slate-100 border-slate-200 text-slate-400'
+                                            }`}>
+                                                {active ? <FiCheckCircle /> : <FiClock />}
+                                            </div>
+                                            <span className={`text-[10px] font-bold mt-2 uppercase tracking-wider ${
+                                                active ? 'text-indigo-600' : 'text-slate-400'
+                                            }`}>
+                                                {statusLabels[step]}
+                                            </span>
                                         </div>
-                                        <p className="text-sm text-gray-400 whitespace-nowrap">
-                                            {event.date} • {event.time}
-                                        </p>
-                                    </div>
-                                    {index < orderStatus.tracking.length - 1 && (
-                                        <div className="ml-6 mt-1 hidden sm:block h-6 border-l-2 border-dashed border-gray-200"></div>
-                                    )}
-                                </div>
-                            ))}
+                                    );
+                                })}
+                            </div>
+                            {/* Connecting Line */}
+                            <div className="absolute top-5 left-0 right-0 h-0.5 bg-slate-200 z-0">
+                                <div
+                                    className="h-full bg-indigo-600 transition-all duration-700"
+                                    style={{ width: `${(getActiveIndex(orderStatus.status) / (statusSteps.length - 1)) * 100}%` }}
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    {/* Delivery Address */}
-                    <div className="mt-6 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Delivery Address</h4>
-                        <p className="text-gray-600">{orderStatus.deliveryAddress}</p>
+                    {/* Timeline & Items */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        {/* Timeline */}
+                        <div className="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
+                            <h3 className="text-lg font-bold text-slate-900 mb-6">Shipment Timeline</h3>
+                            <div className="space-y-0">
+                                {orderStatus.tracking.map((event, index) => (
+                                    <div key={index} className="flex gap-4">
+                                        {/* Timeline Dot & Line */}
+                                        <div className="flex flex-col items-center">
+                                            <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${
+                                                index === 0 ? 'bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-200' : 'bg-white border-slate-300'
+                                            }`} />
+                                            {index < orderStatus.tracking.length - 1 && (
+                                                <div className="w-0.5 h-full min-h-[48px] bg-slate-200" />
+                                            )}
+                                        </div>
+                                        {/* Content */}
+                                        <div className="pb-6">
+                                            <p className="font-bold text-slate-900 text-sm">{event.description}</p>
+                                            <p className="text-xs text-slate-500 mt-0.5">{event.location}</p>
+                                            <p className="text-[11px] text-slate-400 mt-1 font-mono">{event.date} • {event.time}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Sidebar: Items + Address */}
+                        <div className="lg:col-span-5 space-y-6">
+                            {/* Items Ordered */}
+                            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm">
+                                <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4">Items in this Shipment</h4>
+                                <div className="space-y-3">
+                                    {orderStatus.items.map((item, i) => (
+                                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                            <span className="text-2xl">{item.image}</span>
+                                            <div>
+                                                <p className="text-xs font-bold text-slate-900">{item.name}</p>
+                                                <p className="text-[11px] text-slate-500">Qty: {item.quantity}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Delivery Address */}
+                            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm">
+                                <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                    <FiMapPin className="text-indigo-600" /> Delivery Address
+                                </h4>
+                                <p className="text-xs text-slate-600 leading-relaxed">{orderStatus.deliveryAddress}</p>
+                            </div>
+
+                            {/* Need Help */}
+                            <div className="bg-gradient-to-br from-indigo-950 to-slate-900 rounded-3xl p-6 text-white border border-indigo-900/40">
+                                <h4 className="text-sm font-bold text-white mb-2">Need help with this delivery?</h4>
+                                <p className="text-xs text-slate-300 mb-4">Our logistics team can resolve issues fast.</p>
+                                <Link
+                                    to="/contact"
+                                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-indigo-900 font-bold text-xs rounded-xl hover:bg-slate-100 transition-all"
+                                >
+                                    <FiMail /> Contact Support
+                                </Link>
+                            </div>
+                        </div>
                     </div>
                 </section>
             )}
 
-            {/* ============ NEED HELP ============ */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="bg-gray-50 rounded-2xl p-8 md:p-12 text-center">
-                    <h2 className="text-2xl font-bold text-gray-900">Need Help Tracking Your Order?</h2>
-                    <p className="text-gray-600 mt-2">Contact our support team for assistance</p>
-
-                    <div className="flex flex-wrap justify-center gap-4 mt-6">
-                        <a
-                            href="mailto:support@ecommerce.com"
-                            className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
-                        >
-                            <FiMail />
-                            Email Support
-                        </a>
-                        <Link
-                            to="/help-center"
-                            className="inline-flex items-center gap-2 px-6 py-3 bg-white border-2 border-indigo-600 text-indigo-600 font-semibold rounded-lg hover:bg-indigo-50 transition-colors"
-                        >
-                            Help Center
-                            <FiChevronRight />
-                        </Link>
+            {/* ============ HELP BANNER ============ */}
+            {!orderStatus && (
+                <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
+                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-8 sm:p-10">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl flex-shrink-0">
+                                    <FiPackage />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-slate-900 text-sm">Real-Time Updates</h4>
+                                    <p className="text-xs text-slate-500 mt-1">Get milestone-by-milestone tracking from warehouse to your door.</p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl flex-shrink-0">
+                                    <FiShield />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-slate-900 text-sm">Safe & Secure Delivery</h4>
+                                    <p className="text-xs text-slate-500 mt-1">OTP-verified handover and tamper-evident packaging.</p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl flex-shrink-0">
+                                    <FiClock />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-slate-900 text-sm">On-Time Guarantee</h4>
+                                    <p className="text-xs text-slate-500 mt-1">Delivery within estimated window or shipping fee reimbursed.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </section>
+                </section>
+            )}
         </div>
     );
 };

@@ -390,7 +390,7 @@ router.post(
 router.get(
     '/seller/orders',
     auth,
-    authorize('seller', 'seller_employee'),
+    authorize('seller'),
     validate(orderValidation.getOrders),
     orderController.getSellerOrders
 );
@@ -424,7 +424,7 @@ router.get(
 router.get(
     '/seller/:orderId',
     auth,
-    authorize('seller', 'seller_employee'),
+    authorize('seller'),
     checkSellerAccess(),
     validate(orderValidation.orderIdParam),
     orderController.getSellerOrderDetails

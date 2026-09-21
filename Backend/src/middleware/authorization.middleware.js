@@ -95,7 +95,7 @@ const checkSellerAccess = (paramName = 'sellerId') => {
             }
 
             // Seller can only access their own data
-            if (req.userType === 'seller' || req.userType === 'seller_employee') {
+            if (req.userType === 'seller') {
                 const userSellerId = req.sellerId?.toString();
                 const targetSellerId = sellerId.toString();
 

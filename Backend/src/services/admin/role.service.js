@@ -141,15 +141,27 @@ class RoleService {
         const role = await Role.findById(roleId);
         if (!role) throw ApiError.notFound('Role not found');
 
-        // ✅ System role bhi edit ho sakta hai, BUT role_key aur role_type nahi change ho sakte
-
-        const oldState = role.toObject();
-
-        // Allowed fields — role_key and role_type excluded
-        const allowed = ['role_name', 'description', 'permission_ids', 'data_scope', 'priority'];
+        // Allowed fields
+        const allowed = ['role_name', 'description', 'permission_ids', 'data_scope', 'priority', 'is_active'];
         allowed.forEach((k) => {
             if (updateData[k] !== undefined) role[k] = updateData[k];
         });
+
+        // Custom roles allow editing role_key and role_type
+        if (!role.is_system_role) {
+            if (updateData.role_key && updateData.role_key.toUpperCase() !== role.role_key) {
+                const existingKey = await Role.findOne({ 
+                    role_key: updateData.role_key.toUpperCase(),
+                    _id: { $ne: roleId }
+                });
+                if (existingKey) throw ApiError.conflict('Role key already exists');
+                role.role_key = updateData.role_key.toUpperCase();
+            }
+
+            if (updateData.role_type) {
+                role.role_type = updateData.role_type;
+            }
+        }
 
         role.updated_by = userId;
         await role.save();

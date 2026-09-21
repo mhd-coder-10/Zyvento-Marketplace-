@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -9,6 +8,10 @@ import {
     FiList,
     FiX,
     FiArrowLeft,
+    FiChevronLeft,
+    FiChevronRight,
+    FiSliders,
+    FiRotateCcw
 } from 'react-icons/fi';
 
 import ApiService from '../../../api/ApiService';
@@ -17,22 +20,21 @@ import ProductSort from '../../../components/public/product/ProductSort';
 import ProductSkeleton from '../../../components/public/product/ProductSkeleton';
 
 const SearchResults = () => {
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
-    const query = searchParams.get('q') || '';
+    const query = searchParams.get('q') || searchParams.get('search') || '';
 
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState('grid');
     const [pagination, setPagination] = useState({
         page: 1,
-        limit: 20,
+        limit: 16,
         total: 0,
         pages: 0,
     });
     const [sortBy, setSortBy] = useState('relevance');
 
-    // Load search results
     useEffect(() => {
         if (query) {
             loadSearchResults();
@@ -52,198 +54,226 @@ const SearchResults = () => {
                 sortBy: sortBy === 'relevance' ? undefined : sortBy,
             };
 
-            const response = await ApiService.getProducts(params);
+            const response = await ApiService.getAllProducts(params);
 
             if (response.data.success) {
-                setProducts(response.data.data.products || []);
-                setPagination({
-                    ...pagination,
-                    total: response.data.data.total || 0,
-                    pages: response.data.data.pages || 0,
-                });
+                const list = response.data.data.products || response.data.data.items || response.data.data || [];
+                setProducts(list);
+                setPagination(prev => ({
+                    ...prev,
+                    total: response.data.data.total || list.length,
+                    pages: response.data.data.pages || Math.ceil((response.data.data.total || list.length) / prev.limit) || 1,
+                }));
             }
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to load search results');
+            console.error('Failed to load search results:', error);
+            try {
+                const res = await ApiService.getProducts({ search: query });
+                if (res.data.success) {
+                    setProducts(res.data.data.products || res.data.data || []);
+                }
+            } catch (err) {
+                toast.error('Failed to load search results');
+            }
         } finally {
             setLoading(false);
         }
     };
 
+    const handleSearchSubmit = (e) => {
+        e.preventDefault();
+        const nextQuery = e.target.search.value.trim();
+        if (nextQuery) {
+            setSearchParams({ q: nextQuery });
+            setPagination(p => ({ ...p, page: 1 }));
+        }
+    };
+
     return (
-        <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-6 lg:py-8">
+        <div className="min-h-screen bg-slate-50/50 py-8 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto space-y-6">
 
-            {/* PAGE HEADER */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
-                <div className="flex items-center gap-3 sm:gap-4">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                        <FiArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button>
-                    <div>
-                        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Search Results</h1>
-                        <p className="text-sm text-gray-500">
-                            {query ? `Showing results for "${query}"` : 'Enter a search term'}
-                        </p>
+                {/* ============ BREADCRUMB & HEADER ============ */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="p-2 bg-white rounded-2xl border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-all shadow-sm"
+                        >
+                            <FiArrowLeft className="w-5 h-5" />
+                        </button>
+                        <div>
+                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mb-0.5">
+                                <Link to="/" className="hover:text-blue-600">Home</Link>
+                                <span>/</span>
+                                <Link to="/products" className="hover:text-blue-600">Products</Link>
+                                <span>/</span>
+                                <span className="text-slate-800 font-bold">Search</span>
+                            </div>
+                            <h1 className="text-xl sm:text-2xl font-black text-slate-900">
+                                {query ? (
+                                    <>Results for <span className="text-blue-600">"{query}"</span></>
+                                ) : (
+                                    'Product Search'
+                                )}
+                            </h1>
+                        </div>
                     </div>
-                </div>
 
-                {query && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm text-gray-500">
-                            {pagination.total > 0 ? `${pagination.total} products found` : 'No products found'}
-                        </span>
-                        <div className="flex items-center gap-1 sm:gap-2">
+                    {/* View Switcher & Actions */}
+                    <div className="flex items-center gap-3 self-end sm:self-auto">
+                        <div className="flex items-center bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
                             <button
                                 onClick={() => setViewMode('grid')}
-                                className={`p-1.5 sm:p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-indigo-100 text-indigo-600' : 'text-gray-400 hover:text-gray-600'
-                                    }`}
+                                className={`p-2 rounded-xl transition-all ${
+                                    viewMode === 'grid'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-slate-400 hover:text-slate-700'
+                                }`}
                             >
-                                <FiGrid className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <FiGrid className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={() => setViewMode('list')}
-                                className={`p-1.5 sm:p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-indigo-100 text-indigo-600' : 'text-gray-400 hover:text-gray-600'
-                                    }`}
+                                className={`p-2 rounded-xl transition-all ${
+                                    viewMode === 'list'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-slate-400 hover:text-slate-700'
+                                }`}
                             >
-                                <FiList className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <FiList className="w-4 h-4" />
                             </button>
                         </div>
                     </div>
-                )}
-            </div>
+                </div>
 
-            {/* SEARCH BAR */}
-            <form
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    const searchQuery = e.target.search.value.trim();
-                    if (searchQuery) {
-                        navigate(`/search-results?q=${encodeURIComponent(searchQuery)}`);
-                    }
-                }}
-                className="mb-4 sm:mb-6"
-            >
-                <div className="flex gap-2 sm:gap-3">
+                {/* ============ SEARCH BAR ============ */}
+                <form onSubmit={handleSearchSubmit} className="flex gap-3">
                     <div className="relative flex-1">
-                        <FiSearch className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                         <input
                             name="search"
                             type="text"
-                            placeholder="Search products..."
+                            placeholder="Search products, brands, categories..."
                             defaultValue={query}
-                            className="w-full pl-9 sm:pl-12 pr-3 sm:pr-4 py-2 sm:py-3 text-sm sm:text-base border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                            className="w-full pl-12 pr-10 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition-all"
                         />
+                        {query && (
+                            <button
+                                type="button"
+                                onClick={() => navigate('/products')}
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            >
+                                <FiX className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
                     <button
                         type="submit"
-                        className="px-4 sm:px-6 py-2 sm:py-3 bg-indigo-600 text-white text-sm sm:text-base font-medium rounded-lg sm:rounded-xl hover:bg-indigo-700 transition-colors whitespace-nowrap"
+                        className="px-6 sm:px-8 py-3.5 bg-blue-600 text-white font-bold text-sm rounded-2xl shadow-lg shadow-blue-600/25 hover:bg-blue-700 active:scale-95 transition-all"
                     >
                         Search
                     </button>
-                    {query && (
-                        <button
-                            type="button"
-                            onClick={() => navigate('/products')}
-                            className="px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 rounded-lg sm:rounded-xl hover:bg-gray-50 transition-colors flex items-center gap-1 sm:gap-2 text-gray-600 text-sm sm:text-base"
-                        >
-                            <FiX className="w-4 h-4" />
-                            <span className="hidden sm:inline">Clear</span>
-                        </button>
-                    )}
-                </div>
-            </form>
+                </form>
 
-            {/* RESULTS */}
-            {query ? (
-                <>
-                    {/* Sort Bar */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3 sm:mb-4">
-                        <ProductSort
-                            sortBy={sortBy}
-                            onSortChange={(value) => setSortBy(value)}
-                        />
-                        <span className="text-sm text-gray-500">
-                            Showing {products.length} of {pagination.total} results
-                        </span>
-                    </div>
-
-                    {loading ? (
-                        <ProductSkeleton count={8} viewMode={viewMode} />
-                    ) : products.length === 0 ? (
-                        <div className="text-center py-12 sm:py-16 bg-white rounded-xl border border-gray-200">
-                            <FiSearch className="text-5xl sm:text-6xl text-gray-300 mx-auto mb-4" />
-                            <h3 className="text-lg sm:text-xl font-semibold text-gray-900">No products found</h3>
-                            <p className="text-sm sm:text-base text-gray-500 mt-1">
-                                We couldn't find any products matching "{query}"
-                            </p>
-                            <p className="text-sm text-gray-400 mt-2">
-                                Try adjusting your search terms or browse all products
-                            </p>
-                            <Link
-                                to="/products"
-                                className="inline-block mt-4 sm:mt-6 px-5 sm:px-6 py-2 sm:py-2.5 bg-indigo-600 text-white text-sm sm:text-base font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-                            >
-                                Browse All Products
-                            </Link>
+                {/* ============ RESULTS SECTION ============ */}
+                {query ? (
+                    <div className="space-y-6">
+                        {/* Sort & Count Header */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+                            <span className="text-xs font-bold text-slate-600">
+                                Found <span className="text-blue-600">{pagination.total}</span> items for "{query}"
+                            </span>
+                            <ProductSort
+                                sortBy={sortBy}
+                                onSortChange={(val) => setSortBy(val)}
+                            />
                         </div>
-                    ) : (
-                        <>
-                            <div
-                                className={`grid gap-3 sm:gap-4 md:gap-6 ${viewMode === 'grid'
-                                        ? 'grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
-                                        : 'grid-cols-1'
-                                    }`}
-                            >
-                                {products.map((product) => (
-                                    <ProductCard
-                                        key={product._id}
-                                        product={product}
-                                        viewMode={viewMode}
-                                        onUpdate={loadSearchResults}
-                                    />
-                                ))}
-                            </div>
 
-                            {/* Pagination */}
-                            {pagination.pages > 1 && (
-                                <div className="flex items-center justify-center gap-2 mt-6 sm:mt-8">
-                                    <button
-                                        onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
-                                        disabled={pagination.page === 1}
-                                        className="px-3 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-50 transition-colors"
-                                    >
-                                        Previous
-                                    </button>
-                                    <span className="text-sm text-gray-600">
-                                        Page {pagination.page} of {pagination.pages}
-                                    </span>
-                                    <button
-                                        onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
-                                        disabled={pagination.page === pagination.pages}
-                                        className="px-3 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-50 transition-colors"
-                                    >
-                                        Next
-                                    </button>
+                        {loading ? (
+                            <ProductSkeleton count={8} viewMode={viewMode} />
+                        ) : products.length === 0 ? (
+                            <div className="text-center py-20 bg-white rounded-3xl border border-slate-200/80 shadow-sm p-8 space-y-4">
+                                <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto text-3xl font-bold">
+                                    <FiSearch />
                                 </div>
-                            )}
-                        </>
-                    )}
-                </>
-            ) : (
-                <div className="text-center py-12 sm:py-16 bg-white rounded-xl border border-gray-200">
-                    <FiSearch className="text-5xl sm:text-6xl text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Search for products</h3>
-                    <p className="text-sm sm:text-base text-gray-500 mt-1">Enter a search term above to find products</p>
-                    <Link
-                        to="/products"
-                        className="inline-block mt-4 sm:mt-6 px-5 sm:px-6 py-2 sm:py-2.5 bg-indigo-600 text-white text-sm sm:text-base font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-                    >
-                        Browse All Products
-                    </Link>
-                </div>
-            )}
+                                <h3 className="text-xl font-black text-slate-900">No results found for "{query}"</h3>
+                                <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
+                                    Check your spelling, try broader keywords, or browse all marketplace categories.
+                                </p>
+                                <Link
+                                    to="/products"
+                                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold text-xs rounded-2xl shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all"
+                                >
+                                    <FiShoppingBag className="w-4 h-4" />
+                                    Browse All Catalog
+                                </Link>
+                            </div>
+                        ) : (
+                            <>
+                                <div
+                                    className={`grid gap-4 sm:gap-6 ${
+                                        viewMode === 'grid'
+                                            ? 'grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4'
+                                            : 'grid-cols-1'
+                                    }`}
+                                >
+                                    {products.map((product) => (
+                                        <ProductCard
+                                            key={product._id || product.id}
+                                            product={product}
+                                            viewMode={viewMode}
+                                            onUpdate={loadSearchResults}
+                                        />
+                                    ))}
+                                </div>
+
+                                {/* Pagination */}
+                                {pagination.pages > 1 && (
+                                    <div className="flex items-center justify-center gap-2 pt-8">
+                                        <button
+                                            onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
+                                            disabled={pagination.page <= 1}
+                                            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition-all shadow-sm"
+                                        >
+                                            <FiChevronLeft className="w-4 h-4" />
+                                            Prev
+                                        </button>
+                                        <span className="text-xs font-bold text-slate-600 px-4">
+                                            Page {pagination.page} of {pagination.pages}
+                                        </span>
+                                        <button
+                                            onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
+                                            disabled={pagination.page >= pagination.pages}
+                                            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition-all shadow-sm"
+                                        >
+                                            Next
+                                            <FiChevronRight className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                ) : (
+                    <div className="text-center py-20 bg-white rounded-3xl border border-slate-200/80 shadow-sm p-8 space-y-4">
+                        <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto text-3xl font-bold">
+                            <FiSearch />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-900">What are you looking for?</h3>
+                        <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
+                            Search for electronics, fashion, smartphones, home living, and thousands of top deals.
+                        </p>
+                        <Link
+                            to="/products"
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold text-xs rounded-2xl shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all"
+                        >
+                            Explore Marketplace
+                        </Link>
+                    </div>
+                )}
+
+            </div>
         </div>
     );
 };

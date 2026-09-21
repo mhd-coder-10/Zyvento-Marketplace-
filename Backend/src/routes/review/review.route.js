@@ -9,7 +9,7 @@ const reviewController = require('../../controllers/review/review.controller');
 const auth = require('../../middleware/auth.middleware');
 const { authorize, checkPermission } = require('../../middleware/authorization.middleware');
 const { validate } = require('../../middleware/validation.middleware');
-const reviewValidation = require('../../validations/review/review.validation');
+const reviewValidation = require('../../validations/review.validation');
 
 /**
  * @swagger
@@ -450,7 +450,7 @@ router.post(
 router.get(
     '/seller-products',
     auth,
-    authorize('seller', 'seller_employee'),
+    authorize('seller'),
     reviewController.getSellerProductReviews
 );
 

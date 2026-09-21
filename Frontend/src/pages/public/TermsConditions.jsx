@@ -1,269 +1,230 @@
-// ============================================================
-// TERMS & CONDITIONS PAGE
-// Description: Terms and conditions page with detailed information
-// Features: Terms sections, last updated date, navigation
-// ============================================================
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    FiChevronRight,
-    FiShield,
     FiFileText,
+    FiUserCheck,
     FiCreditCard,
     FiTruck,
     FiRefreshCw,
-    FiLock,
-    FiAlertCircle,
-    FiMail
+    FiShield,
+    FiAlertTriangle,
+    FiMail,
+    FiClock,
+    FiChevronRight,
+    FiCheckCircle
 } from 'react-icons/fi';
 
 const TermsConditions = () => {
+    const [activeSection, setActiveSection] = useState('acceptance');
+
     const sections = [
-        { id: 'acceptance', title: 'Acceptance of Terms' },
-        { id: 'account', title: 'Account Registration' },
-        { id: 'purchases', title: 'Purchases & Payments' },
-        { id: 'shipping', title: 'Shipping & Delivery' },
-        { id: 'returns', title: 'Returns & Refunds' },
-        { id: 'intellectual', title: 'Intellectual Property' },
-        { id: 'liability', title: 'Limitation of Liability' },
-        { id: 'contact', title: 'Contact Us' },
+        { id: 'acceptance', icon: FiCheckCircle, title: 'Acceptance of Terms' },
+        { id: 'account', icon: FiUserCheck, title: 'User Account' },
+        { id: 'orders', icon: FiCreditCard, title: 'Orders & Payments' },
+        { id: 'shipping', icon: FiTruck, title: 'Shipping & Delivery' },
+        { id: 'returns', icon: FiRefreshCw, title: 'Returns & Refunds' },
+        { id: 'intellectual', icon: FiShield, title: 'Intellectual Property' },
+        { id: 'liability', icon: FiAlertTriangle, title: 'Limitation of Liability' },
+        { id: 'contact', icon: FiMail, title: 'Contact Legal' },
     ];
 
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        setActiveSection(entry.target.id);
+                    }
+                });
+            },
+            { threshold: 0.3, rootMargin: '-100px 0px -50% 0px' }
+        );
+        sections.forEach((sec) => {
+            const el = document.getElementById(sec.id);
+            if (el) observer.observe(el);
+        });
+        return () => observer.disconnect();
+    }, []);
+
+    const scrollTo = (id) => {
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
     return (
-        <div className="space-y-8 pb-12">
-
-            {/* ============ HERO SECTION ============ */}
-            <section className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-                <div className="absolute inset-0">
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
-                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
-                </div>
-
-                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
-                    <div className="max-w-3xl">
-                        <div className="flex items-center gap-3 text-sm text-white/70 mb-4">
-                            <Link to="/" className="hover:text-white transition-colors">Home</Link>
-                            <FiChevronRight className="text-xs" />
-                            <span className="text-white">Terms & Conditions</span>
-                        </div>
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                                <FiFileText className="text-3xl" />
-                            </div>
-                            <div>
-                                <h1 className="text-4xl md:text-5xl font-bold">
-                                    Terms & Conditions
-                                </h1>
-                            </div>
-                        </div>
-                        <p className="text-lg text-white/80">
-                            Please read these terms carefully before using our platform.
-                        </p>
-                        <p className="text-sm text-white/60 mt-4">
-                            Last updated: August 10, 2024
-                        </p>
+        <div className="min-h-screen bg-slate-50 text-slate-800 pb-20">
+            {/* ============ HERO ============ */}
+            <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white pt-16 pb-20 px-4 sm:px-6 lg:px-8 border-b border-indigo-950/50">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.25),rgba(255,255,255,0))]"></div>
+                <div className="relative max-w-4xl mx-auto text-center">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 text-xs font-semibold uppercase tracking-wider mb-6 backdrop-blur-md">
+                        <FiFileText className="text-sm text-indigo-400" />
+                        Legal Agreement
+                    </div>
+                    <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white mb-4">
+                        Terms & Conditions
+                    </h1>
+                    <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto">
+                        Please review these terms carefully before accessing or using the Zyvento multi-vendor marketplace platform.
+                    </p>
+                    <div className="flex items-center justify-center gap-2 mt-5 text-xs text-slate-400">
+                        <FiClock /> Last updated: August 15, 2024
                     </div>
                 </div>
             </section>
 
             {/* ============ CONTENT ============ */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex flex-col lg:flex-row gap-8">
-
-                    {/* Sidebar Navigation */}
-                    <div className="lg:w-64 flex-shrink-0">
-                        <div className="sticky top-24 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                            <h3 className="font-semibold text-gray-900 mb-3">On This Page</h3>
-                            <nav className="space-y-1">
-                                {sections.map((section) => (
-                                    <a
-                                        key={section.id}
-                                        href={`#${section.id}`}
-                                        className="block px-3 py-2 text-sm text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Sidebar */}
+                    <aside className="lg:col-span-3">
+                        <nav className="sticky top-24 bg-white rounded-3xl border border-slate-200/80 shadow-sm p-5 space-y-1">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 px-3">Sections</p>
+                            {sections.map((sec) => {
+                                const Icon = sec.icon;
+                                const isActive = activeSection === sec.id;
+                                return (
+                                    <button
+                                        key={sec.id}
+                                        onClick={() => scrollTo(sec.id)}
+                                        className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-all ${
+                                            isActive
+                                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold'
+                                                : 'text-slate-600 hover:bg-slate-50'
+                                        }`}
                                     >
-                                        {section.title}
-                                    </a>
-                                ))}
-                            </nav>
-                        </div>
-                    </div>
+                                        <Icon className={`text-sm flex-shrink-0 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+                                        {sec.title}
+                                    </button>
+                                );
+                            })}
+                        </nav>
+                    </aside>
 
                     {/* Main Content */}
-                    <div className="flex-1 space-y-8">
+                    <main className="lg:col-span-9 space-y-8">
+                        {/* 1. Acceptance */}
+                        <div id="acceptance" className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm scroll-mt-24">
+                            <h2 className="text-2xl font-extrabold text-slate-900 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg"><FiCheckCircle /></div>
+                                1. Acceptance of Terms
+                            </h2>
+                            <p className="text-sm text-slate-600 mt-4 leading-relaxed">
+                                Welcome to Zyvento. By accessing, browsing, registering for, or transacting on our website or mobile application, you acknowledge that you have read, understood, and unconditionally agree to be bound by these Terms and Conditions and our Privacy Policy.
+                            </p>
+                            <p className="text-sm text-slate-600 mt-3 leading-relaxed">
+                                If you do not accept these terms in their entirety, you must discontinue using our services immediately. We reserve the right to revise or modify these terms at our sole discretion, and continued usage signifies acceptance of updated guidelines.
+                            </p>
+                        </div>
 
-                        {/* Section 1 */}
-                        <div id="acceptance" className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                                    <FiShield className="text-xl" />
+                        {/* 2. Account */}
+                        <div id="account" className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm scroll-mt-24">
+                            <h2 className="text-2xl font-extrabold text-slate-900 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg"><FiUserCheck /></div>
+                                2. User Account & Eligibility
+                            </h2>
+                            <p className="text-sm text-slate-600 mt-4 leading-relaxed">
+                                To access select features, including placing orders or selling merchandise, you must create a Zyvento user account. You represent and warrant that:
+                            </p>
+                            <ul className="mt-4 space-y-2 text-sm text-slate-600">
+                                {[
+                                    'You are at least 18 years of age or accessing under the supervision of a parent or legal guardian.',
+                                    'All registration information provided is accurate, current, and complete.',
+                                    'You will safeguard your account login credentials and remain responsible for any activity executed under your login.',
+                                    'You will promptly notify Zyvento customer support of any unauthorized account access or security breaches.',
+                                ].map((item, idx) => (
+                                    <li key={idx} className="flex items-start gap-3">
+                                        <FiChevronRight className="text-indigo-600 mt-0.5 flex-shrink-0" />
+                                        <span className="leading-relaxed">{item}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* 3. Orders & Payments */}
+                        <div id="orders" className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm scroll-mt-24">
+                            <h2 className="text-2xl font-extrabold text-slate-900 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg"><FiCreditCard /></div>
+                                3. Orders, Pricing & Payments
+                            </h2>
+                            <p className="text-sm text-slate-600 mt-4 leading-relaxed">
+                                Zyvento is a marketplace facilitating transactions between independent sellers and buyers. While we strive for absolute accuracy, inadvertent typographical errors regarding catalog pricing or inventory availability may occur.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
+                                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                                    <h4 className="text-xs font-bold text-slate-900">Order Acceptance</h4>
+                                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Receipt of an order confirmation does not constitute our final acceptance; we reserve the right to cancel orders suspected of fraud.</p>
                                 </div>
-                                <h2 className="text-2xl font-bold text-gray-900">1. Acceptance of Terms</h2>
-                            </div>
-                            <div className="space-y-4 text-gray-600 leading-relaxed">
-                                <p>
-                                    By using our e-commerce platform, you agree to comply with and be bound by these Terms and Conditions. If you do not agree, please do not use our platform.
-                                </p>
-                                <p>
-                                    We reserve the right to update or modify these terms at any time. Your continued use of the platform constitutes acceptance of the updated terms.
-                                </p>
+                                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                                    <h4 className="text-xs font-bold text-slate-900">Secure Payments</h4>
+                                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Transactions are processed via RBI-compliant, 256-bit encrypted payment gateways supporting UPI, Cards, Net Banking, and COD.</p>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Section 2 */}
-                        <div id="account" className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                                    <FiLock className="text-xl" />
-                                </div>
-                                <h2 className="text-2xl font-bold text-gray-900">2. Account Registration</h2>
-                            </div>
-                            <div className="space-y-4 text-gray-600 leading-relaxed">
-                                <p>
-                                    To access certain features, you must create an account. You agree to:
-                                </p>
-                                <ul className="list-disc pl-6 space-y-2">
-                                    <li>Provide accurate and complete information</li>
-                                    <li>Maintain the security of your account credentials</li>
-                                    <li>Notify us immediately of any unauthorized use</li>
-                                    <li>Be responsible for all activities under your account</li>
-                                </ul>
-                                <p>
-                                    We reserve the right to suspend or terminate accounts that violate these terms.
-                                </p>
-                            </div>
+                        {/* 4. Shipping */}
+                        <div id="shipping" className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm scroll-mt-24">
+                            <h2 className="text-2xl font-extrabold text-slate-900 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg"><FiTruck /></div>
+                                4. Shipping & Delivery
+                            </h2>
+                            <p className="text-sm text-slate-600 mt-4 leading-relaxed">
+                                Deliveries are carried out via certified logistics partners (BlueDart, Delhivery, etc.). Shipping timelines are estimates and subject to factors beyond direct control, such as severe weather, regional festivals, or logistics disruptions. Refer to our <Link to="/shipping" className="text-indigo-600 font-semibold hover:underline">Shipping Policy</Link> for detailed tier breakdowns.
+                            </p>
                         </div>
 
-                        {/* Section 3 */}
-                        <div id="purchases" className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                                    <FiCreditCard className="text-xl" />
-                                </div>
-                                <h2 className="text-2xl font-bold text-gray-900">3. Purchases & Payments</h2>
-                            </div>
-                            <div className="space-y-4 text-gray-600 leading-relaxed">
-                                <p>All purchases are subject to the following conditions:</p>
-                                <ul className="list-disc pl-6 space-y-2">
-                                    <li>Prices are in Indian Rupees (₹) and include applicable taxes</li>
-                                    <li>Payment must be completed at the time of purchase</li>
-                                    <li>We accept major credit cards, debit cards, and UPI</li>
-                                    <li>Orders are subject to availability and confirmation</li>
-                                    <li>We reserve the right to refuse or cancel orders</li>
-                                </ul>
-                            </div>
+                        {/* 5. Returns */}
+                        <div id="returns" className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm scroll-mt-24">
+                            <h2 className="text-2xl font-extrabold text-slate-900 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center text-lg"><FiRefreshCw /></div>
+                                5. Returns, Replacements & Refunds
+                            </h2>
+                            <p className="text-sm text-slate-600 mt-4 leading-relaxed">
+                                Eligible products can be returned within 7 to 10 days of delivery depending on category specifics. Returned items must remain in their original, undamaged packaging with all tags, accessories, and warranty cards intact. Complete policies are available under <Link to="/returns-refunds" className="text-indigo-600 font-semibold hover:underline">Returns & Refunds</Link>.
+                            </p>
                         </div>
 
-                        {/* Section 4 */}
-                        <div id="shipping" className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                                    <FiTruck className="text-xl" />
-                                </div>
-                                <h2 className="text-2xl font-bold text-gray-900">4. Shipping & Delivery</h2>
-                            </div>
-                            <div className="space-y-4 text-gray-600 leading-relaxed">
-                                <p>Our shipping policies include:</p>
-                                <ul className="list-disc pl-6 space-y-2">
-                                    <li>Free shipping on orders above ₹999</li>
-                                    <li>Estimated delivery time: 3-5 business days</li>
-                                    <li>Tracking information provided via email</li>
-                                    <li>International shipping options available</li>
-                                    <li>Delays may occur due to unforeseen circumstances</li>
-                                </ul>
-                            </div>
+                        {/* 6. Intellectual Property */}
+                        <div id="intellectual" className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm scroll-mt-24">
+                            <h2 className="text-2xl font-extrabold text-slate-900 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg"><FiShield /></div>
+                                6. Intellectual Property
+                            </h2>
+                            <p className="text-sm text-slate-600 mt-4 leading-relaxed">
+                                All trademarks, logos, brand names, visual interfaces, graphics, code, and editorial content on Zyvento are the exclusive property of Zyvento Technologies or its authorized licensors. Any unauthorized copying, distribution, scraping, or commercial exploitation is strictly prohibited without prior written consent.
+                            </p>
                         </div>
 
-                        {/* Section 5 */}
-                        <div id="returns" className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                                    <FiRefreshCw className="text-xl" />
-                                </div>
-                                <h2 className="text-2xl font-bold text-gray-900">5. Returns & Refunds</h2>
-                            </div>
-                            <div className="space-y-4 text-gray-600 leading-relaxed">
-                                <p>Our return policy includes:</p>
-                                <ul className="list-disc pl-6 space-y-2">
-                                    <li>7-day easy return policy</li>
-                                    <li>Refund processed within 3-5 business days</li>
-                                    <li>Items must be unused and in original packaging</li>
-                                    <li>Return shipping fees may apply</li>
-                                    <li>Contact support for return initiation</li>
-                                </ul>
-                                <p className="mt-4">
-                                    <span className="font-semibold">Note:</span> Some items may have specific return conditions. Please check the product page for details.
-                                </p>
-                            </div>
+                        {/* 7. Limitation of Liability */}
+                        <div id="liability" className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm scroll-mt-24">
+                            <h2 className="text-2xl font-extrabold text-slate-900 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg"><FiAlertTriangle /></div>
+                                7. Limitation of Liability
+                            </h2>
+                            <p className="text-sm text-slate-600 mt-4 leading-relaxed">
+                                Under no circumstances shall Zyvento, its founders, affiliates, or employees be liable for any indirect, consequential, punitive, or incidental damages arising out of your inability to access or utilize the services or goods purchased on the platform.
+                            </p>
                         </div>
 
-                        {/* Section 6 */}
-                        <div id="intellectual" className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                                    <FiAlertCircle className="text-xl" />
-                                </div>
-                                <h2 className="text-2xl font-bold text-gray-900">6. Intellectual Property</h2>
+                        {/* 8. Contact */}
+                        <div id="contact" className="bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-950 rounded-3xl p-8 text-white border border-indigo-900/40 scroll-mt-24">
+                            <h2 className="text-2xl font-extrabold text-white flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-white/10 text-indigo-300 flex items-center justify-center text-lg backdrop-blur-md"><FiMail /></div>
+                                Contact Legal Counsel
+                            </h2>
+                            <p className="text-sm text-slate-300 mt-4 leading-relaxed">
+                                For inquiries concerning these terms, notices of intellectual property infringement, or formal legal disputes:
+                            </p>
+                            <div className="mt-5 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md text-sm text-slate-200">
+                                <strong>Legal Department:</strong> legal@zyvento.com
                             </div>
-                            <div className="space-y-4 text-gray-600 leading-relaxed">
-                                <p>
-                                    All content on our platform, including text, images, logos, and software, is the property of E-Commerce and is protected by copyright laws.
-                                </p>
-                                <p>
-                                    You may not:
-                                </p>
-                                <ul className="list-disc pl-6 space-y-2">
-                                    <li>Reproduce or distribute our content without permission</li>
-                                    <li>Use our trademarks or branding without authorization</li>
-                                    <li>Reverse engineer or modify our software</li>
-                                    <li>Use our content for commercial purposes without consent</li>
-                                </ul>
-                            </div>
+                            <Link
+                                to="/contact"
+                                className="inline-flex items-center gap-2 mt-5 px-5 py-3 bg-white text-indigo-900 font-bold text-xs rounded-xl shadow-lg hover:bg-slate-100 transition-all"
+                            >
+                                Contact Customer Support <FiChevronRight />
+                            </Link>
                         </div>
-
-                        {/* Section 7 */}
-                        <div id="liability" className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                                    <FiShield className="text-xl" />
-                                </div>
-                                <h2 className="text-2xl font-bold text-gray-900">7. Limitation of Liability</h2>
-                            </div>
-                            <div className="space-y-4 text-gray-600 leading-relaxed">
-                                <p>
-                                    E-Commerce is not liable for:
-                                </p>
-                                <ul className="list-disc pl-6 space-y-2">
-                                    <li>Indirect or consequential damages</li>
-                                    <li>Loss of profits or data</li>
-                                    <li>Delays or interruptions in service</li>
-                                    <li>Third-party claims or actions</li>
-                                </ul>
-                                <p>
-                                    Our maximum liability is limited to the total amount paid for your purchase.
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Section 8 */}
-                        <div id="contact" className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                                    <FiMail className="text-xl" />
-                                </div>
-                                <h2 className="text-2xl font-bold text-gray-900">8. Contact Us</h2>
-                            </div>
-                            <div className="space-y-3 text-gray-600 leading-relaxed">
-                                <p>If you have any questions about these Terms & Conditions, please contact us:</p>
-                                <ul className="space-y-2">
-                                    <li><strong>Email:</strong> legal@ecommerce.com</li>
-                                    <li><strong>Phone:</strong> +1 234 567 8900</li>
-                                    <li><strong>Address:</strong> 123 E-Commerce St, Digital City, 12345</li>
-                                </ul>
-                            </div>
-                        </div>
-
-                    </div>
+                    </main>
                 </div>
             </section>
         </div>

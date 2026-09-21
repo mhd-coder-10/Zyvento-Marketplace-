@@ -90,10 +90,10 @@ const reviewController = {
         const { sellerId } = req.params;
         const { page, limit, rating, review_status, sort_by, sort_order } = req.query;
 
-        // Check access for seller_employee
-        if (req.userType === 'seller_employee') {
+        // Check access for seller
+        if (req.userType === 'seller') {
             const userSellerId = req.sellerId?.toString();
-            if (userSellerId !== sellerId) {
+            if (userSellerId && userSellerId !== sellerId) {
                 throw ApiError.forbidden('You can only view your own seller reviews');
             }
         }

@@ -171,7 +171,7 @@ router.delete(
 router.get(
     '/seller/returns',
     auth,
-    authorize('seller', 'seller_employee'),
+    authorize('seller'),
     validate(orderValidation.getReturns),
     returnController.getSellerReturns
 );

@@ -10,8 +10,7 @@ const getDashboardPath = (userType) => {
         case 'sub_admin':
             return '/admin/dashboard';
         case 'seller':
-        case 'seller_employee':
-            return '/';
+            return '/seller/dashboard';
         case 'customer':
         default:
             return '/';
@@ -34,8 +33,12 @@ const RoleBasedRoute = ({
         return <Navigate to="/login" replace />;
     }
 
-    /* user_type priority — ore reliable for RoleBasedRoute  */
     const userType = user?.user_type || user?.role?.role_type || 'customer';
+
+    // Super Admin bypass: full platform access
+    if (userType === 'super_admin') {
+        return children;
+    }
 
     /* Allowed role check */
     if (allowedRoles.length > 0 && !allowedRoles.includes(userType)) {

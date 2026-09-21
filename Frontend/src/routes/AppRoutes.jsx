@@ -57,6 +57,17 @@ import OrderTracking from '../pages/public/product/OrderTracking';
 import BecomeSeller from "../pages/public/seller/BecomeSeller"
 import SellerStatus from "../pages/public/seller/SellerStatus"
 
+// ====== Seller Portal ======
+import SellerLayout from '../layouts/SellerLayout';
+import SellerDashboard from '../pages/seller/dashboard/SellerDashboard';
+import SellerProducts from '../pages/seller/products/SellerProducts';
+import SellerCreateProduct from '../pages/seller/products/SellerCreateProduct';
+import SellerEditProduct from '../pages/seller/products/SellerEditProduct';
+import SellerOrders from '../pages/seller/orders/SellerOrders';
+import SellerOrderDetails from '../pages/seller/orders/SellerOrderDetails';
+import SellerEarnings from '../pages/seller/earnings/SellerEarnings';
+import SellerSettings from '../pages/seller/settings/SellerSettings';
+
 
 // ====== Admin + Sub-Admin  ======
 
@@ -314,6 +325,28 @@ const AppRoutes = () => {
 
                 {/* Settings */}
                 <Route path="settings" element={<AdminSettings />} />
+            </Route>
+
+            {/* ===== SELLER PORTAL ROUTES (Seller Only) ===== */}
+            <Route
+                path="/seller"
+                element={
+                    <PrivateRoute>
+                        <RoleBasedRoute allowedRoles={['seller']}>
+                            <SellerLayout />
+                        </RoleBasedRoute>
+                    </PrivateRoute>
+                }
+            >
+                <Route index element={<Navigate to="/seller/dashboard" replace />} />
+                <Route path="dashboard" element={<SellerDashboard />} />
+                <Route path="products" element={<SellerProducts />} />
+                <Route path="products/create" element={<SellerCreateProduct />} />
+                <Route path="products/edit/:id" element={<SellerEditProduct />} />
+                <Route path="orders" element={<SellerOrders />} />
+                <Route path="orders/:orderId" element={<SellerOrderDetails />} />
+                <Route path="earnings" element={<SellerEarnings />} />
+                <Route path="settings" element={<SellerSettings />} />
             </Route>
         </Routes>
     );

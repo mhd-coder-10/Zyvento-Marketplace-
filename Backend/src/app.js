@@ -51,7 +51,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.get('/api-docs.json', (req, res) => {
     res.setHeader('Content-Type', 'application/json');
-    res.send(specs);
+    res.send(swaggerDocs);
 });
 
 // HEALTH CHECK 
