@@ -28,6 +28,7 @@ const Products = () => {
         setIsRefreshing(true);
         try {
             const params = {
+                admin: true,
                 page: pagination.page,
                 limit: pagination.limit,
                 search: searchQuery,

@@ -5,7 +5,28 @@ const authController = require('../controllers/auth.controller');
 const auth = require('../middleware/auth.middleware');
 const { validate } = require('../middleware/validation.middleware');
 const { strictRateLimiter, otpRateLimiter } = require('../middleware/rateLimiter.middleware');
+const { uploadFields, handleUploadError } = require('../middleware/upload.middleware');
 const authValidation = require('../validations/auth.validation');
+
+// Multi-field support for profile image uploads
+const profileImageUpload = [
+    uploadFields([
+        { name: 'profileImage', maxCount: 1 },
+        { name: 'profile_image', maxCount: 1 },
+        { name: 'image', maxCount: 1 },
+        { name: 'file', maxCount: 1 }
+    ]),
+    handleUploadError(),
+    (req, res, next) => {
+        if (req.files) {
+            req.file = req.files['profileImage']?.[0] ||
+                       req.files['profile_image']?.[0] ||
+                       req.files['image']?.[0] ||
+                       req.files['file']?.[0];
+        }
+        next();
+    }
+];
 
 /**
  * @swagger
@@ -603,6 +624,7 @@ router.put(
 router.post(
     '/profile-image',
     auth,
+    profileImageUpload,
     authController.uploadProfileImage
 );
 

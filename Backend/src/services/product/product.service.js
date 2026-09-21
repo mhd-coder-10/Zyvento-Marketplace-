@@ -36,33 +36,41 @@ class ProductService {
             approval_status: 'approved'
         };
 
-        if (search) {
-            query.$text = { $search: search };
+        if (search && typeof search === 'string' && search.trim()) {
+            const trimmed = search.trim();
+            query.$or = [
+                { product_name: { $regex: trimmed, $options: 'i' } },
+                { description: { $regex: trimmed, $options: 'i' } },
+                { brand: { $regex: trimmed, $options: 'i' } },
+                { tags: { $in: [new RegExp(trimmed, 'i')] } }
+            ];
         }
 
-        if (categoryId) {
+        if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
             query.category_id = categoryId;
         }
 
-        if (subCategoryId) {
+        if (subCategoryId && mongoose.Types.ObjectId.isValid(subCategoryId)) {
             query.sub_category_id = subCategoryId;
         }
 
-        if (minPrice !== null || maxPrice !== null) {
+        const hasMin = minPrice !== undefined && minPrice !== null && minPrice !== '' && !isNaN(minPrice);
+        const hasMax = maxPrice !== undefined && maxPrice !== null && maxPrice !== '' && !isNaN(maxPrice);
+        if (hasMin || hasMax) {
             query.final_price = {};
-            if (minPrice !== null) {
+            if (hasMin) {
                 query.final_price.$gte = parseFloat(minPrice);
             }
-            if (maxPrice !== null) {
+            if (hasMax) {
                 query.final_price.$lte = parseFloat(maxPrice);
             }
         }
 
-        if (brand) {
-            query.brand = { $regex: brand, $options: 'i' };
+        if (brand && typeof brand === 'string' && brand.trim()) {
+            query.brand = { $regex: brand.trim(), $options: 'i' };
         }
 
-        if (rating) {
+        if (rating && !isNaN(rating)) {
             query.rating = { $gte: parseFloat(rating) };
         }
 

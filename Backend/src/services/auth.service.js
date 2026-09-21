@@ -4,6 +4,8 @@
 
 
 // Handles all authentication business logic
+const fs = require('fs');
+const path = require('path');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const User = require('../models/user.model');
@@ -427,28 +429,89 @@ class AuthService {
             throw ApiError.notFound('User not found');
         }
 
+        // Clean up previous image if exists
         if (user.profile_image_public_id) {
-            await cloudinaryHelper.deleteFile(user.profile_image_public_id);
+            try {
+                if (user.profile_image_public_id.startsWith('local_')) {
+                    const oldFileName = user.profile_image_public_id.replace('local_', '');
+                    const oldPath = path.join(__dirname, '../../uploads/profiles', oldFileName);
+                    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+                } else {
+                    await cloudinaryHelper.deleteFile(user.profile_image_public_id);
+                }
+            } catch (delErr) {
+                logger.warn('Failed to delete previous profile image:', delErr?.message);
+            }
         }
 
-        const result = await cloudinaryHelper.uploadFile(file.path, {
-            folder: `users/${userId}`,
-            width: 500,
-            height: 500,
-            crop: 'fill',
-            quality: 'auto',
-            format: 'webp'
-        });
+        // 1. Ensure persistent profiles directory exists
+        const profilesDir = path.join(__dirname, '../../uploads/profiles');
+        if (!fs.existsSync(profilesDir)) {
+            fs.mkdirSync(profilesDir, { recursive: true });
+        }
 
-        user.profile_image = result.url;
-        user.profile_image_public_id = result.public_id;
+        const ext = path.extname(file.originalname || file.path || '') || '.jpg';
+        const fileName = `${userId}-${Date.now()}${ext}`;
+        const destPath = path.join(profilesDir, fileName);
+
+        // 2. Safely copy to permanent local storage FIRST
+        if (file.path && fs.existsSync(file.path)) {
+            fs.copyFileSync(file.path, destPath);
+        } else if (file.buffer) {
+            fs.writeFileSync(destPath, file.buffer);
+        }
+
+        let imageUrl = `/uploads/profiles/${fileName}`;
+        let publicId = `local_${fileName}`;
+
+        // 3. Optional Cloudinary upload (only if valid numeric API key is configured)
+        const hasValidCloudinary = process.env.CLOUDINARY_CLOUD_NAME &&
+            process.env.CLOUDINARY_API_KEY &&
+            process.env.CLOUDINARY_API_SECRET &&
+            /^\d+$/.test(process.env.CLOUDINARY_API_KEY);
+
+        if (hasValidCloudinary && file.path && fs.existsSync(file.path)) {
+            try {
+                const result = await cloudinaryHelper.uploadFile(file.path, {
+                    folder: `users/${userId}`,
+                    width: 500,
+                    height: 500,
+                    crop: 'fill',
+                    quality: 'auto',
+                    format: 'webp'
+                });
+                if (result?.url) {
+                    imageUrl = result.url;
+                    publicId = result.public_id;
+                    // Clean up local copy since Cloudinary succeeded
+                    try { if (fs.existsSync(destPath)) fs.unlinkSync(destPath); } catch (_) {}
+                }
+            } catch (cloudErr) {
+                logger.warn(`Cloudinary upload failed (${cloudErr?.message}), retaining local storage /uploads/profiles/${fileName}`);
+            }
+        } else {
+            // Clean up original temp file if still present
+            try { if (file.path && fs.existsSync(file.path)) fs.unlinkSync(file.path); } catch (_) {}
+        }
+
+        user.profile_image = imageUrl;
+        user.profile_image_public_id = publicId;
         await user.save();
 
-        logger.info(`Profile image uploaded for ${user.email}`, { userId: user._id });
+        logger.info(`Profile image uploaded for ${user.email}`, { userId: user._id, url: imageUrl });
 
         return {
-            profile_image: result.url,
-            public_id: result.public_id
+            profile_image: imageUrl,
+            profileImage: imageUrl,
+            public_id: publicId,
+            user: {
+                _id: user._id,
+                first_name: user.first_name,
+                last_name: user.last_name,
+                email: user.email,
+                profile_image: imageUrl,
+                user_type: user.user_type,
+            }
         };
     }
 
@@ -459,11 +522,23 @@ class AuthService {
             throw ApiError.notFound('User not found');
         }
 
-        if (!user.profile_image_public_id) {
+        if (!user.profile_image_public_id && !user.profile_image) {
             throw ApiError.badRequest('No profile image to delete');
         }
 
-        await cloudinaryHelper.deleteFile(user.profile_image_public_id);
+        if (user.profile_image_public_id) {
+            try {
+                if (user.profile_image_public_id.startsWith('local_')) {
+                    const oldFileName = user.profile_image_public_id.replace('local_', '');
+                    const oldPath = path.join(__dirname, '../../uploads/profiles', oldFileName);
+                    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+                } else {
+                    await cloudinaryHelper.deleteFile(user.profile_image_public_id);
+                }
+            } catch (err) {
+                logger.warn('Failed to delete profile image file:', err?.message);
+            }
+        }
 
         user.profile_image = null;
         user.profile_image_public_id = null;

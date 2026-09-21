@@ -5,14 +5,16 @@ import { BrowserRouter } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import store  from './store';
 import App from './App.jsx';
+import { SettingsProvider } from './context/SettingsContext';
 import './index.css';
 import 'react-toastify/dist/ReactToastify.css';
 
 createRoot(document.getElementById('root')).render(
   // <StrictMode>
     <Provider store={store}>
-      <BrowserRouter>
-        <App />
+      <SettingsProvider>
+        <BrowserRouter>
+          <App />
         <ToastContainer
           position="top-right"
           autoClose={3000}
@@ -26,6 +28,7 @@ createRoot(document.getElementById('root')).render(
           theme="light"
         />
       </BrowserRouter>
+      </SettingsProvider>
     </Provider>
   // </StrictMode>
 );

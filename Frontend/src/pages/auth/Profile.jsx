@@ -33,10 +33,12 @@ import {
     FiBriefcase,
     FiExternalLink,
     FiCheckCircle,
-    FiAlertCircle
+    FiAlertCircle,
+    FiLayers
 } from 'react-icons/fi';
 import ApiService from '../../api/ApiService';
-import { logoutUser } from '../../store/slices/authSlice';
+import { logoutUser, uploadProfileImage } from '../../store/slices/authSlice';
+import UserAvatar, { getFullImageUrl } from '../../components/common/UserAvatar';
 
 const Profile = () => {
     const dispatch = useDispatch();
@@ -48,8 +50,13 @@ const Profile = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [showChangePassword, setShowChangePassword] = useState(false);
     const [showResetPassword, setShowResetPassword] = useState(false);
-    const [activeTab, setActiveTab] = useState('overview'); // overview, orders, addresses, security
     
+    // Dynamic role calculation
+    const userRole = user?.user_type || user?.role || 'customer';
+    const isAdmin = ['super_admin', 'sub_admin', 'admin'].includes(userRole);
+    const isSeller = ['seller', 'seller_employee'].includes(userRole);
+    const isCustomer = !isAdmin && !isSeller;
+
     const [profileData, setProfileData] = useState({
         first_name: '',
         last_name: '',
@@ -60,6 +67,8 @@ const Profile = () => {
         role: 'customer'
     });
     
+    const [sellerInfo, setSellerInfo] = useState(null);
+
     const [passwordData, setPasswordData] = useState({
         current_password: '',
         new_password: '',
@@ -74,6 +83,7 @@ const Profile = () => {
         wishlist: 0,
         reviews: 0,
         addresses: 0,
+        revenue: 0,
     });
     const [recentOrders, setRecentOrders] = useState([]);
     const [addresses, setAddresses] = useState([]);
@@ -88,38 +98,64 @@ const Profile = () => {
                 mobile_number: user.mobile_number || '',
                 profile_image: user.profile_image || '',
                 created_at: user.created_at || '',
-                role: user.role || 'customer'
+                role: user.user_type || user.role || 'customer'
             });
             setResetEmail(user.email || '');
         }
         loadDashboardData();
     }, [user]);
 
-    // Load dashboard stats and recent data
+    // Load dashboard stats and recent data based on role
     const loadDashboardData = async () => {
         try {
-            // Orders
-            const ordersRes = await ApiService.getCustomerOrders({ page: 1, limit: 5 });
-            if (ordersRes.data.success) {
-                setStats(prev => ({ ...prev, orders: ordersRes.data.data.total || 0 }));
-                setRecentOrders(ordersRes.data.data.orders?.slice(0, 3) || []);
-            }
+            const role = user?.user_type || user?.role || 'customer';
+            const userIsSeller = ['seller', 'seller_employee'].includes(role);
+            const userIsAdmin = ['super_admin', 'sub_admin', 'admin'].includes(role);
 
-            // Wishlist
-            const wishlistRes = await ApiService.getWishlist({ page: 1, limit: 1 });
-            if (wishlistRes.data.success) {
-                setStats(prev => ({ ...prev, wishlist: wishlistRes.data.data.total || 0 }));
-            }
+            if (userIsSeller) {
+                // Load seller profile & store info
+                try {
+                    const sellerRes = await ApiService.getSellerProfile();
+                    if (sellerRes?.data?.success) {
+                        const s = sellerRes.data.data;
+                        setSellerInfo(s);
+                        setStats(prev => ({
+                            ...prev,
+                            orders: s.total_orders || 0,
+                            revenue: s.total_revenue || 0,
+                        }));
+                    }
+                } catch (err) {
+                    console.warn('Could not load seller profile:', err?.message);
+                }
+            } else if (!userIsAdmin) {
+                // Load customer data
+                try {
+                    const ordersRes = await ApiService.getCustomerOrders({ page: 1, limit: 5 });
+                    if (ordersRes?.data?.success) {
+                        setStats(prev => ({ ...prev, orders: ordersRes.data.data?.total || 0 }));
+                        setRecentOrders(ordersRes.data.data?.orders?.slice(0, 3) || []);
+                    }
+                } catch (_) {}
 
-            // Addresses
-            const addrRes = await ApiService.getAddresses();
-            if (addrRes.data.success) {
-                const addrs = addrRes.data.data || [];
-                setAddresses(addrs);
-                setStats(prev => ({ ...prev, addresses: addrs.length }));
+                try {
+                    const wishlistRes = await ApiService.getWishlist({ page: 1, limit: 1 });
+                    if (wishlistRes?.data?.success) {
+                        setStats(prev => ({ ...prev, wishlist: wishlistRes.data.data?.total || 0 }));
+                    }
+                } catch (_) {}
+
+                try {
+                    const addrRes = await ApiService.getAddresses();
+                    if (addrRes?.data?.success) {
+                        const addrs = addrRes.data.data || [];
+                        setAddresses(addrs);
+                        setStats(prev => ({ ...prev, addresses: addrs.length }));
+                    }
+                } catch (_) {}
             }
         } catch (error) {
-            console.error('Failed to load profile dashboard data:', error);
+            console.error('Failed to load dashboard data:', error);
         }
     };
 
@@ -127,14 +163,14 @@ const Profile = () => {
     const handleUpdateProfile = async (e) => {
         e.preventDefault();
         setLoading(true);
-
         try {
-            const response = await ApiService.updateProfile({
+            const payload = {
                 first_name: profileData.first_name,
                 last_name: profileData.last_name,
                 mobile_number: profileData.mobile_number,
-            });
+            };
 
+            const response = await ApiService.updateProfile(payload);
             if (response.data.success) {
                 toast.success('Profile details updated successfully!');
                 setIsEditing(false);
@@ -148,7 +184,7 @@ const Profile = () => {
         }
     };
 
-    // Handle image upload
+    // Handle image upload with multiple field support and instant preview
     const handleImageUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -158,28 +194,38 @@ const Profile = () => {
             return;
         }
 
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error('Image size must be less than 5MB');
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('Image size must be less than 10MB');
             return;
         }
 
         const formData = new FormData();
         formData.append('profileImage', file);
+        formData.append('profile_image', file);
+        formData.append('image', file);
+        formData.append('file', file);
 
         setLoading(true);
         try {
-            const response = await ApiService.uploadProfileImage(formData);
-            if (response.data.success) {
-                toast.success('Profile avatar updated!');
-                const newImg = response.data.data?.profileImage || URL.createObjectURL(file);
-                setImagePreview(newImg);
-                const updatedUser = { ...user, profile_image: newImg };
-                localStorage.setItem('user', JSON.stringify(updatedUser));
+            const result = await dispatch(uploadProfileImage(formData));
+            if (result.meta?.requestStatus === 'fulfilled') {
+                const newImg = result.payload?.profile_image || result.payload?.profileImage || result.payload?.url || result.payload?.user?.profile_image;
+                if (newImg) {
+                    setImagePreview(newImg);
+                    setProfileData(prev => ({ ...prev, profile_image: newImg }));
+                    if (user) {
+                        const updatedUser = { ...user, profile_image: newImg };
+                        localStorage.setItem('user', JSON.stringify(updatedUser));
+                    }
+                }
+            } else {
+                toast.error(result.payload || 'Failed to upload image');
             }
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to upload image');
+            toast.error(error.message || 'Failed to upload image');
         } finally {
             setLoading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
 
@@ -200,9 +246,8 @@ const Profile = () => {
         setLoading(true);
         try {
             const response = await ApiService.changePassword({
-                current_password: passwordData.current_password,
-                new_password: passwordData.new_password,
-                confirm_password: passwordData.confirm_password,
+                currentPassword: passwordData.current_password,
+                newPassword: passwordData.new_password,
             });
 
             if (response.data.success) {
@@ -232,24 +277,20 @@ const Profile = () => {
         try {
             const response = await ApiService.forgotPassword({ email: resetEmail });
             if (response.data.success) {
-                toast.success('Password reset link sent to your registered email!');
+                toast.success('Password reset email sent! Check your inbox.');
                 setShowResetPassword(false);
-                setShowChangePassword(false);
             }
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to send reset link');
+            toast.error(error.response?.data?.message || 'Failed to send reset email');
         } finally {
             setResetLoading(false);
         }
     };
 
-    const handleLogout = async () => {
-        try {
-            await dispatch(logoutUser());
-            navigate('/login', { replace: true });
-        } catch (error) {
-            navigate('/login', { replace: true });
-        }
+    const handleLogout = () => {
+        dispatch(logoutUser());
+        toast.info('Logged out successfully');
+        navigate('/login');
     };
 
     const formatDate = (date) => {
@@ -260,10 +301,6 @@ const Profile = () => {
             year: 'numeric',
         });
     };
-
-    const userRole = user?.role || 'customer';
-    const isAdmin = userRole === 'super_admin' || userRole === 'sub_admin' || userRole === 'admin';
-    const isSeller = userRole === 'seller';
 
     return (
         <div className="min-h-screen bg-slate-50/50 py-8 px-4 sm:px-6 lg:px-8">
@@ -376,27 +413,18 @@ const Profile = () => {
                 <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
                     <div className="p-6 sm:p-8">
                         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-                            {/* Avatar */}
-                            <div className="relative group">
-                                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 p-1 shadow-lg shadow-blue-500/20 flex items-center justify-center">
-                                    <div className="w-full h-full rounded-[14px] bg-white overflow-hidden flex items-center justify-center">
-                                        {imagePreview || profileData.profile_image ? (
-                                            <img
-                                                src={imagePreview || profileData.profile_image}
-                                                alt="User Profile"
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-3xl">
-                                                {profileData.first_name ? profileData.first_name.charAt(0).toUpperCase() : 'U'}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                            {/* Avatar with Upload button */}
+                            <div className="relative group shrink-0">
+                                <UserAvatar
+                                    src={imagePreview || profileData.profile_image}
+                                    name={`${profileData.first_name || ''} ${profileData.last_name || ''}`}
+                                    shape="rounded-2xl"
+                                    className="w-24 h-24 sm:w-28 sm:h-28 text-3xl sm:text-4xl font-black shadow-lg shadow-blue-500/20 ring-4 ring-sky-100"
+                                />
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="absolute -bottom-2 -right-2 p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md shadow-blue-600/30 transition-all hover:scale-110 active:scale-95"
-                                    title="Change Avatar"
+                                    className="absolute -bottom-2 -right-2 p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md shadow-blue-600/30 transition-all hover:scale-110 active:scale-95 z-10"
+                                    title="Change Profile Photo"
                                     disabled={loading}
                                 >
                                     <FiCamera className="w-4 h-4" />
@@ -414,18 +442,28 @@ const Profile = () => {
                             <div className="flex-1 text-center sm:text-left space-y-1.5">
                                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
                                     <h1 className="text-2xl sm:text-3xl font-black text-slate-900">
-                                        {profileData.first_name || 'Customer'} {profileData.last_name || ''}
+                                        {profileData.first_name || 'User'} {profileData.last_name || ''}
                                     </h1>
-                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                                    <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
                                         isAdmin
                                             ? 'bg-purple-100 text-purple-700 border border-purple-200'
                                             : isSeller
                                             ? 'bg-sky-100 text-sky-700 border border-sky-200'
                                             : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                                     }`}>
-                                        {userRole.replace('_', ' ')}
+                                        {isSeller ? (userRole === 'seller_employee' ? 'Staff Member' : 'Store Owner') : userRole.replace(/_/g, ' ')}
                                     </span>
                                 </div>
+
+                                {isSeller && sellerInfo?.business_name && (
+                                    <p className="text-sm font-bold text-blue-600 flex items-center justify-center sm:justify-start gap-1.5">
+                                        <FiShoppingBag className="w-4 h-4" />
+                                        <span>Store: {sellerInfo.business_name}</span>
+                                        {sellerInfo.business_type && (
+                                            <span className="text-xs font-semibold text-slate-400 capitalize">({sellerInfo.business_type})</span>
+                                        )}
+                                    </p>
+                                )}
 
                                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 text-sm text-slate-500">
                                     <span className="flex items-center gap-1.5">
@@ -445,14 +483,14 @@ const Profile = () => {
                             {/* Edit toggle button */}
                             <button
                                 onClick={() => setIsEditing(!isEditing)}
-                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 hover:border-blue-300 bg-white hover:bg-blue-50/50 text-slate-700 hover:text-blue-600 font-semibold text-xs transition-all shadow-sm"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl border border-slate-200 hover:border-blue-400 text-sm font-bold text-slate-700 hover:text-blue-600 hover:bg-blue-50/50 transition-all shadow-sm self-center sm:self-start"
                             >
-                                {isEditing ? <FiX className="w-4 h-4" /> : <FiEdit2 className="w-4 h-4" />}
+                                <FiEdit2 className="w-4 h-4 text-blue-600" />
                                 {isEditing ? 'Cancel Edit' : 'Edit Profile'}
                             </button>
                         </div>
 
-                        {/* Edit Form Drawer */}
+                        {/* Inline Edit Form */}
                         {isEditing && (
                             <form onSubmit={handleUpdateProfile} className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
@@ -511,148 +549,434 @@ const Profile = () => {
                             </form>
                         )}
 
-                        {/* Quick Stats Grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-8 pt-6 border-t border-slate-100">
-                            <Link
-                                to="/orders"
-                                className="group p-4 rounded-2xl bg-blue-50/50 hover:bg-blue-100/60 border border-blue-100/80 transition-all text-center"
-                            >
-                                <p className="text-2xl sm:text-3xl font-black text-blue-600 group-hover:scale-105 transition-transform">
-                                    {stats.orders}
-                                </p>
-                                <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">My Orders</p>
-                            </Link>
+                        {/* Role-Specific Quick Stats Grid */}
+                        {isSeller ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-8 pt-6 border-t border-slate-100">
+                                <Link
+                                    to="/seller/orders"
+                                    className="group p-4 rounded-2xl bg-blue-50/50 hover:bg-blue-100/60 border border-blue-100/80 transition-all text-center"
+                                >
+                                    <p className="text-2xl sm:text-3xl font-black text-blue-600 group-hover:scale-105 transition-transform">
+                                        {stats.orders}
+                                    </p>
+                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Store Orders</p>
+                                </Link>
 
-                            <Link
-                                to="/wishlist"
-                                className="group p-4 rounded-2xl bg-rose-50/50 hover:bg-rose-100/60 border border-rose-100/80 transition-all text-center"
-                            >
-                                <p className="text-2xl sm:text-3xl font-black text-rose-600 group-hover:scale-105 transition-transform">
-                                    {stats.wishlist}
-                                </p>
-                                <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Wishlist</p>
-                            </Link>
+                                <Link
+                                    to="/seller/products"
+                                    className="group p-4 rounded-2xl bg-sky-50/50 hover:bg-sky-100/60 border border-sky-100/80 transition-all text-center"
+                                >
+                                    <p className="text-2xl sm:text-3xl font-black text-sky-600 group-hover:scale-105 transition-transform">
+                                        <FiPackage className="inline w-7 h-7" />
+                                    </p>
+                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">My Products</p>
+                                </Link>
 
-                            <Link
-                                to="/addresses"
-                                className="group p-4 rounded-2xl bg-emerald-50/50 hover:bg-emerald-100/60 border border-emerald-100/80 transition-all text-center"
-                            >
-                                <p className="text-2xl sm:text-3xl font-black text-emerald-600 group-hover:scale-105 transition-transform">
-                                    {stats.addresses}
-                                </p>
-                                <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Saved Addrs</p>
-                            </Link>
+                                <Link
+                                    to="/seller/earnings"
+                                    className="group p-4 rounded-2xl bg-emerald-50/50 hover:bg-emerald-100/60 border border-emerald-100/80 transition-all text-center"
+                                >
+                                    <p className="text-2xl sm:text-3xl font-black text-emerald-600 group-hover:scale-105 transition-transform">
+                                        {stats.revenue ? `₹${stats.revenue.toLocaleString()}` : <FiCreditCard className="inline w-7 h-7" />}
+                                    </p>
+                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Earnings</p>
+                                </Link>
 
-                            <Link
-                                to="/cart"
-                                className="group p-4 rounded-2xl bg-amber-50/50 hover:bg-amber-100/60 border border-amber-100/80 transition-all text-center"
-                            >
-                                <p className="text-2xl sm:text-3xl font-black text-amber-600 group-hover:scale-105 transition-transform">
-                                    <FiShoppingBag className="inline w-6 h-6 -mt-1" />
-                                </p>
-                                <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Active Cart</p>
-                            </Link>
-                        </div>
+                                <Link
+                                    to="/seller/settings"
+                                    className="group p-4 rounded-2xl bg-purple-50/50 hover:bg-purple-100/60 border border-purple-100/80 transition-all text-center"
+                                >
+                                    <p className="text-2xl sm:text-3xl font-black text-purple-600 group-hover:scale-105 transition-transform">
+                                        <FiSettings className="inline w-7 h-7" />
+                                    </p>
+                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Store Settings</p>
+                                </Link>
+                            </div>
+                        ) : isAdmin ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-8 pt-6 border-t border-slate-100">
+                                <Link
+                                    to="/admin/users"
+                                    className="group p-4 rounded-2xl bg-blue-50/50 hover:bg-blue-100/60 border border-blue-100/80 transition-all text-center"
+                                >
+                                    <p className="text-2xl sm:text-3xl font-black text-blue-600 group-hover:scale-105 transition-transform">
+                                        <FiUser className="inline w-7 h-7" />
+                                    </p>
+                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">All Users</p>
+                                </Link>
+
+                                <Link
+                                    to="/admin/sellers"
+                                    className="group p-4 rounded-2xl bg-sky-50/50 hover:bg-sky-100/60 border border-sky-100/80 transition-all text-center"
+                                >
+                                    <p className="text-2xl sm:text-3xl font-black text-sky-600 group-hover:scale-105 transition-transform">
+                                        <FiBriefcase className="inline w-7 h-7" />
+                                    </p>
+                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Sellers</p>
+                                </Link>
+
+                                <Link
+                                    to="/admin/products/approve"
+                                    className="group p-4 rounded-2xl bg-emerald-50/50 hover:bg-emerald-100/60 border border-emerald-100/80 transition-all text-center"
+                                >
+                                    <p className="text-2xl sm:text-3xl font-black text-emerald-600 group-hover:scale-105 transition-transform">
+                                        <FiCheckCircle className="inline w-7 h-7" />
+                                    </p>
+                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Approvals</p>
+                                </Link>
+
+                                <Link
+                                    to="/admin/roles"
+                                    className="group p-4 rounded-2xl bg-purple-50/50 hover:bg-purple-100/60 border border-purple-100/80 transition-all text-center"
+                                >
+                                    <p className="text-2xl sm:text-3xl font-black text-purple-600 group-hover:scale-105 transition-transform">
+                                        <FiShield className="inline w-7 h-7" />
+                                    </p>
+                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Roles & RBAC</p>
+                                </Link>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-8 pt-6 border-t border-slate-100">
+                                <Link
+                                    to="/orders"
+                                    className="group p-4 rounded-2xl bg-blue-50/50 hover:bg-blue-100/60 border border-blue-100/80 transition-all text-center"
+                                >
+                                    <p className="text-2xl sm:text-3xl font-black text-blue-600 group-hover:scale-105 transition-transform">
+                                        {stats.orders}
+                                    </p>
+                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">My Orders</p>
+                                </Link>
+
+                                <Link
+                                    to="/wishlist"
+                                    className="group p-4 rounded-2xl bg-rose-50/50 hover:bg-rose-100/60 border border-rose-100/80 transition-all text-center"
+                                >
+                                    <p className="text-2xl sm:text-3xl font-black text-rose-600 group-hover:scale-105 transition-transform">
+                                        {stats.wishlist}
+                                    </p>
+                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Wishlist</p>
+                                </Link>
+
+                                <Link
+                                    to="/addresses"
+                                    className="group p-4 rounded-2xl bg-emerald-50/50 hover:bg-emerald-100/60 border border-emerald-100/80 transition-all text-center"
+                                >
+                                    <p className="text-2xl sm:text-3xl font-black text-emerald-600 group-hover:scale-105 transition-transform">
+                                        {stats.addresses}
+                                    </p>
+                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Saved Addrs</p>
+                                </Link>
+
+                                <Link
+                                    to="/cart"
+                                    className="group p-4 rounded-2xl bg-amber-50/50 hover:bg-amber-100/60 border border-amber-100/80 transition-all text-center"
+                                >
+                                    <p className="text-2xl sm:text-3xl font-black text-amber-600 group-hover:scale-105 transition-transform">
+                                        <FiShoppingBag className="inline w-6 h-6 -mt-1" />
+                                    </p>
+                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wider">Active Cart</p>
+                                </Link>
+                            </div>
+                        )}
                     </div>
                 </div>
 
                 {/* ============ NAVIGATION TILES GRID ============ */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <Link
-                        to="/orders"
-                        className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                <FiPackage className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">Your Orders</h3>
-                                <p className="text-xs text-slate-500">Track packages & return items</p>
-                            </div>
-                        </div>
-                        <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
-                    </Link>
+                    {isSeller ? (
+                        <>
+                            <Link
+                                to="/seller/products"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-sky-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold text-lg group-hover:bg-sky-600 group-hover:text-white transition-colors">
+                                        <FiPackage className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-sky-600 transition-colors">Manage Products</h3>
+                                        <p className="text-xs text-slate-500">Catalog, stock, prices & variants</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-sky-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
 
-                    <Link
-                        to="/wishlist"
-                        className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-lg group-hover:bg-rose-600 group-hover:text-white transition-colors">
-                                <FiHeart className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-900 group-hover:text-rose-600 transition-colors">Your Wishlist</h3>
-                                <p className="text-xs text-slate-500">Saved favorite items & deals</p>
-                            </div>
-                        </div>
-                        <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-rose-600 group-hover:translate-x-1 transition-all" />
-                    </Link>
+                            <Link
+                                to="/seller/orders"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                        <FiShoppingBag className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">Store Orders</h3>
+                                        <p className="text-xs text-slate-500">Fulfill, ship & manage returns</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
 
-                    <Link
-                        to="/addresses"
-                        className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                                <FiMapPin className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">Saved Addresses</h3>
-                                <p className="text-xs text-slate-500">Delivery locations & pincodes</p>
-                            </div>
-                        </div>
-                        <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
-                    </Link>
+                            <Link
+                                to="/seller/earnings"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-emerald-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                        <FiCreditCard className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">Earnings & Reports</h3>
+                                        <p className="text-xs text-slate-500">Payouts, commission & invoices</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
 
-                    <Link
-                        to="/notifications"
-                        className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                <FiBell className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">Notifications</h3>
-                                <p className="text-xs text-slate-500">Price alerts & order updates</p>
-                            </div>
-                        </div>
-                        <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
-                    </Link>
+                            <Link
+                                to="/seller/settings"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-purple-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-lg group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                                        <FiSettings className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-purple-600 transition-colors">Store Settings</h3>
+                                        <p className="text-xs text-slate-500">Business profile, address & policies</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
 
-                    <Link
-                        to="/settings"
-                        className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-lg group-hover:bg-slate-900 group-hover:text-white transition-colors">
-                                <FiSettings className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">Account Settings</h3>
-                                <p className="text-xs text-slate-500">Preferences & privacy options</p>
-                            </div>
-                        </div>
-                        <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
-                    </Link>
+                            <Link
+                                to="/seller/dashboard"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                        <FiCompass className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">Merchant Dashboard</h3>
+                                        <p className="text-xs text-slate-500">Sales metrics, analytics & trends</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
 
-                    <Link
-                        to="/help-center"
-                        className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                                <FiHelpCircle className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-900 group-hover:text-amber-600 transition-colors">24x7 Help Center</h3>
-                                <p className="text-xs text-slate-500">Customer care & FAQs</p>
-                            </div>
-                        </div>
-                        <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-1 transition-all" />
-                    </Link>
+                            <Link
+                                to="/help-center"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-amber-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                                        <FiHelpCircle className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-amber-600 transition-colors">Seller Support</h3>
+                                        <p className="text-xs text-slate-500">Documentation & merchant assistance</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+                        </>
+                    ) : isAdmin ? (
+                        <>
+                            <Link
+                                to="/admin/users"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                        <FiUser className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">User Management</h3>
+                                        <p className="text-xs text-slate-500">All registered buyers & staff</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+
+                            <Link
+                                to="/admin/sellers"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-sky-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold text-lg group-hover:bg-sky-600 group-hover:text-white transition-colors">
+                                        <FiBriefcase className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-sky-600 transition-colors">Sellers & Stores</h3>
+                                        <p className="text-xs text-slate-500">Verify & manage merchant accounts</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-sky-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+
+                            <Link
+                                to="/admin/products/approve"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-emerald-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                        <FiCheckCircle className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">Product Approvals</h3>
+                                        <p className="text-xs text-slate-500">Moderate new product submissions</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+
+                            <Link
+                                to="/admin/roles"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-purple-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-lg group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                                        <FiShield className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-purple-600 transition-colors">Roles & Access</h3>
+                                        <p className="text-xs text-slate-500">Permissions & RBAC security</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+
+                            <Link
+                                to="/admin/dashboard"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                        <FiCompass className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">Platform Dashboard</h3>
+                                        <p className="text-xs text-slate-500">Live platform stats & revenue</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+
+                            <Link
+                                to="/help-center"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-amber-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                                        <FiHelpCircle className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-amber-600 transition-colors">Help Center</h3>
+                                        <p className="text-xs text-slate-500">Support tickets & system guides</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+                        </>
+                    ) : (
+                        <>
+                            <Link
+                                to="/orders"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                        <FiPackage className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">Your Orders</h3>
+                                        <p className="text-xs text-slate-500">Track packages & return items</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+
+                            <Link
+                                to="/wishlist"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-rose-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-lg group-hover:bg-rose-600 group-hover:text-white transition-colors">
+                                        <FiHeart className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-rose-600 transition-colors">Your Wishlist</h3>
+                                        <p className="text-xs text-slate-500">Saved favorite items & deals</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-rose-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+
+                            <Link
+                                to="/addresses"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-emerald-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                        <FiMapPin className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">Saved Addresses</h3>
+                                        <p className="text-xs text-slate-500">Delivery locations & pincodes</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+
+                            <Link
+                                to="/notifications"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                        <FiBell className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">Notifications</h3>
+                                        <p className="text-xs text-slate-500">Price alerts & order updates</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+
+                            <Link
+                                to="/settings"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-slate-400 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-lg group-hover:bg-slate-900 group-hover:text-white transition-colors">
+                                        <FiSettings className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">Account Settings</h3>
+                                        <p className="text-xs text-slate-500">Preferences & privacy options</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+
+                            <Link
+                                to="/help-center"
+                                className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-amber-300 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                                        <FiHelpCircle className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 group-hover:text-amber-600 transition-colors">24x7 Help Center</h3>
+                                        <p className="text-xs text-slate-500">Customer care & FAQs</p>
+                                    </div>
+                                </div>
+                                <FiChevronRight className="w-5 h-5 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-1 transition-all" />
+                            </Link>
+                        </>
+                    )}
                 </div>
 
                 {/* ============ SECURITY & PASSWORD ACCORDION ============ */}

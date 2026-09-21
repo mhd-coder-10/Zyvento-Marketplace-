@@ -77,12 +77,16 @@ const Products = () => {
             const response = await ApiService.getAllProducts(params);
 
             if (response.data.success) {
-                const list = response.data.data.products || response.data.data.items || response.data.data || [];
+                const list = Array.isArray(response.data.data)
+                    ? response.data.data
+                    : (response.data.data?.products || response.data.data?.items || []);
                 setProducts(list);
+                const total = response.data.pagination?.total ?? response.data.data?.total ?? list.length;
+                const pages = response.data.pagination?.totalPages ?? Math.ceil(total / pagination.limit) ?? 1;
                 setPagination(prev => ({
                     ...prev,
-                    total: response.data.data.total || response.data.data.count || list.length,
-                    pages: response.data.data.pages || Math.ceil((response.data.data.total || list.length) / prev.limit) || 1,
+                    total,
+                    pages,
                 }));
             }
         } catch (error) {
@@ -145,8 +149,8 @@ const Products = () => {
     );
 
     return (
-        <div className="min-h-screen bg-slate-50/50 py-8 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto space-y-6">
+        <div className="min-h-screen bg-slate-50/50 py-6 sm:py-8 px-4 sm:px-6 lg:px-8 xl:px-10">
+            <div className="w-full max-w-[1600px] mx-auto space-y-6">
 
                 {/* ============ BREADCRUMB & HEADER ============ */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

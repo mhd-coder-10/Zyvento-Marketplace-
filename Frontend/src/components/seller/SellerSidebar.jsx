@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
     FiHome, FiPackage, FiPlusCircle, FiShoppingBag, FiDollarSign,
     FiUsers, FiSettings, FiExternalLink, FiChevronLeft, FiChevronRight,
-    FiLayers, FiTruck, FiBox, FiHelpCircle, FiCheckCircle
+    FiLayers, FiTruck, FiBox, FiHelpCircle, FiCheckCircle, FiUser
 } from 'react-icons/fi';
 
 const SellerSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
@@ -47,6 +47,11 @@ const SellerSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
             name: 'Earnings & Reports',
             icon: FiDollarSign,
             path: '/seller/earnings',
+        },
+        {
+            name: 'My Profile',
+            icon: FiUser,
+            path: '/seller/profile',
         },
         {
             name: 'Store Settings',

@@ -594,32 +594,32 @@ const authSlice = createSlice({
 
       // UPLOAD PROFILE IMAGE
       .addCase(uploadProfileImage.pending, (state) => {
-        state.loading = true;
+        state.imageUploading = true;
       })
       .addCase(uploadProfileImage.fulfilled, (state, action) => {
-        state.loading = false;
+        state.imageUploading = false;
         if (state.user) {
           state.user.profile_image = action.payload.profile_image || action.payload.url;
           localStorage.setItem('user', JSON.stringify(state.user));
         }
       })
       .addCase(uploadProfileImage.rejected, (state) => {
-        state.loading = false;
+        state.imageUploading = false;
       })
 
       // DELETE PROFILE IMAGE
       .addCase(deleteProfileImage.pending, (state) => {
-        state.loading = true;
+        state.imageUploading = true;
       })
       .addCase(deleteProfileImage.fulfilled, (state) => {
-        state.loading = false;
+        state.imageUploading = false;
         if (state.user) {
           state.user.profile_image = null;
           localStorage.setItem('user', JSON.stringify(state.user));
         }
       })
       .addCase(deleteProfileImage.rejected, (state) => {
-        state.loading = false;
+        state.imageUploading = false;
       })
 
       // VERIFY EMAIL

@@ -3889,103 +3889,634 @@ class AdminService {
         });
     }
 
-    // ============ COMPANY GENERAL FINANCE MANAGEMENT ============
+    // ============ COMPANY GENERAL FINANCE MANAGEMENT (Amazon-Grade) ============
 
-    // Get All Finance Entries (with summary)
-    async getFinanceEntries({ page = 1, limit = 10, type = null, search = null } = {}) {
-        const query = { deleted_at: null };
-        if (type && type !== 'all') query.entry_type = type;
-        if (search) {
-            const regex = new RegExp(search, 'i');
-            query.$or = [{ category: regex }, { description: regex }, { entry_code: regex }];
+    // 1. Executive Finance Analytics & Accounting KPI Metrics
+    async getFinanceAnalytics({ startDate, endDate } = {}) {
+        const dateMatch = { deleted_at: null };
+        if (startDate || endDate) {
+            dateMatch.entry_date = {};
+            if (startDate) dateMatch.entry_date.$gte = new Date(startDate);
+            if (endDate) dateMatch.entry_date.$lte = new Date(endDate);
         }
 
-        const [entries, total] = await Promise.all([
-            Finance.find(query)
-                .populate('created_by', 'first_name last_name')
-                .populate('updated_by', 'first_name last_name')
-                .sort({ entry_date: -1 })
-                .skip((page - 1) * limit).limit(parseInt(limit)),
-            Finance.countDocuments(query)
+        // Live GMV and marketplace orders metrics
+        const orderDateMatch = { order_status: { $ne: 'cancelled' } };
+        if (startDate || endDate) {
+            orderDateMatch.created_at = {};
+            if (startDate) orderDateMatch.created_at.$gte = new Date(startDate);
+            if (endDate) orderDateMatch.created_at.$lte = new Date(endDate);
+        }
+
+        const [gmvResult, financeAgg, categoryIncomeAgg, categoryExpenseAgg] = await Promise.all([
+            Order.aggregate([
+                { $match: orderDateMatch },
+                {
+                    $group: {
+                        _id: null,
+                        totalGMV: { $sum: '$total_amount' },
+                        totalOrders: { $sum: 1 },
+                        totalDeliveryFees: { $sum: '$delivery_charge' }
+                    }
+                }
+            ]),
+            Finance.aggregate([
+                { $match: dateMatch },
+                {
+                    $group: {
+                        _id: '$entry_type',
+                        totalAmount: { $sum: '$amount' },
+                        totalTax: { $sum: '$tax_amount' },
+                        totalNet: { $sum: '$net_amount' },
+                        count: { $sum: 1 }
+                    }
+                }
+            ]),
+            Finance.aggregate([
+                { $match: { ...dateMatch, entry_type: 'income' } },
+                { $group: { _id: '$category', total: { $sum: '$amount' }, count: { $sum: 1 } } },
+                { $sort: { total: -1 } }
+            ]),
+            Finance.aggregate([
+                { $match: { ...dateMatch, entry_type: 'expense' } },
+                { $group: { _id: '$category', total: { $sum: '$amount' }, count: { $sum: 1 } } },
+                { $sort: { total: -1 } }
+            ])
         ]);
 
-        // Calculate Totals for Cards
-        const [totalIncome, totalExpense] = await Promise.all([
-            Finance.aggregate([{ $match: { deleted_at: null, entry_type: 'income' } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
-            Finance.aggregate([{ $match: { deleted_at: null, entry_type: 'expense' } }, { $group: { _id: null, total: { $sum: "$amount" } } }])
+        const gmv = gmvResult[0]?.totalGMV || 0;
+        const totalOrders = gmvResult[0]?.totalOrders || 0;
+        const deliveryRevenue = gmvResult[0]?.totalDeliveryFees || 0;
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+        let totalTaxCollected = 0;
+
+        for (const f of financeAgg) {
+            if (f._id === 'income') {
+                totalIncome = f.totalAmount;
+                totalTaxCollected += (f.totalTax || 0);
+            } else if (f._id === 'expense') {
+                totalExpense = f.totalAmount;
+            }
+        }
+
+        const netProfit = totalIncome - totalExpense;
+        const profitMargin = totalIncome > 0 ? ((netProfit / totalIncome) * 100).toFixed(1) : 0;
+
+        // Calculate Seller Escrow Liability (GMV minus Platform Commission estimate)
+        const commissionSetting = await SystemSetting.findOne({ key: 'platform_commission_rate', status: 'active' }).lean();
+        const commissionRate = commissionSetting?.value || 10;
+        const estimatedCommission = (gmv * commissionRate) / 100;
+        const sellerEscrowLiability = Math.max(0, gmv - estimatedCommission);
+
+        // 6-Month Rolling Monthly Cashflow History
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+        sixMonthsAgo.setDate(1);
+        sixMonthsAgo.setHours(0, 0, 0, 0);
+
+        const monthlyTrendAgg = await Finance.aggregate([
+            {
+                $match: {
+                    deleted_at: null,
+                    entry_date: { $gte: sixMonthsAgo }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        year: { $year: '$entry_date' },
+                        month: { $month: '$entry_date' },
+                        type: '$entry_type'
+                    },
+                    total: { $sum: '$amount' }
+                }
+            }
         ]);
+
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthlyTrendMap = {};
+
+        // Prepare rolling 6 months keys
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+            monthlyTrendMap[key] = {
+                label: `${monthNames[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`,
+                income: 0,
+                expense: 0,
+                net: 0
+            };
+        }
+
+        monthlyTrendAgg.forEach(item => {
+            const key = `${item._id.year}-${item._id.month}`;
+            if (monthlyTrendMap[key]) {
+                if (item._id.type === 'income') {
+                    monthlyTrendMap[key].income = item.total;
+                } else {
+                    monthlyTrendMap[key].expense = item.total;
+                }
+                monthlyTrendMap[key].net = monthlyTrendMap[key].income - monthlyTrendMap[key].expense;
+            }
+        });
+
+        const monthlyCashFlow = Object.values(monthlyTrendMap);
 
         return {
-            entries,
-            totalIncome: totalIncome[0]?.total || 0,
-            totalExpense: totalExpense[0]?.total || 0,
-            pagination: { page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / limit) }
+            kpis: {
+                gmv,
+                totalOrders,
+                totalIncome,
+                totalExpense,
+                netProfit,
+                profitMargin: Number(profitMargin),
+                sellerEscrowLiability,
+                deliveryRevenue,
+                totalTaxCollected,
+                commissionRate
+            },
+            categoryBreakdown: {
+                income: categoryIncomeAgg,
+                expense: categoryExpenseAgg
+            },
+            monthlyCashFlow
         };
     }
 
-    // Add New Finance Entry
+    // 2. Paginated General Ledger Entries with Filters
+    async getFinanceEntries({
+        page = 1,
+        limit = 10,
+        type = null,
+        category = null,
+        status = null,
+        payment_method = null,
+        startDate = null,
+        endDate = null,
+        search = null,
+        sortBy = 'entry_date',
+        sortOrder = 'desc'
+    } = {}) {
+        const query = { deleted_at: null };
+
+        if (type && type !== 'all') {
+            query.entry_type = type;
+        }
+
+        if (category && category !== 'all') {
+            query.category = category;
+        }
+
+        if (status && status !== 'all') {
+            query.status = status;
+        }
+
+        if (payment_method && payment_method !== 'all') {
+            query.payment_method = payment_method;
+        }
+
+        if (startDate || endDate) {
+            query.entry_date = {};
+            if (startDate) query.entry_date.$gte = new Date(startDate);
+            if (endDate) query.entry_date.$lte = new Date(endDate);
+        }
+
+        if (search && String(search).trim()) {
+            const regex = new RegExp(String(search).trim(), 'i');
+            query.$or = [
+                { entry_code: regex },
+                { category: regex },
+                { description: regex },
+                { party_name: regex },
+                { payment_reference: regex }
+            ];
+        }
+
+        const sortObj = {};
+        sortObj[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+        const skip = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
+
+        const [entries, total, summaryAgg] = await Promise.all([
+            Finance.find(query)
+                .populate('created_by', 'first_name last_name email')
+                .populate('updated_by', 'first_name last_name email')
+                .sort(sortObj)
+                .skip(skip)
+                .limit(parseInt(limit))
+                .lean(),
+            Finance.countDocuments(query),
+            Finance.aggregate([
+                { $match: query },
+                {
+                    $group: {
+                        _id: '$entry_type',
+                        total: { $sum: '$amount' },
+                        totalTax: { $sum: '$tax_amount' },
+                        totalNet: { $sum: '$net_amount' }
+                    }
+                }
+            ])
+        ]);
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+        let totalTax = 0;
+
+        summaryAgg.forEach(s => {
+            if (s._id === 'income') totalIncome = s.total;
+            else if (s._id === 'expense') totalExpense = s.total;
+            totalTax += (s.totalTax || 0);
+        });
+
+        return {
+            entries,
+            totalIncome,
+            totalExpense,
+            netBalance: totalIncome - totalExpense,
+            totalTax,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                totalPages: Math.ceil(total / parseInt(limit))
+            }
+        };
+    }
+
+    // 3. Add Journal Voucher Entry
     async addFinanceEntry(data, adminId) {
-        const entry_code = `FIN-${Math.floor(100000 + Math.random() * 900000)}`;
-        const entry = new Finance({ ...data, entry_code, created_by: adminId });
+        const d = new Date();
+        const yyyymm = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const randNum = Math.floor(1000 + Math.random() * 9000);
+        const entry_code = `FIN-${yyyymm}-${randNum}`;
+
+        const amount = Number(data.amount) || 0;
+        const tax_rate = Number(data.tax_rate) || 0;
+        const tax_amount = Number(((amount * tax_rate) / 100).toFixed(2));
+        const net_amount = Number((amount - tax_amount).toFixed(2));
+
+        const entry = new Finance({
+            ...data,
+            entry_code,
+            amount,
+            tax_rate,
+            tax_amount,
+            net_amount,
+            created_by: adminId,
+            updated_by: adminId,
+            entry_date: data.entry_date ? new Date(data.entry_date) : new Date()
+        });
+
         await entry.save();
+
+        await auditService.log({
+            userId: adminId,
+            action: 'create',
+            module: 'finance',
+            moduleId: entry._id,
+            description: `Recorded ${entry.entry_type} entry ${entry_code} of ₹${amount} in category ${entry.category}`,
+            newData: entry.toObject(),
+            status: 'success'
+        });
+
         return entry;
     }
 
-    // Update Finance Entry
+    // 4. Update Journal Voucher Entry
     async updateFinanceEntry(entryId, updateData, adminId) {
-        const entry = await Finance.findOne({ _id: entryId, deleted_at: null });
+        const query = { deleted_at: null };
+        if (mongoose.isValidObjectId(entryId)) {
+            query._id = entryId;
+        } else {
+            query.entry_code = entryId;
+        }
+
+        const entry = await Finance.findOne(query);
         if (!entry) throw ApiError.notFound('Finance entry not found');
-        Object.assign(entry, updateData, { updated_by: adminId });
+
+        const amount = updateData.amount !== undefined ? Number(updateData.amount) : entry.amount;
+        const tax_rate = updateData.tax_rate !== undefined ? Number(updateData.tax_rate) : (entry.tax_rate || 0);
+        const tax_amount = Number(((amount * tax_rate) / 100).toFixed(2));
+        const net_amount = Number((amount - tax_amount).toFixed(2));
+
+        Object.assign(entry, updateData, {
+            amount,
+            tax_rate,
+            tax_amount,
+            net_amount,
+            updated_by: adminId,
+            entry_date: updateData.entry_date ? new Date(updateData.entry_date) : entry.entry_date
+        });
+
         await entry.save();
+
+        await auditService.log({
+            userId: adminId,
+            action: 'update',
+            module: 'finance',
+            moduleId: entry._id,
+            description: `Updated finance entry ${entry.entry_code}`,
+            newData: updateData,
+            status: 'success'
+        });
+
         return entry;
     }
 
-    // Delete Finance Entry (Soft Delete)
-    async deleteFinanceEntry(entryId) {
-        const entry = await Finance.findOne({ _id: entryId, deleted_at: null });
+    // 5. Soft Delete Finance Entry
+    async deleteFinanceEntry(entryId, adminId) {
+        const query = { deleted_at: null };
+        if (mongoose.isValidObjectId(entryId)) {
+            query._id = entryId;
+        } else {
+            query.entry_code = entryId;
+        }
+
+        const entry = await Finance.findOne(query);
         if (!entry) throw ApiError.notFound('Finance entry not found');
+
         entry.deleted_at = new Date();
+        entry.updated_by = adminId;
         await entry.save();
-        return { message: 'Entry deleted successfully' };
+
+        await auditService.log({
+            userId: adminId,
+            action: 'delete',
+            module: 'finance',
+            moduleId: entry._id,
+            description: `Deleted finance entry ${entry.entry_code}`,
+            status: 'success'
+        });
+
+        return { message: 'Finance entry removed successfully', entry_code: entry.entry_code };
     }
 
-    // Export Finance PDF
+    // 6. Enterprise Multi-Format Export (Excel, CSV, PDF, JSON)
+    async exportFinance({
+        format = 'excel',
+        type = null,
+        category = null,
+        status = null,
+        startDate = null,
+        endDate = null,
+        search = null
+    } = {}) {
+        const query = { deleted_at: null };
+
+        if (type && type !== 'all') query.entry_type = type;
+        if (category && category !== 'all') query.category = category;
+        if (status && status !== 'all') query.status = status;
+
+        if (startDate || endDate) {
+            query.entry_date = {};
+            if (startDate) query.entry_date.$gte = new Date(startDate);
+            if (endDate) query.entry_date.$lte = new Date(endDate);
+        }
+
+        if (search && String(search).trim()) {
+            const regex = new RegExp(String(search).trim(), 'i');
+            query.$or = [
+                { entry_code: regex },
+                { category: regex },
+                { description: regex },
+                { party_name: regex },
+                { payment_reference: regex }
+            ];
+        }
+
+        const entries = await Finance.find(query)
+            .populate('created_by', 'first_name last_name')
+            .sort({ entry_date: -1 })
+            .limit(5000)
+            .lean();
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+        let totalTax = 0;
+
+        entries.forEach(e => {
+            if (e.entry_type === 'income') totalIncome += Number(e.amount || 0);
+            else if (e.entry_type === 'expense') totalExpense += Number(e.amount || 0);
+            totalTax += Number(e.tax_amount || 0);
+        });
+
+        const netBalance = totalIncome - totalExpense;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+
+        // --- FORMAT A: EXCEL (.xlsx via ExcelJS) ---
+        if (format === 'excel') {
+            const ExcelJS = require('exceljs');
+            const workbook = new ExcelJS.Workbook();
+            workbook.creator = 'Zyvento Enterprise Marketplace';
+            workbook.created = new Date();
+
+            // SHEET 1: Executive KPI Summary
+            const summarySheet = workbook.addWorksheet('Executive Summary', {
+                views: [{ showGridLines: true }]
+            });
+
+            summarySheet.columns = [
+                { header: 'Metric', key: 'metric', width: 35 },
+                { header: 'Value (INR / Ratio)', key: 'val', width: 28 },
+                { header: 'Notes', key: 'notes', width: 45 }
+            ];
+
+            // Header Style
+            const sumHeaderRow = summarySheet.getRow(1);
+            sumHeaderRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+            sumHeaderRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+            sumHeaderRow.height = 26;
+
+            summarySheet.addRows([
+                { metric: 'Total Revenue (Income)', val: totalIncome, notes: 'Includes platform commissions, freight, and vendor fees' },
+                { metric: 'Total Operating Expenses', val: totalExpense, notes: 'Includes logistics, cloud hosting, payouts, and marketing' },
+                { metric: 'Net Operating Balance (EBITDA)', val: netBalance, notes: 'Calculated as Total Revenue minus Total Expenses' },
+                { metric: 'Total GST / Taxes Accounted', val: totalTax, notes: 'Total tax component recorded across transactions' },
+                { metric: 'Total General Ledger Vouchers', val: entries.length, notes: 'Total matching accounting vouchers in selected timeframe' },
+                { metric: 'Report Generation Timestamp', val: new Date().toLocaleString('en-IN'), notes: 'Generated by Zyvento Accounting Engine' }
+            ]);
+
+            // Number formatting for rows 2, 3, 4, 5
+            [2, 3, 4, 5].forEach(rowNum => {
+                summarySheet.getCell(`B${rowNum}`).numFmt = '₹#,##0.00';
+            });
+
+            // SHEET 2: General Ledger Transactions
+            const ledgerSheet = workbook.addWorksheet('General Ledger', {
+                views: [{ showGridLines: true }]
+            });
+
+            ledgerSheet.columns = [
+                { header: 'Voucher Code', key: 'code', width: 18 },
+                { header: 'Posting Date', key: 'date', width: 14 },
+                { header: 'Flow Type', key: 'type', width: 12 },
+                { header: 'Category', key: 'category', width: 28 },
+                { header: 'Party / Counterparty', key: 'party', width: 25 },
+                { header: 'Payment Method', key: 'method', width: 16 },
+                { header: 'Payment Reference (UTR)', key: 'ref', width: 22 },
+                { header: 'Tax %', key: 'tax_rate', width: 10 },
+                { header: 'Tax (₹)', key: 'tax_amount', width: 14 },
+                { header: 'Net Amount (₹)', key: 'net_amount', width: 16 },
+                { header: 'Gross Amount (₹)', key: 'gross_amount', width: 18 },
+                { header: 'Reconciliation Status', key: 'status', width: 16 },
+                { header: 'Description / Memo', key: 'desc', width: 35 }
+            ];
+
+            const ledgerHeaderRow = ledgerSheet.getRow(1);
+            ledgerHeaderRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+            ledgerHeaderRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0284C7' } }; // Sky-600
+            ledgerHeaderRow.height = 25;
+
+            entries.forEach(e => {
+                ledgerSheet.addRow({
+                    code: e.entry_code,
+                    date: e.entry_date ? new Date(e.entry_date).toISOString().split('T')[0] : '',
+                    type: String(e.entry_type).toUpperCase(),
+                    category: e.category,
+                    party: e.party_name || '-',
+                    method: (e.payment_method || '').replace(/_/g, ' ').toUpperCase(),
+                    ref: e.payment_reference || '-',
+                    tax_rate: (e.tax_rate || 0) + '%',
+                    tax_amount: Number(e.tax_amount || 0),
+                    net_amount: Number(e.net_amount || (e.amount - (e.tax_amount || 0))),
+                    gross_amount: Number(e.amount),
+                    status: String(e.status || 'completed').toUpperCase(),
+                    desc: e.description || ''
+                });
+            });
+
+            // Format number columns
+            ledgerSheet.getColumn('tax_amount').numFmt = '₹#,##0.00';
+            ledgerSheet.getColumn('net_amount').numFmt = '₹#,##0.00';
+            ledgerSheet.getColumn('gross_amount').numFmt = '₹#,##0.00';
+
+            const buffer = await workbook.xlsx.writeBuffer();
+            return {
+                buffer,
+                mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                fileName: `Zyvento_Company_Finance_Report_${timestamp}.xlsx`
+            };
+        }
+
+        // --- FORMAT B: CSV ---
+        if (format === 'csv') {
+            const csvHeaders = [
+                'Voucher Code', 'Date', 'Type', 'Category', 'Party / Counterparty',
+                'Payment Method', 'Reference (UTR)', 'Tax Rate (%)', 'Tax (INR)',
+                'Net (INR)', 'Gross Amount (INR)', 'Status', 'Description'
+            ];
+
+            const csvRows = entries.map(e => [
+                e.entry_code,
+                e.entry_date ? new Date(e.entry_date).toISOString().split('T')[0] : '',
+                String(e.entry_type).toUpperCase(),
+                `"${(e.category || '').replace(/"/g, '""')}"`,
+                `"${(e.party_name || '').replace(/"/g, '""')}"`,
+                (e.payment_method || '').toUpperCase(),
+                `"${(e.payment_reference || '').replace(/"/g, '""')}"`,
+                e.tax_rate || 0,
+                (e.tax_amount || 0).toFixed(2),
+                (e.net_amount || (e.amount - (e.tax_amount || 0))).toFixed(2),
+                Number(e.amount).toFixed(2),
+                String(e.status || 'completed').toUpperCase(),
+                `"${(e.description || '').replace(/"/g, '""')}"`
+            ]);
+
+            const csvContent = '\uFEFF' + [csvHeaders.join(','), ...csvRows.map(r => r.join(','))].join('\n');
+            return {
+                buffer: Buffer.from(csvContent, 'utf-8'),
+                mimeType: 'text/csv; charset=utf-8',
+                fileName: `Zyvento_Company_Finance_Report_${timestamp}.csv`
+            };
+        }
+
+        // --- FORMAT C: PDF ---
+        if (format === 'pdf') {
+            const PDFDocument = require('pdfkit');
+            return new Promise((resolve, reject) => {
+                const doc = new PDFDocument({ margin: 40, size: 'A4' });
+                const chunks = [];
+
+                doc.on('data', chunk => chunks.push(chunk));
+                doc.on('end', () => {
+                    resolve({
+                        buffer: Buffer.concat(chunks),
+                        mimeType: 'application/pdf',
+                        fileName: `Zyvento_Company_Finance_Report_${timestamp}.pdf`
+                    });
+                });
+                doc.on('error', reject);
+
+                // PDF Content Header
+                doc.fillColor('#0284C7').fontSize(22).text('ZYVENTO MARKETPLACE', { align: 'center' });
+                doc.fillColor('#1E293B').fontSize(14).text('Company Finance & Accounting Executive Statement', { align: 'center' });
+                doc.fontSize(10).fillColor('#64748B').text(`Generated on: ${new Date().toLocaleString('en-IN')} | Currency: INR (₹)`, { align: 'center' });
+                doc.moveDown(1.5);
+
+                // Summary Box
+                doc.rect(40, doc.y, 515, 65).fillAndStroke('#F8FAFC', '#E2E8F0');
+                doc.fillColor('#0F172A').fontSize(11);
+                const currentY = doc.y - 55;
+                doc.text(`Total Platform Income: ₹${totalIncome.toLocaleString('en-IN')}`, 55, currentY);
+                doc.text(`Total Operating Expense: ₹${totalExpense.toLocaleString('en-IN')}`, 55, currentY + 16);
+                doc.text(`Net Operating Profit: ₹${netBalance.toLocaleString('en-IN')}`, 320, currentY);
+                doc.text(`Total Vouchers Logged: ${entries.length}`, 320, currentY + 16);
+                doc.moveDown(3);
+
+                // Table Header
+                doc.fillColor('#0F172A').fontSize(13).text('Journal Voucher Ledger', { underline: true });
+                doc.moveDown(0.5);
+
+                doc.fontSize(9).fillColor('#334155').text('Code           | Date          | Type      | Category                       | Gross Amount (₹)', { underline: true });
+                doc.moveDown(0.3);
+
+                entries.slice(0, 100).forEach(e => {
+                    const dateStr = e.entry_date ? new Date(e.entry_date).toISOString().split('T')[0] : '';
+                    const line = `${(e.entry_code || '').padEnd(14)} | ${dateStr.padEnd(12)} | ${(e.entry_type || '').toUpperCase().padEnd(9)} | ${(e.category || '').slice(0, 28).padEnd(30)} | ₹${Number(e.amount).toLocaleString('en-IN')}`;
+                    doc.fontSize(8).fillColor('#1E293B').text(line);
+                });
+
+                if (entries.length > 100) {
+                    doc.moveDown();
+                    doc.fontSize(8).fillColor('#64748B').text(`... and ${entries.length - 100} additional entries omitted for PDF preview. Please use Excel/CSV export for complete records.`, { align: 'center' });
+                }
+
+                doc.end();
+            });
+        }
+
+        // --- FORMAT D: JSON ---
+        const jsonOutput = JSON.stringify({
+            platform: 'Zyvento Marketplace',
+            generated_at: new Date().toISOString(),
+            kpis: { totalIncome, totalExpense, netBalance, totalTax, totalVouchers: entries.length },
+            entries
+        }, null, 2);
+
+        return {
+            buffer: Buffer.from(jsonOutput, 'utf-8'),
+            mimeType: 'application/json',
+            fileName: `Zyvento_Company_Finance_Report_${timestamp}.json`
+        };
+    }
+
+    // Export Finance PDF (Backward Compatibility Wrapper)
     async exportFinancePDF() {
-        const PDFDocument = require('pdfkit');
+        const result = await this.exportFinance({ format: 'pdf' });
         const fs = require('fs');
         const path = require('path');
-
-        const data = await this.getFinanceEntries({ limit: 1000 });
-        const doc = new PDFDocument({ margin: 50 });
-        const filePath = path.join(__dirname, '../reports/finance-report.pdf');
+        const filePath = path.join(__dirname, '../reports', result.fileName);
 
         if (!fs.existsSync(path.dirname(filePath))) {
             fs.mkdirSync(path.dirname(filePath), { recursive: true });
         }
 
-        doc.pipe(fs.createWriteStream(filePath));
-        doc.fontSize(24).text('Company Finance Report', { align: 'center' });
-        doc.moveDown();
-        doc.fontSize(14).text(`Total Income: ₹${data.totalIncome.toLocaleString('en-IN')}`);
-        doc.fontSize(14).text(`Total Expense: ₹${data.totalExpense.toLocaleString('en-IN')}`);
-        doc.fontSize(14).text(`Net Balance: ₹${(data.totalIncome - data.totalExpense).toLocaleString('en-IN')}`);
-        doc.moveDown();
-
-        doc.fontSize(18).text('Entries', { underline: true });
-        doc.moveDown();
-        doc.fontSize(12).text(`Code     | Type     | Category     | Amount     | Date`);
-        doc.moveDown();
-
-        data.entries.forEach(entry => {
-            doc.fontSize(10).text(`${entry.entry_code}     | ${entry.entry_type}     | ${entry.category}     | ₹${entry.amount}     | ${new Date(entry.entry_date).toLocaleDateString('en-IN')}`);
-        });
-
-        doc.end();
-
-        return new Promise((resolve, reject) => {
-            doc.on('finish', () => resolve(filePath));
-            doc.on('error', reject);
-        });
+        fs.writeFileSync(filePath, result.buffer);
+        return filePath;
     }
 
     // ============ TRANSACTION MANAGEMENT ============
@@ -5814,7 +6345,45 @@ class AdminService {
     //     return updates;
     // }
 
+    async getPublicSettings() {
+        const settings = await SystemSetting.find({
+            status: 'active',
+            is_public: true
+        }).lean();
+
+        const dict = {
+            site_name: 'Zyvento Shopping',
+            site_description: 'Multi-vendor e-commerce marketplace',
+            currency: 'INR',
+            currency_symbol: '₹',
+            free_shipping_threshold: 499,
+            standard_delivery_fee: 49,
+            express_delivery_fee: 99,
+            min_order_amount: 100,
+            cod_enabled: true,
+            return_window_days: 7,
+            announcement_text: 'Free Shipping on prepaid orders above ₹499 | Express 48h Delivery',
+            support_email: 'support@zyvento.com',
+            support_phone: '+91 1800-123-4567',
+            maintenance_mode: false,
+            allow_returns: true,
+            platform_commission_rate: 10,
+            default_gst_rate: 18,
+            prices_inclusive_tax: true,
+        };
+
+        for (const s of settings) {
+            dict[s.key] = s.value;
+        }
+
+        return dict;
+    }
+
     async updateSettingsByGroup(group, settingsObj, userId) {
+        if (!settingsObj || typeof settingsObj !== 'object') {
+            throw ApiError.badRequest('Invalid settings payload');
+        }
+
         const hasPermission = await permissionService.hasPermission(userId, 'UPDATE_SETTINGS');
         if (!hasPermission) {
             throw ApiError.forbidden('Permission denied');
@@ -5822,18 +6391,29 @@ class AdminService {
 
         const updates = [];
         for (const [key, value] of Object.entries(settingsObj)) {
-            const setting = await SystemSetting.findOne({ key, group });
-            if (!setting) {
-                throw ApiError.notFound(`Setting ${key} not found in group ${group}`);
-            }
-            setting.value = value;
-            setting.updated_by = userId;
-            await setting.save();
-            updates.push({ key, value });
+            let dataType = 'string';
+            if (typeof value === 'number') dataType = 'number';
+            else if (typeof value === 'boolean') dataType = 'boolean';
+            else if (Array.isArray(value)) dataType = 'array';
+            else if (typeof value === 'object' && value !== null) dataType = 'object';
+
+            const setting = await SystemSetting.findOneAndUpdate(
+                { key },
+                {
+                    key,
+                    group,
+                    value,
+                    data_type: dataType,
+                    updated_by: userId,
+                    status: 'active',
+                    is_public: true,
+                },
+                { upsert: true, new: true, setDefaultsOnInsert: true }
+            );
+            updates.push({ key, value: setting.value });
         }
         return updates;
     }
-
 
 }
 

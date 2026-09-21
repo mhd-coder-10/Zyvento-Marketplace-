@@ -22,10 +22,12 @@ import {
     FiLock
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
+import { useSystemSettings } from '../../../context/SettingsContext';
 
 const Checkout = () => {
     const navigate = useNavigate();
     const { isAuthenticated, user } = useSelector((state) => state.auth);
+    const { settings } = useSystemSettings();
 
     const [loading, setLoading] = useState(true);
     const [placingOrder, setPlacingOrder] = useState(false);
@@ -33,7 +35,7 @@ const Checkout = () => {
     const [addresses, setAddresses] = useState([]);
     const [selectedAddress, setSelectedAddress] = useState(null);
     const [showAddressForm, setShowAddressForm] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState('cod');
+    const [paymentMethod, setPaymentMethod] = useState(settings?.cod_enabled !== false ? 'cod' : 'upi');
     const [editingAddress, setEditingAddress] = useState(null);
 
     const [addressForm, setAddressForm] = useState({
@@ -233,8 +235,8 @@ const Checkout = () => {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50/50 py-8 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-6xl mx-auto space-y-6">
+        <div className="min-h-screen bg-slate-50/50 py-6 sm:py-8 px-4 sm:px-6 lg:px-8 xl:px-10">
+            <div className="w-full max-w-[1600px] mx-auto space-y-6">
 
                 {/* ============ BREADCRUMB & HEADER ============ */}
                 <div className="flex items-center gap-3">
@@ -490,7 +492,7 @@ const Checkout = () => {
                                     { id: 'upi', label: 'UPI / QR Code', desc: 'Instant payment via Google Pay, PhonePe, Paytm' },
                                     { id: 'card', label: 'Credit / Debit Card', desc: 'Visa, MasterCard, RuPay, Maestro' },
                                     { id: 'netbanking', label: 'Net Banking', desc: 'All major Indian banks supported' },
-                                ].map((m) => {
+                                ].filter(m => m.id !== 'cod' || settings?.cod_enabled !== false).map((m) => {
                                     const isSelected = paymentMethod === m.id;
                                     return (
                                         <div
@@ -554,28 +556,41 @@ const Checkout = () => {
                             </div>
 
                             {/* Price Breakdown */}
-                            <div className="space-y-2.5 pt-3 border-t border-slate-100 text-xs font-semibold text-slate-600">
-                                <div className="flex justify-between">
-                                    <span>Subtotal</span>
-                                    <span className="font-bold text-slate-900">₹{(Number(cart?.subtotal || cart?.total_amount || 0)).toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span>Shipping</span>
-                                    <span className="font-bold text-emerald-600">FREE</span>
-                                </div>
-                                {Number(cart?.discount || 0) > 0 && (
-                                    <div className="flex justify-between text-emerald-600 font-bold">
-                                        <span>Discount</span>
-                                        <span>-₹{Number(cart.discount).toFixed(2)}</span>
+                            {(() => {
+                                const sub = Number(cart?.subtotal || cart?.total_amount || 0);
+                                const threshold = Number(settings?.free_shipping_threshold) || 499;
+                                const stdFee = Number(settings?.standard_delivery_fee) || 49;
+                                const shipFee = sub >= threshold ? 0 : stdFee;
+                                const disc = Number(cart?.discount || 0);
+                                const total = Math.max(0, sub + shipFee - disc);
+
+                                return (
+                                    <div className="space-y-2.5 pt-3 border-t border-slate-100 text-xs font-semibold text-slate-600">
+                                        <div className="flex justify-between">
+                                            <span>Subtotal</span>
+                                            <span className="font-bold text-slate-900">₹{sub.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Shipping</span>
+                                            <span className={`font-bold ${shipFee === 0 ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                                {shipFee === 0 ? 'FREE' : `₹${shipFee.toFixed(2)}`}
+                                            </span>
+                                        </div>
+                                        {disc > 0 && (
+                                            <div className="flex justify-between text-emerald-600 font-bold">
+                                                <span>Discount</span>
+                                                <span>-₹{disc.toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                        <div className="pt-3 border-t border-slate-100 flex justify-between items-baseline text-slate-900">
+                                            <span className="text-sm font-black">Total Amount</span>
+                                            <span className="text-2xl font-black text-blue-600">
+                                                ₹{total.toFixed(2)}
+                                            </span>
+                                        </div>
                                     </div>
-                                )}
-                                <div className="pt-3 border-t border-slate-100 flex justify-between items-baseline text-slate-900">
-                                    <span className="text-sm font-black">Total Amount</span>
-                                    <span className="text-2xl font-black text-blue-600">
-                                        ₹{(Number(cart?.total_amount || cart?.subtotal || 0)).toFixed(2)}
-                                    </span>
-                                </div>
-                            </div>
+                                );
+                            })()}
 
                             {/* Place Order CTA */}
                             <button

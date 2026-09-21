@@ -14,23 +14,30 @@ const productController = {
 
     // ============ PUBLIC ROUTES ============
     getAllProducts: asyncHandler(async (req, res) => {
-        const {
-            page, limit, search, category_id, sub_category_id,
-            min_price, max_price, brand, rating, sort_by, sort_order
-        } = req.query;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 12;
+        const search = req.query.search;
+        const categoryId = req.query.category_id || req.query.categoryId || req.query.category;
+        const subCategoryId = req.query.sub_category_id || req.query.subCategoryId;
+        const minPrice = req.query.min_price || req.query.minPrice;
+        const maxPrice = req.query.max_price || req.query.maxPrice;
+        const brand = req.query.brand;
+        const rating = req.query.rating;
+        const sortBy = req.query.sort_by || req.query.sortBy || 'created_at';
+        const sortOrder = req.query.sort_order || req.query.sortOrder || 'desc';
 
         const result = await productService.getAllProducts({
             page,
             limit,
             search,
-            categoryId: category_id,
-            subCategoryId: sub_category_id,
-            minPrice: min_price,
-            maxPrice: max_price,
+            categoryId,
+            subCategoryId,
+            minPrice,
+            maxPrice,
             brand,
             rating,
-            sortBy: sort_by,
-            sortOrder: sort_order
+            sortBy,
+            sortOrder
         });
 
         res.status(200).json(

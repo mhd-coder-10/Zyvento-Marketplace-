@@ -61,7 +61,7 @@ const AdminLayout = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 w-full max-w-full overflow-x-hidden">
             <AdminSidebar
                 isOpen={sidebarOpen}
                 setIsOpen={setSidebarOpen}
@@ -70,7 +70,7 @@ const AdminLayout = () => {
             />
 
             <div
-                className={`transition-all duration-300 ${sidebarOpen && !isMobile ? 'lg:ml-64' : 'lg:ml-0'
+                className={`transition-all duration-300 w-full max-w-full min-w-0 overflow-x-hidden ${sidebarOpen && !isMobile ? 'lg:ml-64 lg:w-[calc(100%-16rem)]' : 'lg:ml-0'
                     }`}
             >
                 <AdminHeader
@@ -81,7 +81,7 @@ const AdminLayout = () => {
                 />
 
                 <main
-                    className="pt-16"
+                    className="pt-16 w-full max-w-full min-w-0 overflow-x-hidden"
                     style={{
                         overflowY: 'auto',
                         scrollbarWidth: 'none',
@@ -99,7 +99,7 @@ const AdminLayout = () => {
                             -ms-overflow-style: none !important;
                         }
                     `}</style>
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 w-full max-w-full min-w-0">
                         <Outlet />
                     </div>
                 </main>

@@ -765,4 +765,48 @@ router.put(
     adminController.updateSettingsByGroup
 );
 
+// ============ COMPANY FINANCE / AMAZON-GRADE ACCOUNTING HUB ============
+
+router.get(
+    '/finance/analytics',
+    checkPermission('FINANCE_READ'),
+    adminController.getFinanceAnalytics
+);
+
+router.get(
+    '/finance/export',
+    checkPermission('FINANCE_EXPORT'),
+    validate(adminValidation.exportFinance),
+    adminController.exportFinance
+);
+
+router.get(
+    '/finance',
+    checkPermission('FINANCE_READ'),
+    validate(adminValidation.getFinanceEntries),
+    adminController.getFinanceEntries
+);
+
+router.post(
+    '/finance',
+    checkPermission('FINANCE_UPDATE'),
+    validate(adminValidation.addFinanceEntry),
+    adminController.addFinanceEntry
+);
+
+router.put(
+    '/finance/:entryId',
+    checkPermission('FINANCE_UPDATE'),
+    validate(adminValidation.financeIdParam),
+    validate(adminValidation.updateFinanceEntry),
+    adminController.updateFinanceEntry
+);
+
+router.delete(
+    '/finance/:entryId',
+    checkPermission('FINANCE_UPDATE'),
+    validate(adminValidation.financeIdParam),
+    adminController.deleteFinanceEntry
+);
+
 module.exports = router;

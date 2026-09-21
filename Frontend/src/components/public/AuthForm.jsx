@@ -8,34 +8,43 @@ import {
 
 import LoadingSpinner from '../common/LoadingSpinner';
 
-//  STYLE TOKENS — layout/spacing inline (Tailwind-proof)
+// STYLE TOKENS — aligned with Zyvento Website (Sky, Royal Blue, Indigo & Slate)
 const C = {
-    orange: "#f97316",
-    orangeDark: "#ea580c",
-    amber: "#f59e0b",
+    sky500: "#0ea5e9",
+    sky600: "#0284c7",
+    sky700: "#0369a1",
+    blue500: "#3b82f6",
+    blue600: "#2563eb",
+    blue700: "#1d4ed8",
+    indigo600: "#4f46e5",
+    slate950: "#020617",
     slate900: "#0f172a",
+    slate800: "#1e293b",
     slate700: "#334155",
     slate500: "#64748b",
     slate400: "#94a3b8",
     slate200: "#e2e8f0",
+    sky100: "#e0f2fe",
+    sky50: "#f0f9ff",
     rose: "#e11d48",
 };
 
 const st = {
     page: { minHeight: "100vh", width: "100%", background: "#f8fafc", display: "flex" },
     left: {
-        position: "relative", overflow: "hidden", background: "#120c05",
+        position: "relative", overflow: "hidden",
+        background: "linear-gradient(145deg, #020617 0%, #07152e 50%, #0f172a 100%)",
         padding: "48px", display: "flex", flexDirection: "column",
         justifyContent: "space-between", flex: "1.05 1 0%",
     },
     right: {
         flex: "1 1 0%", display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "40px 24px", background: "linear-gradient(180deg,#f8fafc,#f1f5f9)",
+        padding: "40px 24px", background: "linear-gradient(180deg, #f8fafc, #f0f9ff)",
     },
     card: {
         width: "100%", maxWidth: "440px", background: "#fff", borderRadius: "24px",
-        border: "1px solid #f1f5f9", padding: "36px 32px",
-        boxShadow: "0 20px 60px -20px rgba(15,23,42,.25)",
+        border: "1px solid #e0f2fe", padding: "36px 32px",
+        boxShadow: "0 20px 50px -15px rgba(2, 132, 199, 0.12), 0 10px 25px -10px rgba(15, 23, 42, 0.08)",
     },
     label: {
         display: "block", marginBottom: "6px", fontSize: "13px",
@@ -70,20 +79,21 @@ const st = {
         width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
         gap: "8px", padding: "14px 16px", marginTop: "4px",
         borderRadius: "12px", border: "none", cursor: disabled ? "not-allowed" : "pointer",
-        background: `linear-gradient(90deg, ${C.orange}, ${C.amber})`,
+        background: `linear-gradient(90deg, ${C.sky500}, ${C.blue600}, ${C.indigo600})`,
         color: "#fff", fontSize: "15px", fontWeight: 700,
-        boxShadow: "0 10px 25px -8px rgba(249,115,22,.55)",
+        boxShadow: "0 10px 25px -8px rgba(37, 99, 235, 0.45)",
         opacity: disabled ? 0.6 : 1,
+        transition: "all .2s ease",
     }),
     linkBtn: {
         background: "none", border: "none", padding: 0, cursor: "pointer",
-        color: C.orangeDark, fontWeight: 700, fontSize: "14px",
+        color: C.sky600, fontWeight: 700, fontSize: "14px",
     },
 };
 
 const focusOn = (e, err) => {
-    e.target.style.borderColor = err ? "#f43f5e" : C.orange;
-    e.target.style.boxShadow = `0 0 0 4px ${err ? "rgba(244,63,94,.15)" : "rgba(249,115,22,.15)"}`;
+    e.target.style.borderColor = err ? "#f43f5e" : C.sky600;
+    e.target.style.boxShadow = `0 0 0 4px ${err ? "rgba(244,63,94,.15)" : "rgba(2,132,199,.15)"}`;
 };
 const focusOff = (e, err) => {
     e.target.style.borderColor = err ? "#fb7185" : C.slate200;
@@ -410,9 +420,9 @@ const AuthForm = ({
         if (/[@$!%*?&]/.test(password)) score++;
         const strength = [
             { text: "Weak", width: "20%", color: "#f43f5e" },
-            { text: "Fair", width: "40%", color: "#f97316" },
-            { text: "Good", width: "60%", color: "#fbbf24" },
-            { text: "Strong", width: "80%", color: "#84cc16" },
+            { text: "Fair", width: "40%", color: "#0ea5e9" },
+            { text: "Good", width: "60%", color: "#3b82f6" },
+            { text: "Strong", width: "80%", color: "#2563eb" },
             { text: "Very Strong", width: "100%", color: "#10b981" },
         ];
         return strength[Math.min(score, 4)];
@@ -425,7 +435,7 @@ const AuthForm = ({
         reset: { badge: "Security", title: "Set a new password", description: "Choose a strong password to keep your account secure." },
     };
     const footer = {
-        login: { text: "New here?", link: "Create an account", mode: "register" },
+        login: { text: "New to Zyvento?", link: "Create an account", mode: "register" },
         register: { text: "Already have an account?", link: "Sign in", mode: "login" },
         forgot: { text: "Remember password?", link: "Sign in", mode: "login" },
         reset: { text: "Remember password?", link: "Sign in", mode: "login" },
@@ -443,58 +453,73 @@ const AuthForm = ({
         <div style={st.page} className="auth-shell">
             {/* LEFT : BRAND PANEL */}
             <aside style={st.left} className="auth-left">
-                <div style={{ position: "absolute", left: "-140px", top: "-100px", height: "420px", width: "420px", borderRadius: "999px", background: "rgba(249,115,22,.25)", filter: "blur(110px)", pointerEvents: "none" }} />
-                <div style={{ position: "absolute", right: "-80px", bottom: "-120px", height: "380px", width: "380px", borderRadius: "999px", background: "rgba(245,158,11,.12)", filter: "blur(110px)", pointerEvents: "none" }} />
+                {/* Glowing background ambient orbs */}
+                <div style={{ position: "absolute", left: "-140px", top: "-100px", height: "420px", width: "420px", borderRadius: "999px", background: "rgba(14, 165, 233, 0.22)", filter: "blur(110px)", pointerEvents: "none" }} />
+                <div style={{ position: "absolute", right: "-80px", bottom: "-120px", height: "380px", width: "380px", borderRadius: "999px", background: "rgba(37, 99, 235, 0.2)", filter: "blur(110px)", pointerEvents: "none" }} />
                 <div style={{
-                    position: "absolute", inset: 0, opacity: 0.07, pointerEvents: "none",
+                    position: "absolute", inset: 0, opacity: 0.05, pointerEvents: "none",
                     backgroundImage: "linear-gradient(to right,#fff 1px,transparent 1px),linear-gradient(to bottom,#fff 1px,transparent 1px)",
                     backgroundSize: "64px 64px",
                 }} />
 
+                {/* Brand Logo & Name */}
                 <div style={{ position: "relative", display: "flex", alignItems: "center", gap: "12px" }}>
                     <span style={{
                         height: "48px", width: "48px", flexShrink: 0, display: "grid", placeItems: "center",
-                        borderRadius: "16px", background: `linear-gradient(135deg,${C.orange},${C.amber})`,
-                        color: "#fff", fontSize: "20px", boxShadow: "0 10px 25px -8px rgba(249,115,22,.6)",
+                        borderRadius: "16px", background: `linear-gradient(135deg, ${C.sky500}, ${C.blue600}, ${C.indigo600})`,
+                        color: "#fff", fontSize: "22px", boxShadow: "0 10px 25px -8px rgba(14, 165, 233, 0.5)",
                     }}>
                         <FiShoppingBag />
                     </span>
                     <span style={{ minWidth: 0 }}>
-                        <span style={{ display: "block", fontSize: "20px", fontWeight: 800, color: "#fff", letterSpacing: "-.02em", letterSpacing: "0.3em" }}>
+                        <span style={{ display: "block", fontSize: "20px", fontWeight: 900, color: "#fff", letterSpacing: "0.25em" }}>
                             ZYVENTO
                         </span>
-                        <span style={{ display: "block", fontSize: "11px", fontWeight: 700, letterSpacing: ".3em", color: "#fb923c" }}>
-                            SHOPPING
+                        <span style={{ display: "block", fontSize: "11px", fontWeight: 700, letterSpacing: ".3em", color: "#38bdf8" }}>
+                            MARKETPLACE
                         </span>
                     </span>
                 </div>
 
+                {/* Hero Showcase Message */}
                 <div style={{ position: "relative", maxWidth: "520px", margin: "56px 0" }}>
-                    <h2 style={{ margin: 0, fontSize: "clamp(32px,3.4vw,52px)", lineHeight: 1.08, fontWeight: 800, color: "#fff", letterSpacing: "-.03em" }}>
-                        The stalls stay open,
-                        <span style={{ display: "block", color: "#fbbf24" }}>day and night.</span>
+                    <div style={{
+                        display: "inline-flex", alignItems: "center", gap: "8px",
+                        padding: "6px 14px", borderRadius: "999px",
+                        background: "rgba(14, 165, 233, 0.12)", border: "1px solid rgba(56, 189, 248, 0.3)",
+                        color: "#38bdf8", fontSize: "12px", fontWeight: 700, marginBottom: "20px"
+                    }}>
+                        <span style={{ width: "8px", height: "8px", borderRadius: "999px", background: "#38bdf8" }} />
+                        India's Modern Multi-Vendor Shopping Hub
+                    </div>
+
+                    <h2 style={{ margin: 0, fontSize: "clamp(32px,3.4vw,50px)", lineHeight: 1.12, fontWeight: 900, color: "#fff", letterSpacing: "-.03em" }}>
+                        The marketplace that never sleeps,
+                        <span style={{ display: "block", background: "linear-gradient(to right, #38bdf8, #818cf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                            day and night.
+                        </span>
                     </h2>
-                    <p style={{ marginTop: "20px", maxWidth: "440px", fontSize: "15px", lineHeight: 1.7, color: "rgba(203,213,225,.85)" }}>
-                        Every seller you trust, every order you've placed, one gate to walk back through.
+                    <p style={{ marginTop: "20px", maxWidth: "440px", fontSize: "15px", lineHeight: 1.7, color: "#cbd5e1" }}>
+                        Every verified seller you trust, every order you place, securely accessible with one unified sign-in.
                     </p>
 
                     <ul style={{ listStyle: "none", margin: "36px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: "18px" }}>
                         {[
-                            { icon: <FiTruck />, t: "Free delivery ₹499+", d: "12,000+ pin codes covered" },
-                            { icon: <FiShield />, t: "Buyer protection", d: "7-day easy return & refund" },
-                            { icon: <FiTag />, t: "Member-only deals", d: "Extra 10% off on first order" },
+                            { icon: <FiTruck />, t: "Free delivery ₹499+", d: "12,000+ pin codes covered across India" },
+                            { icon: <FiShield />, t: "Buyer protection", d: "7-day easy return & instant refund guarantee" },
+                            { icon: <FiTag />, t: "Exclusive member deals", d: "Save up to 60% off with verified sellers" },
                         ].map((item) => (
                             <li key={item.t} style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
                                 <span style={{
                                     height: "38px", width: "38px", flexShrink: 0, display: "grid", placeItems: "center",
-                                    borderRadius: "12px", border: "1px solid rgba(255,255,255,.1)",
-                                    background: "rgba(255,255,255,.05)", color: "#fb923c",
+                                    borderRadius: "12px", border: "1px solid rgba(56, 189, 248, 0.25)",
+                                    background: "rgba(14, 165, 233, 0.1)", color: "#38bdf8",
                                 }}>
                                     {item.icon}
                                 </span>
                                 <span style={{ minWidth: 0 }}>
                                     <span style={{ display: "block", fontSize: "14px", fontWeight: 700, color: "#fff" }}>{item.t}</span>
-                                    <span style={{ display: "block", fontSize: "12px", color: C.slate400 }}>{item.d}</span>
+                                    <span style={{ display: "block", fontSize: "12px", color: "#94a3b8" }}>{item.d}</span>
                                 </span>
                             </li>
                         ))}
@@ -503,9 +528,9 @@ const AuthForm = ({
                     <div style={{ marginTop: "32px", display: "flex", flexWrap: "wrap", gap: "10px" }}>
                         {["ELECTRONICS", "FASHION", "HOME & LIVING", "GROCERY"].map((c) => (
                             <span key={c} style={{
-                                borderRadius: "999px", border: "1px solid rgba(255,255,255,.12)",
+                                borderRadius: "999px", border: "1px solid rgba(56, 189, 248, 0.2)",
                                 background: "rgba(255,255,255,.04)", padding: "8px 16px",
-                                fontSize: "11px", fontWeight: 600, letterSpacing: ".18em", color: "#cbd5e1",
+                                fontSize: "11px", fontWeight: 600, letterSpacing: ".18em", color: "#e2e8f0",
                             }}>
                                 {c}
                             </span>
@@ -516,10 +541,10 @@ const AuthForm = ({
                 <div style={{
                     position: "relative", display: "flex", alignItems: "center", gap: "10px",
                     borderTop: "1px solid rgba(255,255,255,.1)", paddingTop: "24px",
-                    fontSize: "11px", fontWeight: 700, letterSpacing: ".22em", color: C.slate400,
+                    fontSize: "11px", fontWeight: 700, letterSpacing: ".22em", color: "#94a3b8",
                 }}>
-                    <span style={{ height: "8px", width: "8px", borderRadius: "999px", background: C.amber }} />
-                    GATE · 24H ACCESS
+                    <span style={{ height: "8px", width: "8px", borderRadius: "999px", background: "#38bdf8" }} />
+                    ZYVENTO · 24H SECURE SESSION
                 </div>
             </aside>
 
@@ -528,7 +553,7 @@ const AuthForm = ({
                 <div style={{ width: "100%", maxWidth: "440px" }}>
                     <div style={st.card}>
 
-                        {/* tabs */}
+                        {/* Mode Switcher Tabs */}
                         {(type === "login" || type === "register") && (
                             <div style={{
                                 display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px",
@@ -542,10 +567,10 @@ const AuthForm = ({
                                         style={{
                                             padding: "10px 12px", borderRadius: "10px", fontSize: "14px", fontWeight: 600,
                                             cursor: "pointer", transition: "all .2s",
-                                            border: type === tab.key ? "1px solid #e2e8f0" : "1px solid transparent",
+                                            border: type === tab.key ? "1px solid #bae6fd" : "1px solid transparent",
                                             background: type === tab.key ? "#fff" : "transparent",
-                                            color: type === tab.key ? C.slate900 : C.slate500,
-                                            boxShadow: type === tab.key ? "0 1px 2px rgba(15,23,42,.06)" : "none",
+                                            color: type === tab.key ? C.sky700 : C.slate500,
+                                            boxShadow: type === tab.key ? "0 2px 8px -2px rgba(2, 132, 199, 0.18)" : "none",
                                         }}
                                     >
                                         {tab.label}
@@ -555,9 +580,9 @@ const AuthForm = ({
                         )}
 
                         <span style={{
-                            display: "inline-block", borderRadius: "999px", background: "#fff7ed",
-                            border: "1px solid #fed7aa", padding: "4px 12px", fontSize: "11px",
-                            fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: C.orangeDark,
+                            display: "inline-block", borderRadius: "999px", background: C.sky50,
+                            border: `1px solid ${C.sky100}`, padding: "4px 12px", fontSize: "11px",
+                            fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: C.sky700,
                         }}>
                             {heading[type].badge}
                         </span>
@@ -627,11 +652,11 @@ const AuthForm = ({
                                     }}>
                                         <input type="checkbox" name="termsAccepted" checked={formData.termsAccepted}
                                             onChange={handleChange}
-                                            style={{ marginTop: "2px", height: "16px", width: "16px", flexShrink: 0, accentColor: C.orange }} />
+                                            style={{ marginTop: "2px", height: "16px", width: "16px", flexShrink: 0, accentColor: C.sky600 }} />
                                         <span style={{ fontSize: "12px", lineHeight: 1.7, color: "#475569" }}>
                                             I agree to the{" "}
-                                            <Link to="/terms" style={{ color: C.orangeDark, fontWeight: 700 }}>Terms of Sale</Link>{" and "}
-                                            <Link to="/privacy" style={{ color: C.orangeDark, fontWeight: 700 }}>Privacy Policy</Link>, including order &amp; delivery communication.
+                                            <Link to="/terms" style={{ color: C.sky600, fontWeight: 700 }}>Terms of Sale</Link>{" and "}
+                                            <Link to="/privacy" style={{ color: C.sky600, fontWeight: 700 }}>Privacy Policy</Link>, including order &amp; delivery communication.
                                             {formErrors.termsAccepted && (
                                                 <span style={{ display: "block", marginTop: "4px", fontSize: "12px", fontWeight: 600, color: C.rose }}>
                                                     {formErrors.termsAccepted}
@@ -654,13 +679,13 @@ const AuthForm = ({
                                         showPassword={showPassword} setShowPassword={setShowPassword}
                                         error={formErrors.password}
                                         rightSlot={
-                                            <Link to="/forgot-password" style={{ fontSize: "13px", fontWeight: 700, color: C.orangeDark }}>
+                                            <Link to="/forgot-password" style={{ fontSize: "13px", fontWeight: 700, color: C.sky600 }}>
                                                 Forgot password?
                                             </Link>
                                         } />
 
                                     <p style={{ margin: "0 0 18px", fontSize: "12px", color: C.slate500 }}>
-                                        Buyer &amp; seller — same login
+                                        Buyer, Seller &amp; Staff — unified login portal
                                     </p>
                                 </>
                             )}
@@ -707,10 +732,10 @@ const AuthForm = ({
                             {/* OTP */}
                             {otpSent && (
                                 <div style={{
-                                    borderRadius: "16px", border: `1px solid ${C.slate200}`, background: "#f8fafc",
+                                    borderRadius: "16px", border: `1px solid ${C.sky100}`, background: "#f0f9ff",
                                     padding: "20px", marginBottom: "18px",
                                 }}>
-                                    <p style={{ margin: 0, textAlign: "center", fontSize: "14px", fontWeight: 700, color: "#1e293b" }}>
+                                    <p style={{ margin: 0, textAlign: "center", fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>
                                         Verify your email
                                     </p>
                                     <p style={{ margin: "4px 0 0", textAlign: "center", fontSize: "12px", color: C.slate500 }}>
@@ -753,13 +778,10 @@ const AuthForm = ({
                                 </div>
                             )}
 
-
-                            {/*  UPDATED SUBMIT BUTTON WITH LOADING SPINNER */}
+                            {/* SUBMIT BUTTON WITH SPINNER */}
                             {type === "login" ? (
                                 <div style={{ display: "flex", gap: "10px" }}>
-
                                     <button type="submit" disabled={loading} style={st.primaryBtn(loading)}>
-
                                         {loading ? (
                                             <>
                                                 <LoadingSpinner size="sm" color="white" text="" />
@@ -791,21 +813,6 @@ const AuthForm = ({
                                     </button>
                                 </div>
                             ) : (
-
-                                // <button type="submit" disabled={loading} style={st.primaryBtn(loading)}>
-                                //     {loading ? (
-                                //         <>
-                                //             <LoadingSpinner size="sm" color="white" text=""/>
-                                //             <span>Processing...</span>
-                                //         </>
-                                //     ) : (
-                                //         <>
-                                //             {submitLabel[type]}
-                                //             <FiArrowRight />
-                                //         </>
-                                //     )}
-                                // </button>
-
                                 <button
                                     type="submit"
                                     disabled={loading || (type === "register" && isOtpLocked)}
@@ -845,7 +852,7 @@ const AuthForm = ({
                         margin: "20px 0 0", display: "flex", alignItems: "center", justifyContent: "center",
                         gap: "8px", fontSize: "11px", fontWeight: 600, letterSpacing: ".18em", color: C.slate400,
                     }}>
-                        <FiShield /> GATE-ACCESS · SECURE SESSION
+                        <FiShield /> 256-BIT ENCRYPTED · SECURE SESSION
                     </p>
                 </div>
             </main>
@@ -860,8 +867,7 @@ const AuthForm = ({
     );
 };
 
-
-//  SUB COMPONENTS
+// SUB COMPONENTS
 
 const Alert = ({ tone = "error", children }) => {
     const ok = tone === "success";

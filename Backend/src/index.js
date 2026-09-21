@@ -71,6 +71,7 @@ router.use('/notification', notificationRoutes);
 
 router.use('/report', reportRoutes);
 router.use('/review', reviewRoutes);
-
+const settingsRoutes = require('./routes/settings.routes');
+router.use('/settings', settingsRoutes);
 
 module.exports = router;

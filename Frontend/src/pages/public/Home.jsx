@@ -78,7 +78,7 @@ const Home = () => {
         : fallbackCategories;
 
     return (
-        <div className="space-y-10 sm:space-y-14 pb-12">
+        <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 space-y-10 sm:space-y-14 pt-4 sm:pt-6 pb-16">
             
             {/* ============================================================
                 HERO SECTION — Animated Modern Gradient Showcase
@@ -88,7 +88,7 @@ const Home = () => {
                 <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-sky-500/20 blur-3xl pointer-events-none" />
                 <div className="absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl pointer-events-none" />
 
-                <div className="relative max-w-7xl mx-auto px-6 sm:px-10 lg:px-14 py-12 sm:py-20 lg:py-24">
+                <div className="relative w-full px-6 sm:px-10 lg:px-16 py-12 sm:py-16 lg:py-20">
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
                         
                         {/* Left Hero Content */}

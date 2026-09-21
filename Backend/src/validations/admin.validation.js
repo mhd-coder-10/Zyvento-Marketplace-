@@ -833,6 +833,85 @@ const adminValidation = {
                 'string.empty': 'Product ID is required',
             }),
     }),
+
+    // ==========================================
+    // COMPANY FINANCE VALIDATIONS
+    // ==========================================
+
+    // Get Finance Entries Query
+    getFinanceEntries: Joi.object({
+        page: Joi.number().integer().min(1).default(1),
+        limit: Joi.number().integer().min(1).max(200).default(10),
+        type: Joi.string().valid('all', 'income', 'expense').optional(),
+        category: Joi.string().optional(),
+        status: Joi.string().valid('all', 'completed', 'pending', 'reconciled', 'cancelled').optional(),
+        payment_method: Joi.string().optional(),
+        startDate: Joi.date().iso().optional(),
+        endDate: Joi.date().iso().optional(),
+        search: Joi.string().allow('').optional(),
+        sortBy: Joi.string().valid('entry_date', 'amount', 'created_at').default('entry_date'),
+        sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
+    }),
+
+    // Add Finance Entry
+    addFinanceEntry: Joi.object({
+        entry_type: Joi.string().valid('income', 'expense').required(),
+        amount: Joi.number().min(0.01).required(),
+        category: Joi.string().trim().required(),
+        party_name: Joi.string().allow('').optional(),
+        payment_method: Joi.string().valid(
+            'bank_transfer', 'upi', 'credit_card', 'gateway', 'cash', 'escrow', 'other'
+        ).default('bank_transfer'),
+        payment_reference: Joi.string().allow('').optional(),
+        tax_rate: Joi.number().min(0).max(100).default(0),
+        status: Joi.string().valid('completed', 'pending', 'reconciled', 'cancelled').default('completed'),
+        entry_date: Joi.date().iso().optional(),
+        description: Joi.string().allow('').optional(),
+        notes: Joi.string().allow('').optional(),
+        reference_type: Joi.string().valid('order', 'payment', 'transaction', 'seller_payout', 'manual').default('manual'),
+        reference_id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null, '').optional(),
+        reference_code: Joi.string().allow('').optional(),
+    }),
+
+    // Update Finance Entry
+    updateFinanceEntry: Joi.object({
+        entry_type: Joi.string().valid('income', 'expense').optional(),
+        amount: Joi.number().min(0.01).optional(),
+        category: Joi.string().trim().optional(),
+        party_name: Joi.string().allow('').optional(),
+        payment_method: Joi.string().valid(
+            'bank_transfer', 'upi', 'credit_card', 'gateway', 'cash', 'escrow', 'other'
+        ).optional(),
+        payment_reference: Joi.string().allow('').optional(),
+        tax_rate: Joi.number().min(0).max(100).optional(),
+        status: Joi.string().valid('completed', 'pending', 'reconciled', 'cancelled').optional(),
+        entry_date: Joi.date().iso().optional(),
+        description: Joi.string().allow('').optional(),
+        notes: Joi.string().allow('').optional(),
+        reference_type: Joi.string().valid('order', 'payment', 'transaction', 'seller_payout', 'manual').optional(),
+        reference_id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null, '').optional(),
+        reference_code: Joi.string().allow('').optional(),
+    }),
+
+    // Finance ID Param
+    financeIdParam: Joi.object({
+        entryId: Joi.string()
+            .required()
+            .messages({
+                'string.empty': 'Finance entry ID is required',
+            }),
+    }),
+
+    // Finance Export Query
+    exportFinance: Joi.object({
+        format: Joi.string().valid('excel', 'csv', 'pdf', 'json').default('excel'),
+        type: Joi.string().valid('all', 'income', 'expense').optional(),
+        category: Joi.string().optional(),
+        status: Joi.string().optional(),
+        startDate: Joi.date().iso().optional(),
+        endDate: Joi.date().iso().optional(),
+        search: Joi.string().allow('').optional(),
+    }),
 };
 
 module.exports = adminValidation;

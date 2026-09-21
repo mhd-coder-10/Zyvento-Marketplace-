@@ -9,12 +9,15 @@ import {
     FiClock, FiShield, FiBriefcase, FiLayers
 } from 'react-icons/fi';
 import ApiService from '../../api/ApiService';
+import UserAvatar from './UserAvatar';
+import { useSystemSettings } from '../../context/SettingsContext';
 
 const Header = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const location = useLocation();
     const { user, isAuthenticated } = useSelector((state) => state.auth);
+    const { settings } = useSystemSettings();
 
     const [scrolled, setScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -171,7 +174,7 @@ const Header = () => {
 
     const userType = user?.user_type || user?.role?.role_type || 'customer';
     const isSuperOrSubAdmin = ['super_admin', 'sub_admin'].includes(userType);
-    const isSeller = userType === 'seller';
+    const isSeller = ['seller', 'seller_employee'].includes(userType);
 
     const formatCurrency = (v) =>
         new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v || 0);
@@ -185,18 +188,18 @@ const Header = () => {
             }`}
         >
             {/* Top Bar / Announcement (Desktop only) */}
-            <div className="hidden lg:block bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-700 text-white text-[12px] font-medium py-1.5 px-4 sm:px-8">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="hidden lg:block bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-700 text-white text-[12px] font-medium py-1.5 px-4 sm:px-6 lg:px-8 xl:px-10">
+                <div className="w-full max-w-[1600px] mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <span className="inline-flex items-center gap-1.5 bg-white/20 px-2 py-0.5 rounded-full text-[11px] font-semibold">
                             ⚡ Flash Deals
                         </span>
-                        <span>Free Shipping on prepaid orders above ₹499 | Express 48h Delivery</span>
+                        <span>{settings?.announcement_text || 'Free Shipping on prepaid orders above ₹499 | Express 48h Delivery'}</span>
                     </div>
                     <div className="flex items-center gap-5 text-sky-100">
                         {!isSeller && (
                             <Link to="/become-seller" className="hover:text-white transition flex items-center gap-1">
-                                <FiBriefcase className="h-3.5 w-3.5" /> Sell on Zyvento
+                                <FiBriefcase className="h-3.5 w-3.5" /> Sell on {settings?.site_name || 'Zyvento'}
                             </Link>
                         )}
                         <Link to="/help-center" className="hover:text-white transition flex items-center gap-1">
@@ -210,7 +213,7 @@ const Header = () => {
             </div>
 
             {/* Main Header Container */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10">
                 <div className="flex items-center justify-between h-16 sm:h-20 gap-3 sm:gap-6">
                     
                     {/* Left: Mobile Drawer Trigger + Brand Logo */}
@@ -391,9 +394,13 @@ const Header = () => {
                                             : 'border-transparent hover:border-slate-200 hover:bg-slate-50 text-slate-700'
                                     }`}
                                 >
-                                    <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-sky-400 to-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
-                                        {user?.first_name?.[0]?.toUpperCase() || <FiUser className="h-4 w-4" />}
-                                    </div>
+                                    <UserAvatar
+                                        src={user?.profile_image}
+                                        name={user?.first_name || 'User'}
+                                        size="sm"
+                                        shape="square"
+                                        className="rounded-xl shadow-sm"
+                                    />
                                     <div className="hidden lg:block text-left leading-tight">
                                         <p className="text-xs text-slate-400 font-medium">Hello,</p>
                                         <p className="text-xs font-bold text-slate-800 truncate max-w-[100px]">
@@ -465,7 +472,7 @@ const Header = () => {
                                     {/* Menu Items */}
                                     <div className="space-y-1 text-sm font-medium text-slate-700">
                                         <Link
-                                            to="/profile"
+                                            to={isSuperOrSubAdmin ? "/admin/profile" : isSeller ? "/seller/profile" : "/profile"}
                                             onClick={() => setAccountMenuOpen(false)}
                                             className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-sky-50 hover:text-blue-700 transition"
                                         >
@@ -585,8 +592,8 @@ const Header = () => {
             </div>
 
             {/* Bottom Category Bar (Desktop) */}
-            <nav className="hidden lg:block border-t border-slate-100 bg-slate-50/70 px-4 sm:px-8">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <nav className="hidden lg:block border-t border-slate-100 bg-slate-50/70 px-4 sm:px-6 lg:px-8 xl:px-10">
+                <div className="w-full max-w-[1600px] mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-2">
                         {/* All Categories Dropdown Trigger */}
                         <div className="relative" ref={categoryRef}>
@@ -731,6 +738,16 @@ const Header = () => {
 
                             {/* Navigation Links */}
                             <div className="space-y-1 text-sm font-semibold text-slate-700">
+                                {isAuthenticated && (
+                                    <Link
+                                        to={isSuperOrSubAdmin ? "/admin/profile" : isSeller ? "/seller/profile" : "/profile"}
+                                        onClick={() => setMobileMenuOpen(false)}
+                                        className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-sky-50 hover:text-blue-700"
+                                    >
+                                        <FiUser className="h-4 w-4 text-sky-600" />
+                                        <span>My Profile</span>
+                                    </Link>
+                                )}
                                 <Link
                                     to="/"
                                     onClick={() => setMobileMenuOpen(false)}

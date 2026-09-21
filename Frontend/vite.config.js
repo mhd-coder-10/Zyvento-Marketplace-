@@ -13,13 +13,17 @@ export default defineConfig({
     port: parseInt(process.env.FRONTEND_PORT) || 5173,
     strictPort: true,
     hmr: {
-      protocol: 'ws',
-      host: process.env.HOST_IP || 'localhost',
-      port: parseInt(process.env.FRONTEND_PORT) || 5173,
+      clientPort: parseInt(process.env.FRONTEND_PORT) || 5173,
+    },
+    proxy: {
+      '/uploads': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+      },
     },
   },
   preview: {
-    host: process.env.HOST_IP || 'localhost',
+    host: '0.0.0.0',
     port: parseInt(process.env.FRONTEND_PORT) || 5173,
   },
 })

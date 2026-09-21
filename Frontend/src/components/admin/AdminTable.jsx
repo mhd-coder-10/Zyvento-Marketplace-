@@ -142,7 +142,7 @@ const AdminTable = ({
     }
 
     return (
-        <div className="bg-white rounded-2xl border border-sky-100 overflow-hidden shadow-sm hover:shadow-lg hover:shadow-sky-100 transition-shadow duration-300">
+        <div className="bg-white rounded-2xl border border-sky-100 overflow-hidden shadow-sm hover:shadow-lg hover:shadow-sky-100 transition-shadow duration-300 w-full max-w-full min-w-0">
             {(onSearch || onFilter || selectable) && (
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-4 py-3.5 border-b border-sky-100 bg-gradient-to-r from-sky-50 to-white">
                     {onSearch && (
@@ -174,7 +174,7 @@ const AdminTable = ({
                 </div>
             )}
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto w-full max-w-full block">
                 <table className="w-full min-w-[640px]">
                     <thead>
                         <tr className="bg-sky-50/70 border-b border-sky-100">

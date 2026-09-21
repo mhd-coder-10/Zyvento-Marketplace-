@@ -8,6 +8,7 @@ import {
   FiShield, FiBell, FiSettings, FiUser, FiChevronDown,
   FiChevronRight, FiMenu, FiX
 } from 'react-icons/fi';
+import UserAvatar from './UserAvatar';
 
 const iconMap = {
   FiHome, FiUsers, FiShoppingBag, FiPackage, FiGrid,
@@ -65,11 +66,13 @@ const Sidebar = () => {
 
         <div className="px-4 py-3 border-b border-indigo-700">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center">
-              <span className="text-sm font-bold">
-                {user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'A'}
-              </span>
-            </div>
+            <UserAvatar
+              src={user?.profile_image || user?.profileImage}
+              name={user?.firstName || user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`}
+              size="sm"
+              shape="circle"
+              className="w-8 h-8 text-xs font-bold ring-1 ring-indigo-400"
+            />
             <div>
               <p className="text-sm font-medium text-white truncate">
                 {user?.firstName || user?.name || 'Admin'}

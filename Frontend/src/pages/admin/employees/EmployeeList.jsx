@@ -11,6 +11,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import ApiService from '../../../api/ApiService';
 import AdminTopbar from '../../../components/admin/AdminTopbar';
+import UserAvatar from '../../../components/common/UserAvatar';
 
 const EMPLOYEE_TYPE_LABELS = {
     manager: 'Manager',
@@ -433,11 +434,13 @@ const EmployeeList = () => {
                                 <div key={emp._id} className={`overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${isDeletedTab ? 'bg-rose-50/20' : ''}`}>
                                     <div className="flex items-start gap-3">
                                         
-                                        <div className={`w-11 h-11 mt-1 rounded-full flex items-center justify-center text-white font-semibold shrink-0 ${
-                                            isDeletedTab ? 'bg-gradient-to-br from-slate-400 to-slate-600' : 'bg-gradient-to-r from-blue-600 to-sky-500'
-                                        }`}>
-                                            {(emp.full_name || 'E').charAt(0).toUpperCase()}
-                                        </div>
+                                        <UserAvatar
+                                            src={emp.profile_image || emp.user_id?.profile_image}
+                                            name={emp.full_name || 'Employee'}
+                                            size="lg"
+                                            isDeleted={isDeletedTab}
+                                            className="mt-1"
+                                        />
 
                                         <div className="flex-1 min-w-0 pl-2 text-start">
                                             <p className="font-semibold text-slate-800 truncate">{emp.full_name || 'Unknown'}</p>
@@ -542,11 +545,12 @@ const EmployeeList = () => {
                                         >
                                             <td className="px-4 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0 ${
-                                                        isDeletedTab ? 'bg-gradient-to-br from-slate-400 to-slate-600' : 'bg-gradient-to-r from-blue-600 to-sky-500'
-                                                    }`}>
-                                                        {(emp.full_name || 'E').charAt(0).toUpperCase()}
-                                                    </div>
+                                                    <UserAvatar
+                                                        src={emp.profile_image || emp.user_id?.profile_image}
+                                                        name={emp.full_name || 'Employee'}
+                                                        size="md"
+                                                        isDeleted={isDeletedTab}
+                                                    />
                                                     <div className="min-w-0 text-start">
                                                         <p className="font-medium text-slate-800 truncate">{emp.full_name || 'Unknown'}</p>
                                                         <p className="text-xs text-slate-400 truncate">{emp.email || 'No email'}</p>

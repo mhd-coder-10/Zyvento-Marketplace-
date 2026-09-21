@@ -6,6 +6,7 @@ import {
     FiMenu, FiBell, FiUser, FiLogOut, FiExternalLink,
     FiSettings, FiChevronDown, FiShield, FiShoppingBag
 } from 'react-icons/fi';
+import UserAvatar from '../common/UserAvatar';
 
 const SellerHeader = ({ sidebarOpen, setSidebarOpen }) => {
     const dispatch = useDispatch();
@@ -69,9 +70,13 @@ const SellerHeader = ({ sidebarOpen, setSidebarOpen }) => {
                         onClick={() => setDropdownOpen(!dropdownOpen)}
                         className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-1.5 hover:bg-slate-100 transition-colors"
                     >
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-emerald-500 to-teal-600 text-xs font-bold text-white shadow-sm">
-                            {user?.first_name ? user.first_name.charAt(0).toUpperCase() : 'S'}
-                        </div>
+                        <UserAvatar
+                            src={user?.profile_image || user?.profileImage}
+                            name={user?.first_name ? `${user.first_name} ${user.last_name || ''}` : 'Seller Account'}
+                            size="sm"
+                            shape="square"
+                            className="h-8 w-8 text-xs font-bold rounded-lg shadow-sm"
+                        />
                         <div className="hidden text-left md:block pr-1">
                             <p className="text-xs font-bold text-slate-800 leading-tight">
                                 {user?.first_name ? `${user.first_name} ${user.last_name || ''}` : 'Seller Account'}
@@ -96,6 +101,14 @@ const SellerHeader = ({ sidebarOpen, setSidebarOpen }) => {
                                 </div>
 
                                 <div className="py-1">
+                                    <NavLink
+                                        to="/seller/profile"
+                                        onClick={() => setDropdownOpen(false)}
+                                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                                    >
+                                        <FiUser size={15} className="text-slate-400" />
+                                        <span>My Profile</span>
+                                    </NavLink>
                                     <NavLink
                                         to="/seller/settings"
                                         onClick={() => setDropdownOpen(false)}

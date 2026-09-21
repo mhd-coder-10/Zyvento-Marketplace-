@@ -2090,8 +2090,54 @@ const adminController = {
         );
     }),
 
+    // ============ COMPANY FINANCE CONTROLLER ============
+    getFinanceAnalytics: asyncHandler(async (req, res) => {
+        const data = await adminService.getFinanceAnalytics(req.query);
+        res.status(200).json(
+            ApiResponse.success(data, 'Finance analytics fetched successfully')
+        );
+    }),
 
+    getFinanceEntries: asyncHandler(async (req, res) => {
+        const result = await adminService.getFinanceEntries(req.query);
+        const response = ApiResponse.paginated(
+            result.entries,
+            result.pagination,
+            'Finance entries fetched successfully'
+        );
+        response.summary = result.summary;
+        res.status(200).json(response);
+    }),
 
+    addFinanceEntry: asyncHandler(async (req, res) => {
+        const entry = await adminService.addFinanceEntry(req.body, req.userId);
+        res.status(201).json(
+            ApiResponse.created(entry, 'Finance journal entry created successfully')
+        );
+    }),
+
+    updateFinanceEntry: asyncHandler(async (req, res) => {
+        const entry = await adminService.updateFinanceEntry(req.params.entryId, req.body, req.userId);
+        res.status(200).json(
+            ApiResponse.success(entry, 'Finance journal entry updated successfully')
+        );
+    }),
+
+    deleteFinanceEntry: asyncHandler(async (req, res) => {
+        const result = await adminService.deleteFinanceEntry(req.params.entryId, req.userId);
+        res.status(200).json(
+            ApiResponse.success(result, 'Finance entry deleted successfully')
+        );
+    }),
+
+    exportFinance: asyncHandler(async (req, res) => {
+        const result = await adminService.exportFinance(req.query);
+        const mimeType = result.mimeType || result.contentType || 'application/octet-stream';
+        const fileName = result.fileName || result.filename || 'Zyvento-Financial-Report.xlsx';
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.send(result.buffer);
+    }),
 
 };
 

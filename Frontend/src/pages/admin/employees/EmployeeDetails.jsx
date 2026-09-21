@@ -459,6 +459,7 @@ import {
 import { motion } from 'framer-motion';
 import ApiService from '../../../api/ApiService';
 import AdminTopbar from '../../../components/admin/AdminTopbar';
+import UserAvatar from '../../../components/common/UserAvatar';
 
 const EMPLOYEE_TYPE_LABELS = {
     manager: 'Manager',
@@ -662,9 +663,12 @@ const EmployeeDetails = () => {
                         <div className="flex flex-col lg:hidden">
                             <div className="flex justify-center">
                                 <div className="relative shrink-0">
-                                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-600 to-sky-500 flex items-center justify-center text-white text-2xl font-black shadow-lg ring-4 ring-sky-100">
-                                        {initials}
-                                    </div>
+                                    <UserAvatar
+                                        src={employee.profile_image || employee.user_id?.profile_image}
+                                        name={employee.full_name}
+                                        shape="rounded-2xl"
+                                        className="w-20 h-20 text-2xl font-black shadow-lg ring-4 ring-sky-100"
+                                    />
                                     <span className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-4 border-white ${isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                                 </div>
                             </div>
@@ -714,9 +718,12 @@ const EmployeeDetails = () => {
                         {/* DESKTOP */}
                         <div className="hidden lg:flex lg:items-center gap-6">
                             <div className="relative shrink-0">
-                                <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-blue-600 to-sky-500 flex items-center justify-center text-white text-3xl font-black shadow-lg ring-4 ring-sky-100">
-                                    {initials}
-                                </div>
+                                <UserAvatar
+                                    src={employee.profile_image || employee.user_id?.profile_image}
+                                    name={employee.full_name}
+                                    shape="rounded-2xl"
+                                    className="w-24 h-24 text-3xl font-black shadow-lg ring-4 ring-sky-100"
+                                />
                                 <span className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-4 border-white ${isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                             </div>
 

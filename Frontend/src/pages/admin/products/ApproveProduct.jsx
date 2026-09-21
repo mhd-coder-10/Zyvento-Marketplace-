@@ -37,6 +37,7 @@ const ApproveProduct = () => {
         setLoading(true);
         try {
             const response = await ApiService.getAllProducts({
+                admin: true,
                 status: 'pending',
                 limit: 100,
             });

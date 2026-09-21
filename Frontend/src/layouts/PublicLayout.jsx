@@ -17,12 +17,10 @@ const PublicLayout = () => {
     }
 
     return (
-        <div className="min-h-screen flex flex-col bg-gray-50">
+        <div className="min-h-screen flex flex-col bg-gray-50 w-full max-w-full overflow-x-hidden">
             <Header />
-            <main className="flex-1 pt-0">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <Outlet />
-                </div>
+            <main className="flex-1 w-full max-w-full min-w-0 overflow-x-hidden">
+                <Outlet />
             </main>
             <Footer />
         </div>

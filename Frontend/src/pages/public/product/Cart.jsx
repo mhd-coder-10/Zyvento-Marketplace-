@@ -16,9 +16,11 @@ import {
     FiArrowRight
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
+import { useSystemSettings } from '../../../context/SettingsContext';
 
 const Cart = () => {
     const navigate = useNavigate();
+    const { settings } = useSystemSettings();
     const [cart, setCart] = useState(null);
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
@@ -129,9 +131,12 @@ const Cart = () => {
     };
 
     const subtotal = Number(cart?.subtotal || cart?.total_amount || 0);
-    const freeDeliveryThreshold = 999;
+    const freeDeliveryThreshold = Number(settings?.free_shipping_threshold) || 499;
+    const standardDeliveryFee = Number(settings?.standard_delivery_fee) || 49;
+    const deliveryFee = subtotal >= freeDeliveryThreshold ? 0 : standardDeliveryFee;
     const progressToFreeDelivery = Math.min(100, Math.round((subtotal / freeDeliveryThreshold) * 100));
     const amountLeftForFreeDelivery = Math.max(0, freeDeliveryThreshold - subtotal);
+    const totalPayable = Math.max(0, subtotal + deliveryFee - Number(cart?.discount || 0));
 
     if (loading) {
         return (
@@ -173,8 +178,8 @@ const Cart = () => {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50/50 py-8 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-6xl mx-auto space-y-6">
+        <div className="min-h-screen bg-slate-50/50 py-6 sm:py-8 px-4 sm:px-6 lg:px-8 xl:px-10">
+            <div className="w-full max-w-[1600px] mx-auto space-y-6">
 
                 {/* ============ BREADCRUMB & HEADER ============ */}
                 <div className="flex items-center justify-between">
@@ -341,7 +346,7 @@ const Cart = () => {
                                 <div className="flex justify-between">
                                     <span>Delivery Charges</span>
                                     <span className={subtotal >= freeDeliveryThreshold ? 'text-emerald-600 font-bold' : 'text-slate-900 font-bold'}>
-                                        {subtotal >= freeDeliveryThreshold ? 'FREE' : '₹99.00'}
+                                        {subtotal >= freeDeliveryThreshold ? 'FREE' : `₹${standardDeliveryFee.toFixed(2)}`}
                                     </span>
                                 </div>
 
@@ -355,7 +360,7 @@ const Cart = () => {
                                 <div className="pt-3 border-t border-slate-100 flex justify-between items-baseline text-slate-900">
                                     <span className="text-sm font-black">Total Payable</span>
                                     <span className="text-2xl font-black text-blue-600">
-                                        ₹{(Number(cart.total_amount || subtotal)).toFixed(2)}
+                                        ₹{totalPayable.toFixed(2)}
                                     </span>
                                 </div>
                             </div>

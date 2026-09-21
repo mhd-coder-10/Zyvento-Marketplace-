@@ -26,6 +26,7 @@ import { FaStore } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminTopbar from '../../../components/admin/AdminTopbar';
 import ApiService from '../../../api/ApiService';
+import UserAvatar from '../../../components/common/UserAvatar';
 
 /* ================= FILTER OPTIONS ================= */
 
@@ -450,9 +451,13 @@ const Sellers = () => {
                             sellers.map((seller) => (
                                 <div key={sellerCode(seller)} className="overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                                     <div className="flex items-start gap-3">
-                                        <div className="w-11 h-11 mt-1 rounded-full bg-gradient-to-br from-blue-500 to-sky-500 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-md ring-2 ring-sky-100">
-                                            {businessName(seller).charAt(0).toUpperCase()}
-                                        </div>
+                                        <UserAvatar
+                                            src={seller.logo || seller.profile_image || seller.user_id?.profile_image}
+                                            name={businessName(seller)}
+                                            size="lg"
+                                            shape="square"
+                                            className="mt-1 shadow-md ring-2 ring-sky-100"
+                                        />
 
                                         <div className="flex-1 min-w-0 text-sm text-start ml-6">
                                             <p className="font-semibold text-slate-800 truncate">{businessName(seller)}</p>
@@ -537,9 +542,12 @@ const Sellers = () => {
                                         >
                                             <td className="px-4 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-sky-500 text-white flex items-center justify-center text-xs font-bold">
-                                                        {businessName(seller).charAt(0).toUpperCase()}
-                                                    </div>
+                                                    <UserAvatar
+                                                        src={seller.logo || seller.profile_image || seller.user_id?.profile_image}
+                                                        name={businessName(seller)}
+                                                        size="md"
+                                                        shape="square"
+                                                    />
                                                     <div className="min-w-0 text-start">
                                                         <p className="font-medium text-slate-800 truncate">{businessName(seller)}</p>
                                                         <p className="text-xs text-slate-400 truncate">{sellerCode(seller)}</p>

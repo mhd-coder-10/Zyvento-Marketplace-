@@ -19,10 +19,34 @@ const {swaggerUi, swaggerDocs} = require('./swagger');
 const app = express();
 connectDB();   //  CONNECT DATABASE
 
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    config.CLIENT_URL,
+].filter(Boolean);
+
 //  SECURITY MIDDLEWARE
 app.use(helmet());
 app.use(cors({
-    origin: config.CLIENT_URL,
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (config.NODE_ENV !== 'production') {
+            if (
+                origin.startsWith('http://localhost:') ||
+                origin.startsWith('http://127.0.0.1:') ||
+                origin.startsWith('http://192.168.') ||
+                origin.startsWith('http://10.') ||
+                origin.startsWith('http://172.') ||
+                allowedOrigins.includes(origin)
+            ) {
+                return callback(null, true);
+            }
+        }
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        return callback(new Error(`CORS blocked for origin: ${origin}`), false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -45,6 +69,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // STATIC FILES 
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // SWAGGER UI

@@ -7,18 +7,21 @@ const rateLimit = require('express-rate-limit');
 const ApiError = require('../utils/apiError');
 
 // REMOVED custom keyGenerator
+const isDev = process.env.NODE_ENV !== 'production';
+
+// Rate Limiter (Skipped in development to allow smooth pair programming & rapid navigation)
 const rateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100,
+    max: isDev ? 50000 : 1000,
     message: {
         success: false,
-        message: 'Too many requests from this IP. Please try again after 15 minutes.',
+        message: 'Too many requests. Please try again later.',
         retryAfter: '15 minutes',
     },
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => {
-        return req.path === '/health';
+        return isDev || req.path === '/health';
     },
     handler: (req, res) => {
         throw ApiError.tooManyRequests('Too many requests. Please try again later.');
@@ -28,7 +31,7 @@ const rateLimiter = rateLimit({
 // REMOVED custom keyGenerator
 const strictRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: isDev ? 1000 : 20,
     message: {
         success: false,
         message: 'Too many authentication attempts. Please try again after 15 minutes.',
@@ -36,6 +39,7 @@ const strictRateLimiter = rateLimit({
     },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => isDev,
     handler: (req, res) => {
         throw ApiError.tooManyRequests('Too many attempts. Please try again later.');
     },
@@ -44,7 +48,7 @@ const strictRateLimiter = rateLimit({
 // REMOVED custom keyGenerator
 const otpRateLimiter = rateLimit({
     windowMs: 5 * 60 * 1000,
-    max: 5,
+    max: isDev ? 500 : 5,
     message: {
         success: false,
         message: 'Too many OTP requests. Please try again after 5 minutes.',
@@ -52,6 +56,7 @@ const otpRateLimiter = rateLimit({
     },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => isDev,
     handler: (req, res) => {
         throw ApiError.tooManyRequests('Too many OTP requests. Please try again later.');
     },

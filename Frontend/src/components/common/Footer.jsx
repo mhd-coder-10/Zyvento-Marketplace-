@@ -287,11 +287,12 @@ export default function Footer2() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="bg-slate-950 text-slate-300">
-      <NewsletterBand />
+    <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 pb-8 sm:pb-12 pt-2">
+      <footer className="w-full bg-slate-950 text-slate-300 rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-800/80">
+        <NewsletterBand />
 
-      {/* Main content: brand + navigation columns */}
-      <div className={`${CONTAINER} py-12 sm:py-14 lg:py-20`}>
+        {/* Main content: brand + navigation columns */}
+        <div className={`${CONTAINER} py-12 sm:py-14 lg:py-20`}>
         <div className="grid gap-y-10 lg:grid-cols-12 lg:gap-x-16 lg:justify-between">
 
           {/* Brand */}
@@ -392,20 +393,20 @@ export default function Footer2() {
 
       {/* Trust / service features */}
       <div className="border-y border-white/10 bg-slate-900/50">
-        <div className={`${CONTAINER} grid grid-cols-2 gap-4 py-10 sm:gap-6 lg:grid-cols-4 lg:py-12`}>
+        <div className={`${CONTAINER} grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 py-8 sm:gap-6 lg:py-12`}>
           {TRUST_ITEMS.map((item) => (
             <div
               key={item.title}
-              className="flex min-w-0 flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors duration-200 hover:border-white/20 sm:p-5 lg:flex-row lg:items-start lg:gap-4 lg:p-6"
+              className="flex min-w-0 items-start gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors duration-200 hover:border-white/20 sm:p-5"
             >
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-600/15 text-sky-300">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-600/20 text-sky-300">
                 <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
                   <path fill="currentColor" d={item.path} />
                 </svg>
               </span>
               <span className="min-w-0">
                 <span className="block text-[15px] font-semibold text-white">{item.title}</span>
-                <span className="mt-1.5 block text-[13px] leading-6 text-slate-400">
+                <span className="mt-1 block text-[13px] leading-5 text-slate-400">
                   {item.copy}
                 </span>
               </span>
@@ -417,7 +418,7 @@ export default function Footer2() {
       {/* Accepted payments */}
       <div className="border-b border-white/10">
         <div
-          className={`${CONTAINER} flex flex-col gap-4 py-8 lg:flex-row lg:items-center lg:justify-between lg:gap-8`}
+          className={`${CONTAINER} flex flex-col gap-4 py-6 sm:py-8 lg:flex-row lg:items-center lg:justify-between lg:gap-8`}
         >
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
             Accepted payment methods
@@ -426,7 +427,7 @@ export default function Footer2() {
             {PAYMENTS.map((method) => (
               <li
                 key={method}
-                className="rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-[13px] font-medium text-slate-300"
+                className="rounded-xl border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-medium text-slate-300"
               >
                 {method}
               </li>
@@ -437,13 +438,13 @@ export default function Footer2() {
 
       {/* Bottom bar */}
       <div
-        className={`${CONTAINER} flex flex-col gap-4 py-8 lg:flex-row lg:items-center lg:justify-between`}
+        className={`${CONTAINER} flex flex-col gap-4 py-6 sm:py-8 lg:flex-row lg:items-center lg:justify-between`}
       >
-        <p className="text-[13px] leading-6 text-slate-500">
+        <p className="text-[13px] leading-6 text-slate-500 text-center sm:text-left">
           © {year} Zyvento Shopping. All rights reserved.
         </p>
         <nav aria-label="Legal">
-          <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <ul className="flex flex-wrap items-center justify-center sm:justify-start gap-x-6 gap-y-2">
             {LEGAL_LINKS.map((link) => (
               <li key={link.label}>
                 <a
@@ -458,6 +459,7 @@ export default function Footer2() {
         </nav>
       </div>
     </footer>
+    </div>
   );
 
 }

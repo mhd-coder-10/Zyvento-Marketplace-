@@ -11,6 +11,7 @@ import { FaUsersCog, FaUserTag } from 'react-icons/fa';
 import ApiService from '../../../api/ApiService';
 import AdminTopbar from '../../../components/admin/AdminTopbar';
 import UserRoleMultiSelect from '../../../components/admin/role/UserRoleMultiSelect';
+import UserAvatar from '../../../components/common/UserAvatar';
 
 /* OPTIONS */
 const MAIN_USER_TYPES = [
@@ -54,6 +55,7 @@ const EMPTY_FORM = {
     status: 'active',
     date_of_birth: '', gender: '', address: '', city: '', state: '',
     country: '', postal_code: '',
+    profile_image: '',
 };
 
 /* Maps user_type to role_type - Role model stores role_type */
@@ -181,6 +183,7 @@ const UserManagement = () => {
                 state: u.state || '',
                 country: u.country || '',
                 postal_code: u.postal_code || '',
+                profile_image: u.profile_image || '',
                 password: '',
                 password_confirmation: '',
             };
@@ -533,9 +536,12 @@ const UserManagement = () => {
                 <div className="lg:col-span-1 space-y-5">
                     <div className="bg-white rounded-2xl border border-sky-100 shadow-sm p-6 text-center">
                         <div className="relative inline-block">
-                            <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-blue-600 to-sky-400 flex items-center justify-center text-white text-3xl font-bold border-4 border-sky-100 shadow-md mx-auto">
-                                {initials}
-                            </div>
+                            <UserAvatar
+                                src={formData.profile_image}
+                                name={`${formData.first_name} ${formData.last_name}`}
+                                shape="rounded-2xl"
+                                className="w-24 h-24 text-3xl font-bold border-4 border-sky-100 shadow-md mx-auto"
+                            />
                         </div>
                         <p className="mt-4 font-semibold text-slate-900 truncate">
                             {`${formData.first_name} ${formData.last_name}`.trim() || 'New User'}

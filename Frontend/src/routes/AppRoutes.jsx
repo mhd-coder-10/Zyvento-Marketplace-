@@ -233,6 +233,7 @@ const AppRoutes = () => {
             >
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="profile" element={<Profile />} />
 
                 {/* Roles */}
                 <Route path="roles" element={<RolePermission />} />
@@ -340,6 +341,7 @@ const AppRoutes = () => {
             >
                 <Route index element={<Navigate to="/seller/dashboard" replace />} />
                 <Route path="dashboard" element={<SellerDashboard />} />
+                <Route path="profile" element={<Profile />} />
                 <Route path="products" element={<SellerProducts />} />
                 <Route path="products/create" element={<SellerCreateProduct />} />
                 <Route path="products/edit/:id" element={<SellerEditProduct />} />

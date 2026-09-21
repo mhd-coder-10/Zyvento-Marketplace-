@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import ApiService from '../../../api/ApiService';
 import AdminTopbar from '../../../components/admin/AdminTopbar';
+import UserAvatar from '../../../components/common/UserAvatar';
 
 const SUB_ADMIN_TYPE_LABELS = {
     manager: 'Manager',
@@ -458,10 +459,13 @@ const SubAdminList = () => {
                             subAdmins.map((sa) => (
                                 <div key={sa._id} className={`overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${isDeletedTab ? 'bg-rose-50/20' : ''}`}>
                                     <div className="flex items-start gap-3">
-                                        <div className={`w-11 h-11 mt-1 rounded-full flex items-center justify-center text-white font-semibold shrink-0 ${isDeletedTab ? 'bg-gradient-to-br from-slate-400 to-slate-600' : 'bg-gradient-to-r from-blue-600 to-sky-500'
-                                            }`}>
-                                            {(sa.full_name || 'S').charAt(0).toUpperCase()}
-                                        </div>
+                                        <UserAvatar
+                                            src={sa.profile_image || sa.user_id?.profile_image}
+                                            name={sa.full_name || 'Sub Admin'}
+                                            size="lg"
+                                            isDeleted={isDeletedTab}
+                                            className="mt-1"
+                                        />
                                         <div className="flex-1 min-w-0 pl-2 text-start">
                                             <p className="font-semibold text-slate-800 truncate">{sa.full_name || 'Unknown' }</p>
                                             <p className="text-xs text-slate-500 truncate">{sa.email || "No Email"}</p>
@@ -561,10 +565,12 @@ const SubAdminList = () => {
                                         >
                                             <td className="px-4 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0 ${isDeletedTab ? 'bg-gradient-to-br from-slate-400 to-slate-600' : 'bg-gradient-to-r from-blue-600 to-sky-500'
-                                                        }`}>
-                                                        {(sa.full_name || 'S').charAt(0).toUpperCase()}
-                                                    </div>
+                                                    <UserAvatar
+                                                        src={sa.profile_image || sa.user_id?.profile_image}
+                                                        name={sa.full_name || 'Sub Admin'}
+                                                        size="md"
+                                                        isDeleted={isDeletedTab}
+                                                    />
                                                     <div className="min-w-0 text-start">
                                                         <p className="font-medium text-slate-800 truncate">{sa.full_name || 'Unknown'}</p>
                                                         <p className="text-xs text-slate-400 truncate">{sa.email || 'No email'}</p>

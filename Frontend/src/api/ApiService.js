@@ -1,6 +1,17 @@
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_HOST_API_URL || 'http://localhost:5000/api';
+const getApiUrl = () => {
+    if (typeof window !== 'undefined' && window.location?.hostname) {
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        return `${protocol}//${window.location.hostname}:5001/api`;
+    }
+    if (import.meta.env.VITE_HOST_API_URL) {
+        return import.meta.env.VITE_HOST_API_URL;
+    }
+    return 'http://localhost:5001/api';
+};
+
+const API_URL = getApiUrl();
 
 
 // AXIOS INTERCEPTORS - Auto handle token 
@@ -132,9 +143,11 @@ const ApiService = {
 
     // Upload profile image
     uploadProfileImage: (formData) => {
-        setAuthHeaders();
+        const token = getToken();
         return axios.post(`${API_URL}/auth/profile-image`, formData, {
-            headers: formDataHeaders,
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+            }
         });
     },
 
@@ -694,10 +707,34 @@ const ApiService = {
         return axios.get(`${API_URL}/admin/products/stats`);
     },
 
-    // Get All Products
+    // Public & Admin Products (Smart router)
     getAllProducts: (params) => {
+        if (params?.admin) {
+            setAuthHeaders();
+            return axios.get(`${API_URL}/admin/products`, { params });
+        }
+        return axios.get(`${API_URL}/product`, { params });
+    },
+
+    // Public Marketplace Products
+    getProducts: (params) => {
+        return axios.get(`${API_URL}/product`, { params });
+    },
+
+    // Admin Products (requires admin permissions)
+    getAdminProducts: (params) => {
         setAuthHeaders();
         return axios.get(`${API_URL}/admin/products`, { params });
+    },
+
+    // Get Single Product by ID (Public)
+    getProductById: (productId) => {
+        return axios.get(`${API_URL}/product/${productId}`);
+    },
+
+    // Get Single Product by Slug (Public)
+    getProductBySlug: (slug) => {
+        return axios.get(`${API_URL}/product/slug/${slug}`);
     },
 
     // Get Categories for Dropdown
@@ -1217,7 +1254,7 @@ const ApiService = {
         });
     },
 
-    // ============ CUSTOMER WISHLIST MODULE ============
+    // ============ CUSTOMER WISHLIST ============
 
     // Get wishlist
     getWishlist: (params) => {
@@ -2368,6 +2405,95 @@ const ApiService = {
         setAuthHeaders();
         return axios.put(`${API_URL}/seller/settings`, data, {
             headers: headers,
+        });
+    },
+
+    // ==========================================
+    // SYSTEM SETTINGS (Public & Admin)
+    // ==========================================
+    // Get public store settings (No auth required)
+    getPublicSettings: () => {
+        return axios.get(`${API_URL}/settings/public`, {
+            headers: { 'Content-Type': 'application/json' },
+        });
+    },
+
+    // Get all admin system settings
+    getSystemSettings: () => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/settings`, {
+            headers: headers,
+        });
+    },
+
+    // Get admin settings by group
+    getSettingsByGroup: (group) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/settings/group/${group}`, {
+            headers: headers,
+        });
+    },
+
+    // Update admin settings by group
+    updateSettingsByGroup: (group, settingsData) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/admin/settings/group/${group}`, { settings: settingsData }, {
+            headers: headers,
+        });
+    },
+
+    // ==========================================
+    // COMPANY FINANCE / ENTERPRISE ACCOUNTING
+    // ==========================================
+    // 1. Get finance analytics & KPIs
+    getFinanceAnalytics: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/finance/analytics`, {
+            headers: headers,
+            params: params,
+        });
+    },
+
+    // 2. Get paginated ledger entries with filters
+    getFinanceEntries: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/finance`, {
+            headers: headers,
+            params: params,
+        });
+    },
+
+    // 3. Add journal entry (income or expense)
+    addFinanceEntry: (data) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/admin/finance`, data, {
+            headers: headers,
+        });
+    },
+
+    // 4. Update journal entry
+    updateFinanceEntry: (entryId, data) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/admin/finance/${entryId}`, data, {
+            headers: headers,
+        });
+    },
+
+    // 5. Delete journal entry
+    deleteFinanceEntry: (entryId) => {
+        setAuthHeaders();
+        return axios.delete(`${API_URL}/admin/finance/${entryId}`, {
+            headers: headers,
+        });
+    },
+
+    // 6. Export financial data (Excel, CSV, PDF, JSON)
+    exportFinance: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/finance/export`, {
+            headers: headers,
+            params: params,
+            responseType: 'blob',
         });
     },
 };

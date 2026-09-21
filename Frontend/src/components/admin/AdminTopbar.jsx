@@ -298,7 +298,7 @@ const AdminTopbar = ({ title, subtitle, actions }) => {
     const isDetailPage = pathnames.length > 2;
 
     return (
-        <div className="relative isolate mb-0 rounded-2xl border border-sky-100 bg-white shadow-sm shadow-sky-100/60">
+        <div className="relative isolate mb-0 rounded-2xl border border-sky-100 bg-white shadow-sm shadow-sky-100/60 overflow-hidden w-full max-w-full min-w-0">
             <span className="pointer-events-none absolute inset-x-0 top-0 z-0 h-1 rounded-t-2xl bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
             <span className="pointer-events-none absolute -right-16 -top-16 z-0 h-40 w-40 rounded-full bg-sky-200/30 blur-3xl" />
 
@@ -436,7 +436,7 @@ const AdminTopbar = ({ title, subtitle, actions }) => {
                     </div>
 
                     {actions && (
-                        <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                        <div className="flex flex-wrap items-center justify-center gap-2 mt-2 w-full max-w-full min-w-0">
                             {actions}
                         </div>
                     )}

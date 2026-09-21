@@ -11,6 +11,7 @@ import { FaUserCircle, FaStore, FaUserTag, FaUsersCog } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminTopbar from '../../../components/admin/AdminTopbar';
 import ApiService from '../../../api/ApiService';
+import UserAvatar from '../../../components/common/UserAvatar';
 
 /* ================= MAIN FILTER OPTIONS ================= */
 const MAIN_USER_TYPES = [
@@ -520,9 +521,12 @@ const Users = () => {
                             users.map((user) => (
                                 <div key={uid(user)} className="overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                                     <div className="flex items-start gap-3">
-                                        <div className="w-11 h-11 mt-1 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 text-white flex items-center justify-center text-sm font-semibold shrink-0">
-                                            {fullName(user).split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U'}
-                                        </div>
+                                        <UserAvatar
+                                            src={user.profile_image}
+                                            name={fullName(user)}
+                                            size="lg"
+                                            className="mt-1"
+                                        />
                                         <div className="flex-1 text-left min-w-0 pl-6">
                                             <p className="font-semibold text-slate-800 truncate">{fullName(user)}</p>
                                             <p className="text-xs text-slate-500 truncate">{emailOf(user)}</p>
@@ -584,9 +588,11 @@ const Users = () => {
                                         <tr key={uid(user)} className="hover:bg-sky-50/40 transition-colors">
                                             <td className="px-4 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 text-white flex items-center justify-center text-xs font-semibold">
-                                                        {fullName(user).split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U'}
-                                                    </div>
+                                                    <UserAvatar
+                                                        src={user.profile_image}
+                                                        name={fullName(user)}
+                                                        size="md"
+                                                    />
                                                     <div className="min-w-0 text-start">
                                                         <p className="font-medium text-slate-800 truncate">{fullName(user)}</p>
                                                         <p className="text-xs text-slate-400 truncate">
