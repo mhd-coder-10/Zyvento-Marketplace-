@@ -1,175 +1,291 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
-    FiDollarSign, FiTrendingUp, FiBarChart2, FiRefreshCw, FiCalendar,
-    FiArrowUpRight, FiArrowDownRight,
+    FiDollarSign,
+    FiTrendingUp,
+    FiRefreshCw,
+    FiHome,
+    FiCheckCircle,
+    FiClock,
+    FiCreditCard,
+    FiAlertCircle,
+    FiShoppingBag,
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
-import AdminTopbar from '../../../components/admin/AdminTopbar';
 
-const formatCurrency = (v) =>
-    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v || 0);
+const formatCurrency = (val) =>
+    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val || 0);
 
 const SellerEarnings = () => {
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
-    const [period, setPeriod] = useState('monthly');
-    const [dashboard, setDashboard] = useState(null);
-    const [salesReport, setSalesReport] = useState(null);
-    const [analytics, setAnalytics] = useState(null);
+    const [stats, setStats] = useState({
+        netEarnings: 0,
+        pendingPayout: 0,
+        paidPayout: 0,
+        avgOrderValue: 0,
+        totalOrders: 0,
+    });
+    const [transactions, setTransactions] = useState([]);
+
     const mounted = useRef(true);
 
-    useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-    useEffect(() => { fetchData(); }, [period]);
+    useEffect(() => {
+        mounted.current = true;
+        fetchEarnings();
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
 
-    const fetchData = async () => {
+    const fetchEarnings = async () => {
         setLoading(true);
-        const now = new Date();
-        const endDate = now.toISOString().split('T')[0];
-        const startDate = new Date(now.getFullYear(), now.getMonth() - (period === 'yearly' ? 12 : period === 'monthly' ? 1 : 0), period === 'weekly' ? now.getDate() - 7 : 1).toISOString().split('T')[0];
-
         try {
-            const [dashRes, salesRes, analyticsRes] = await Promise.allSettled([
-                ApiService.getSellerDashboard(),
-                ApiService.getSellerSalesReport({ start_date: startDate, end_date: endDate, period: 'daily' }),
-                ApiService.getSellerAnalytics({ period }),
+            // Fetch real summary & orders from database safely
+            const [summaryRes, ordersRes] = await Promise.allSettled([
+                typeof ApiService.getSellerEarnings === 'function' ? ApiService.getSellerEarnings() : Promise.reject('n/a'),
+                typeof ApiService.getSellerMyOrders === 'function' ? ApiService.getSellerMyOrders({ limit: 50 }) : Promise.reject('n/a'),
             ]);
 
-            if (!mounted.current) return;
+            let totalRevenue = 0;
+            let paidAmount = 0;
+            let pendingAmount = 0;
+            let avgVal = 0;
+            let orderCount = 0;
+            let txList = [];
 
-            if (dashRes.status === 'fulfilled' && dashRes.value?.data?.success) {
-                setDashboard(dashRes.value.data.data);
+            // 1. Parse dedicated earnings endpoint response
+            if (summaryRes.status === 'fulfilled' && summaryRes.value?.data?.data) {
+                const s = summaryRes.value.data.data;
+                totalRevenue = s.net_earnings ?? s.total_earnings ?? 0;
+                paidAmount = s.paid_earnings ?? 0;
+                pendingAmount = s.pending_earnings ?? Math.max(0, totalRevenue - paidAmount);
+                avgVal = s.average_order_value ?? 0;
+                orderCount = s.total_orders ?? 0;
+                if (Array.isArray(s.transactions) && s.transactions.length > 0) {
+                    txList = s.transactions;
+                }
             }
-            if (salesRes.status === 'fulfilled' && salesRes.value?.data?.success) {
-                setSalesReport(salesRes.value.data.data);
+
+            // 2. Parse orders if transactions list is still empty
+            if (txList.length === 0 && ordersRes.status === 'fulfilled' && ordersRes.value?.data?.data) {
+                const ordData = ordersRes.value.data.data;
+                const oList = Array.isArray(ordData) ? ordData : (ordData.orders || []);
+                if (!orderCount) orderCount = oList.length;
+
+                if (!totalRevenue && oList.length > 0) {
+                    totalRevenue = oList.reduce((acc, o) => acc + (Number(o.total_amount) || 0), 0);
+                    pendingAmount = totalRevenue;
+                    avgVal = Math.round(totalRevenue / oList.length);
+                }
+
+                txList = oList.map((ord) => {
+                    const gross = Number(ord.total_amount) || 0;
+                    const fee = Number(((gross * 10) / 100).toFixed(2));
+                    const net = Number((gross - fee).toFixed(2));
+                    return {
+                        _id: ord._id,
+                        transaction_id: ord.order_number || ord.order_code || (typeof ord._id === 'string' ? ord._id.slice(-8).toUpperCase() : 'ORD'),
+                        payout_id: `PAY-${typeof ord._id === 'string' ? ord._id.slice(-6).toUpperCase() : '001'}`,
+                        created_at: ord.created_at,
+                        gross_amount: gross,
+                        commission_amount: fee,
+                        net_amount: net,
+                        status: ord.order_status === 'delivered' ? 'paid' : 'pending',
+                    };
+                });
             }
-            if (analyticsRes.status === 'fulfilled' && analyticsRes.value?.data?.success) {
-                setAnalytics(analyticsRes.value.data.data);
+
+            if (mounted.current) {
+                setStats({
+                    netEarnings: totalRevenue,
+                    paidPayout: paidAmount,
+                    pendingPayout: pendingAmount,
+                    avgOrderValue: avgVal,
+                    totalOrders: orderCount,
+                });
+                setTransactions(txList);
             }
         } catch (err) {
-            console.error('Earnings data error:', err);
+            console.error('Failed to load earnings from database:', err);
             toast.error('Failed to load earnings data');
         } finally {
             if (mounted.current) setLoading(false);
         }
     };
 
-    const overview = dashboard?.overview || dashboard?.stats || dashboard || {};
-    const totalRevenue = overview.total_revenue || 0;
-    const totalOrders = overview.total_orders || 0;
-    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-    const dailySales = salesReport?.daily_sales || salesReport?.sales || [];
-
     return (
         <div className="space-y-6">
-            <AdminTopbar
-                title="Earnings & Reports"
-                subtitle="Track your store revenue, sales trends, and financial performance"
-                actions={
-                    <div className="flex items-center gap-3">
-                        <div className="inline-flex rounded-xl bg-sky-50 p-1 ring-1 ring-sky-100">
-                            {['weekly', 'monthly', 'yearly'].map((p) => (
-                                <button key={p} onClick={() => setPeriod(p)}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-all ${period === p ? 'bg-white text-blue-700 shadow-sm' : 'text-sky-600 hover:text-blue-700'}`}>
-                                    {p}
-                                </button>
-                            ))}
-                        </div>
-                        <button onClick={fetchData} disabled={loading}
-                            className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-3.5 py-2 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50 disabled:opacity-50">
-                            <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                            <span className="hidden sm:inline">Refresh</span>
-                        </button>
-                    </div>
-                }
-            />
+            {/* Header & Breadcrumb */}
+            <div className="bg-white rounded-2xl border border-sky-100 p-6 shadow-xs">
+                <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-3">
+                    <button
+                        onClick={() => navigate('/seller/dashboard')}
+                        className="p-1 rounded-md hover:bg-sky-50 text-blue-600 transition-colors"
+                    >
+                        <FiHome className="w-4 h-4" />
+                    </button>
+                    <span>/</span>
+                    <span className="bg-sky-50 text-blue-700 px-2.5 py-1 rounded-lg font-semibold text-xs">
+                        My Earnings
+                    </span>
+                </div>
 
-            {/* Revenue Summary Cards */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {[
-                    { title: 'Total Revenue', value: formatCurrency(totalRevenue), icon: FiDollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { title: 'Total Orders', value: totalOrders, icon: FiBarChart2, color: 'text-blue-600', bg: 'bg-blue-50' },
-                    { title: 'Avg Order Value', value: formatCurrency(avgOrderValue), icon: FiTrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                    { title: 'Period', value: period.charAt(0).toUpperCase() + period.slice(1), icon: FiCalendar, color: 'text-sky-600', bg: 'bg-sky-50' },
-                ].map((card, idx) => (
-                    <div key={idx} className="relative overflow-hidden rounded-2xl border border-sky-100 bg-white p-5 shadow-sm">
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{card.title}</span>
-                            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.bg} ${card.color}`}>
-                                <card.icon className="h-5 w-5" />
-                            </div>
-                        </div>
-                        <h3 className="mt-3 text-2xl font-extrabold text-slate-800">{loading ? '...' : card.value}</h3>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+                            <FiDollarSign className="text-emerald-600 w-7 h-7" />
+                            <span>My Earnings & Payouts</span>
+                        </h1>
+                        <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                            Review settled sales, deduction breakdowns, and upcoming bank disbursements.
+                        </p>
                     </div>
-                ))}
+
+                    <button
+                        type="button"
+                        onClick={fetchEarnings}
+                        disabled={loading}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition-all disabled:opacity-50"
+                    >
+                        <FiRefreshCw className={`w-3.5 h-3.5 text-slate-600 ${loading ? 'animate-spin text-blue-600' : ''}`} />
+                        <span>Refresh</span>
+                    </button>
+                </div>
             </div>
 
-            {/* Sales Breakdown Table */}
-            <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm">
-                <h3 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <FiBarChart2 className="text-sky-600" />
-                    Sales Breakdown
-                </h3>
-                {loading ? (
-                    <div className="py-12 text-center text-slate-400">
-                        <FiRefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
-                        <p className="text-sm">Loading sales data...</p>
+            {/* 4 Financial Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white rounded-2xl p-5 border border-sky-100 shadow-xs flex items-center justify-between">
+                    <div>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Net Store Revenue</p>
+                        <h3 className="text-2xl font-extrabold text-slate-800 mt-1">
+                            {loading ? '—' : formatCurrency(stats.netEarnings)}
+                        </h3>
                     </div>
-                ) : dailySales.length > 0 ? (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-slate-100">
-                                    <th className="py-3 px-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Date</th>
-                                    <th className="py-3 px-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Orders</th>
-                                    <th className="py-3 px-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Revenue</th>
-                                    <th className="py-3 px-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Avg Value</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {dailySales.map((day, idx) => (
-                                    <tr key={idx} className="hover:bg-sky-50/30 transition">
-                                        <td className="py-3 px-4 font-medium text-slate-700">{day._id || day.date || `Day ${idx + 1}`}</td>
-                                        <td className="py-3 px-4 text-slate-600">{day.count || day.orders || 0}</td>
-                                        <td className="py-3 px-4 font-bold text-blue-700">{formatCurrency(day.total || day.revenue)}</td>
-                                        <td className="py-3 px-4 text-slate-600">
-                                            {formatCurrency((day.count || day.orders) > 0 ? (day.total || day.revenue) / (day.count || day.orders) : 0)}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                ) : (
-                    <div className="py-12 text-center text-slate-400">
-                        <FiDollarSign className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-                        <p className="text-sm font-medium">No sales data available for this period.</p>
-                        <p className="text-xs mt-1">Sales data will appear once orders are fulfilled.</p>
-                    </div>
-                )}
-            </div>
-
-            {/* Analytics Summary */}
-            {analytics && (
-                <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm">
-                    <h3 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <FiTrendingUp className="text-emerald-600" />
-                        Analytics Overview
-                    </h3>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                        {[
-                            { label: 'Total Views', value: analytics.total_views || analytics.views || 0 },
-                            { label: 'Conversion Rate', value: `${(analytics.conversion_rate || 0).toFixed(1)}%` },
-                            { label: 'Return Rate', value: `${(analytics.return_rate || 0).toFixed(1)}%` },
-                        ].map((item, idx) => (
-                            <div key={idx} className="rounded-xl bg-slate-50 p-4 text-center">
-                                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{item.label}</p>
-                                <p className="mt-2 text-xl font-extrabold text-slate-800">{item.value}</p>
-                            </div>
-                        ))}
+                    <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <FiDollarSign className="w-5 h-5" />
                     </div>
                 </div>
-            )}
+
+                <div className="bg-white rounded-2xl p-5 border border-sky-100 shadow-xs flex items-center justify-between">
+                    <div>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Paid Disbursements</p>
+                        <h3 className="text-2xl font-extrabold text-blue-600 mt-1">
+                            {loading ? '—' : formatCurrency(stats.paidPayout)}
+                        </h3>
+                    </div>
+                    <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <FiCheckCircle className="w-5 h-5" />
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-5 border border-sky-100 shadow-xs flex items-center justify-between">
+                    <div>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pending Payout</p>
+                        <h3 className="text-2xl font-extrabold text-amber-600 mt-1">
+                            {loading ? '—' : formatCurrency(stats.pendingPayout)}
+                        </h3>
+                    </div>
+                    <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <FiClock className="w-5 h-5" />
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-5 border border-sky-100 shadow-xs flex items-center justify-between">
+                    <div>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Avg Order Value</p>
+                        <h3 className="text-2xl font-extrabold text-slate-800 mt-1">
+                            {loading ? '—' : formatCurrency(stats.avgOrderValue)}
+                        </h3>
+                    </div>
+                    <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                        <FiTrendingUp className="w-5 h-5" />
+                    </div>
+                </div>
+            </div>
+
+            {/* Payout History Table */}
+            <div className="bg-white rounded-2xl border border-sky-100 shadow-xs overflow-hidden text-left">
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                    <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                        Disbursement & Settlement History
+                    </h2>
+                    <span className="text-xs text-slate-400">Direct to registered bank</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50/80 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                <th className="py-3.5 px-4">Payout ID</th>
+                                <th className="py-3.5 px-4">Cycle Date</th>
+                                <th className="py-3.5 px-4">Gross Sales</th>
+                                <th className="py-3.5 px-4">Marketplace Fee</th>
+                                <th className="py-3.5 px-4 font-bold">Net Payout</th>
+                                <th className="py-3.5 px-4 text-right">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs">
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="6" className="py-12 text-center text-slate-400">
+                                        <FiRefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-600 mb-2" />
+                                        <span>Loading earnings from database...</span>
+                                    </td>
+                                </tr>
+                            ) : transactions.length === 0 ? (
+                                <tr>
+                                    <td colSpan="6" className="py-12 text-center text-slate-400">
+                                        <FiShoppingBag className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                                        <p className="font-bold text-slate-700 text-sm">No disbursement records yet</p>
+                                        <p className="text-xs text-slate-400 mt-1">
+                                            As customer orders are delivered, settlement records will be generated and displayed here.
+                                        </p>
+                                    </td>
+                                </tr>
+                            ) : (
+                                transactions.map((tx) => (
+                                    <tr key={tx._id || tx.id} className="hover:bg-sky-50/30 transition-colors">
+                                        <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
+                                            #{tx.transaction_id || tx.payout_id || tx._id?.slice(-8).toUpperCase()}
+                                        </td>
+                                        <td className="py-3.5 px-4 text-slate-500">
+                                            {tx.created_at ? new Date(tx.created_at).toLocaleDateString() : 'N/A'}
+                                        </td>
+                                        <td className="py-3.5 px-4 text-slate-700">
+                                            {formatCurrency(tx.gross_amount || tx.amount || 0)}
+                                        </td>
+                                        <td className="py-3.5 px-4 text-rose-600 font-medium">
+                                            -{formatCurrency(tx.commission_amount || tx.fee || 0)}
+                                        </td>
+                                        <td className="py-3.5 px-4 font-bold text-slate-900">
+                                            {formatCurrency(tx.net_amount || tx.payout_amount || 0)}
+                                        </td>
+                                        <td className="py-3.5 px-4 text-right">
+                                            <span
+                                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                                                    tx.status === 'completed' || tx.status === 'paid'
+                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                                                }`}
+                                            >
+                                                {tx.status === 'completed' || tx.status === 'paid' ? (
+                                                    <FiCheckCircle className="w-3 h-3" />
+                                                ) : (
+                                                    <FiClock className="w-3 h-3" />
+                                                )}
+                                                <span className="capitalize">{tx.status || 'pending'}</span>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 };

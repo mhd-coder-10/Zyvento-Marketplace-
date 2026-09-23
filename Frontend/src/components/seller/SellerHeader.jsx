@@ -1,137 +1,199 @@
-import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import { logoutUser } from '../../store/slices/authSlice';
 import {
-    FiMenu, FiBell, FiUser, FiLogOut, FiExternalLink,
-    FiSettings, FiChevronDown, FiShield, FiShoppingBag
+    FiMenu,
+    FiBell,
+    FiUser,
+    FiLogOut,
+    FiSettings,
+    FiChevronDown,
+    FiX,
+    FiExternalLink,
+    FiShoppingBag,
 } from 'react-icons/fi';
-import UserAvatar from '../common/UserAvatar';
 
-const SellerHeader = ({ sidebarOpen, setSidebarOpen }) => {
+const SellerHeader = ({ sidebarOpen, setSidebarOpen, isMobile, user }) => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const { user } = useSelector((state) => state.auth);
-    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+    const profileRef = useRef(null);
+    const notificationRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (profileRef.current && !profileRef.current.contains(event.target)) {
+                setIsProfileOpen(false);
+            }
+            if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+                setIsNotificationsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const handleLogout = async () => {
         await dispatch(logoutUser());
         navigate('/login');
     };
 
-    const businessName = user?.seller?.business_name || user?.business_name || user?.first_name 
-        ? `${user.first_name}'s Store` 
-        : 'Seller Portal';
+    const fullName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.name || user?.business_name || 'Seller';
+    const initial = (user?.first_name?.[0] || user?.business_name?.[0] || 'S').toUpperCase();
 
-    const employeeType = user?.employee_type ? user.employee_type.replace(/_/g, ' ').toUpperCase() : null;
+    const notifications = [
+        { id: 1, title: 'New order received', time: '10 min ago', read: false },
+        { id: 2, title: 'Stock low on top product', time: '1 hour ago', read: false },
+        { id: 3, title: 'Customer left a 5-star review', time: 'Yesterday', read: true },
+    ];
+
+    const unreadCount = notifications.filter((n) => !n.read).length;
 
     return (
-        <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-sky-100 bg-white/95 px-4 backdrop-blur-md transition-all sm:px-6">
-            {/* Left: Mobile Sidebar Trigger & Store Identity */}
-            <div className="flex items-center gap-3">
-                <button
-                    type="button"
-                    onClick={() => setSidebarOpen(!sidebarOpen)}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-sky-50 hover:text-sky-600 transition-colors lg:hidden"
-                >
-                    <FiMenu size={20} />
-                </button>
-
-                <div className="flex items-center gap-2">
-                    <div className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm font-bold text-sm">
-                        <FiShoppingBag size={16} />
-                    </div>
-                    <div>
-                        <h1 className="text-sm sm:text-base font-bold text-slate-800 leading-tight">
-                            {businessName}
-                        </h1>
-                        <p className="text-[11px] font-medium text-emerald-600">
-                            {employeeType ? `Staff: ${employeeType}` : 'Merchant Dashboard'}
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Right: Quick actions and Profile */}
-            <div className="flex items-center gap-2 sm:gap-3">
-                <NavLink
-                    to="/"
-                    target="_blank"
-                    className="hidden sm:flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-600 transition-all"
-                >
-                    <span>View Marketplace</span>
-                    <FiExternalLink size={13} />
-                </NavLink>
-
-                {/* Profile Dropdown */}
-                <div className="relative">
+        <header className="fixed top-0 right-0 left-0 z-40 h-16 lg:left-64 transition-all duration-300 bg-white/90 backdrop-blur-xl border-b border-sky-100 shadow-[0_4px_20px_-14px_rgba(2,132,199,0.4)]">
+            <div className="flex items-center justify-between h-full px-4 sm:px-6">
+                {/* Left side: Hamburger Toggle */}
+                <div className="flex items-center gap-3">
                     <button
-                        type="button"
-                        onClick={() => setDropdownOpen(!dropdownOpen)}
-                        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-1.5 hover:bg-slate-100 transition-colors"
+                        onClick={() => setSidebarOpen(!sidebarOpen)}
+                        className="p-2 rounded-xl text-slate-600 hover:bg-sky-50 hover:text-sky-600 active:scale-95 transition-all"
+                        aria-label="Toggle sidebar"
                     >
-                        <UserAvatar
-                            src={user?.profile_image || user?.profileImage}
-                            name={user?.first_name ? `${user.first_name} ${user.last_name || ''}` : 'Seller Account'}
-                            size="sm"
-                            shape="square"
-                            className="h-8 w-8 text-xs font-bold rounded-lg shadow-sm"
-                        />
-                        <div className="hidden text-left md:block pr-1">
-                            <p className="text-xs font-bold text-slate-800 leading-tight">
-                                {user?.first_name ? `${user.first_name} ${user.last_name || ''}` : 'Seller Account'}
-                            </p>
-                            <p className="text-[10px] text-slate-500 capitalize">
-                                {user?.user_type === 'seller_employee' ? 'Staff Member' : 'Store Owner'}
-                            </p>
-                        </div>
-                        <FiChevronDown size={14} className="text-slate-400 hidden sm:block" />
+                        {isMobile && sidebarOpen ? (
+                            <FiX className="w-5 h-5" />
+                        ) : (
+                            <FiMenu className="w-5 h-5" />
+                        )}
                     </button>
+                </div>
 
-                    {dropdownOpen && (
-                        <>
-                            <div
-                                className="fixed inset-0 z-40"
-                                onClick={() => setDropdownOpen(false)}
+                {/* Right side: Notifications & Profile Dropdown */}
+                <div className="flex items-center gap-2 sm:gap-4">
+                    {/* Notifications */}
+                    <div className="relative" ref={notificationRef}>
+                        <button
+                            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                            className="relative p-2.5 rounded-xl text-slate-600 hover:bg-sky-50 hover:text-sky-600 transition-colors"
+                            aria-label="Notifications"
+                        >
+                            <FiBell className="w-5 h-5" />
+                            {unreadCount > 0 && (
+                                <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white animate-pulse" />
+                            )}
+                        </button>
+
+                        {isNotificationsOpen && (
+                            <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-sky-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                                <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
+                                    <span className="font-semibold text-slate-800 text-sm">Notifications</span>
+                                    <span className="text-[11px] font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full">
+                                        {unreadCount} new
+                                    </span>
+                                </div>
+                                <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
+                                    {notifications.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            className={`px-4 py-3 hover:bg-slate-50/80 transition-colors cursor-pointer ${
+                                                !item.read ? 'bg-sky-50/30' : ''
+                                            }`}
+                                        >
+                                            <p className="text-xs font-medium text-slate-800">{item.title}</p>
+                                            <p className="text-[11px] text-slate-400 mt-0.5">{item.time}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Profile Dropdown */}
+                    <div className="relative" ref={profileRef}>
+                        <button
+                            onClick={() => setIsProfileOpen(!isProfileOpen)}
+                            className="flex items-center gap-2 sm:gap-3 p-1.5 rounded-2xl hover:bg-sky-50/60 transition-all text-left"
+                        >
+                            {user?.profile_image ? (
+                                <img
+                                    src={user.profile_image}
+                                    alt={fullName}
+                                    className="w-9 h-9 rounded-full object-cover border border-sky-100 shadow-md shadow-sky-200"
+                                />
+                            ) : (
+                                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-md shadow-sky-200">
+                                    {initial}
+                                </div>
+                            )}
+                            <div className="hidden sm:block text-left">
+                                <span className="block text-sm font-semibold text-slate-800 leading-tight">
+                                    {fullName}
+                                </span>
+                                <span className="block text-[11px] font-medium text-sky-600 capitalize">
+                                    {user?.user_type || 'Seller'}
+                                </span>
+                            </div>
+                            <FiChevronDown
+                                className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+                                    isProfileOpen ? 'rotate-180' : ''
+                                }`}
                             />
-                            <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-100 bg-white p-2 shadow-xl ring-1 ring-black/5 z-50">
-                                <div className="border-b border-slate-100 px-3 py-2">
-                                    <p className="text-xs font-bold text-slate-800">{user?.first_name} {user?.last_name}</p>
-                                    <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
+                        </button>
+
+                        {isProfileOpen && (
+                            <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-sky-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                                <div className="px-4 py-2 border-b border-slate-100">
+                                    <p className="text-sm font-semibold text-slate-800 truncate">{fullName}</p>
+                                    <p className="text-xs text-slate-500 truncate">{user?.email}</p>
                                 </div>
 
                                 <div className="py-1">
-                                    <NavLink
-                                        to="/seller/profile"
-                                        onClick={() => setDropdownOpen(false)}
-                                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                                    <button
+                                        onClick={() => {
+                                            setIsProfileOpen(false);
+                                            navigate('/seller/profile');
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition-colors text-left"
                                     >
-                                        <FiUser size={15} className="text-slate-400" />
+                                        <FiUser className="w-4 h-4 text-slate-400" />
                                         <span>My Profile</span>
-                                    </NavLink>
-                                    <NavLink
-                                        to="/seller/settings"
-                                        onClick={() => setDropdownOpen(false)}
-                                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            setIsProfileOpen(false);
+                                            navigate('/seller/settings');
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition-colors text-left"
                                     >
-                                        <FiSettings size={15} className="text-slate-400" />
-                                        <span>Store Settings</span>
-                                    </NavLink>
+                                        <FiSettings className="w-4 h-4 text-slate-400" />
+                                        <span>Settings</span>
+                                    </button>
+
+                                    <a
+                                        href="/"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition-colors text-left"
+                                    >
+                                        <FiExternalLink className="w-4 h-4 text-slate-400" />
+                                        <span>Visit Store</span>
+                                    </a>
                                 </div>
 
-                                <div className="border-t border-slate-100 pt-1">
+                                <div className="pt-1 border-t border-slate-100">
                                     <button
-                                        type="button"
                                         onClick={handleLogout}
-                                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors"
+                                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 transition-colors text-left font-medium"
                                     >
-                                        <FiLogOut size={15} />
+                                        <FiLogOut className="w-4 h-4 text-rose-500" />
                                         <span>Log Out</span>
                                     </button>
                                 </div>
                             </div>
-                        </>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
         </header>

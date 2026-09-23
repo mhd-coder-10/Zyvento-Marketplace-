@@ -156,6 +156,9 @@ const CompanyFinance = () => {
             const params = {};
             if (startDate) params.startDate = startDate;
             if (endDate) params.endDate = endDate;
+            if (typeFilter !== 'all') params.type = typeFilter;
+            if (categoryFilter !== 'all') params.category = categoryFilter;
+            if (statusFilter !== 'all') params.status = statusFilter;
 
             const res = await ApiService.getFinanceAnalytics(params);
             if (res.data && res.data.success) {
@@ -167,7 +170,7 @@ const CompanyFinance = () => {
         } finally {
             setAnalyticsLoading(false);
         }
-    }, [getDateRange]);
+    }, [getDateRange, typeFilter, categoryFilter, statusFilter]);
 
     // Fetch General Ledger Entries
     const fetchEntries = useCallback(async () => {
@@ -535,46 +538,28 @@ const CompanyFinance = () => {
                 </div>
 
                 {/* ========================================================================= */}
-                {/* 2. EXECUTIVE FINANCIAL KPIS (AMAZON-GRADE 6 CARDS) */}
+                {/* 2. EXECUTIVE FINANCIAL KPIS (6 REAL-TIME JOURNAL METRICS) */}
                 {/* ========================================================================= */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 w-full max-w-full min-w-0">
-                    {/* CARD 1: GMV */}
-                    <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm relative overflow-hidden group hover:border-indigo-200 transition">
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-slate-500">Gross Sales (GMV)</span>
-                            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm">
-                                <FiLayers />
-                            </div>
-                        </div>
-                        <p className="text-xl font-bold text-slate-900 mt-2 tracking-tight">
-                            {formatINR(kpis.gmv || 0)}
-                        </p>
-                        <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
-                            <span>Marketplace Orders</span>
-                            <span className="font-semibold text-slate-700">{kpis.totalOrders || kpis.orderCount || 0} orders</span>
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500 opacity-60"></div>
-                    </div>
-
-                    {/* CARD 2: NET PLATFORM REVENUE */}
+                    {/* CARD 1: CORPORATE INCOME */}
                     <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm relative overflow-hidden group hover:border-emerald-200 transition">
                         <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-slate-500">Platform Revenue</span>
+                            <span className="text-xs font-medium text-slate-500">Corporate Income</span>
                             <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm">
                                 <FiArrowUpRight />
                             </div>
                         </div>
                         <p className="text-xl font-bold text-emerald-600 mt-2 tracking-tight">
-                            {formatINR(kpis.totalIncome || kpis.recordedIncome || 0)}
+                            {formatINR(kpis.totalIncome || 0)}
                         </p>
                         <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
-                            <span>Take Rate</span>
-                            <span className="font-semibold text-emerald-700">~{kpis.commissionRate || kpis.platformCommissionRate || 10}% Commission</span>
+                            <span>Credits Inflow</span>
+                            <span className="font-semibold text-emerald-700">{kpis.incomeCount || 0} vouchers</span>
                         </div>
                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-500 opacity-70"></div>
                     </div>
 
-                    {/* CARD 3: OPERATING EXPENSES */}
+                    {/* CARD 2: OPERATING EXPENSES */}
                     <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm relative overflow-hidden group hover:border-rose-200 transition">
                         <div className="flex items-center justify-between">
                             <span className="text-xs font-medium text-slate-500">Operating Expenses</span>
@@ -583,16 +568,16 @@ const CompanyFinance = () => {
                             </div>
                         </div>
                         <p className="text-xl font-bold text-rose-600 mt-2 tracking-tight">
-                            {formatINR(kpis.totalExpense || kpis.recordedExpense || 0)}
+                            {formatINR(kpis.totalExpense || 0)}
                         </p>
                         <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
-                            <span>Cloud, Logistics, Ops</span>
-                            <span className="font-semibold text-slate-700">OPEX</span>
+                            <span>Debits Outflow</span>
+                            <span className="font-semibold text-rose-700">{kpis.expenseCount || 0} vouchers</span>
                         </div>
                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-rose-500 opacity-70"></div>
                     </div>
 
-                    {/* CARD 4: NET PROFIT (EBITDA) */}
+                    {/* CARD 3: NET PROFIT (EBITDA) */}
                     <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm relative overflow-hidden group hover:border-blue-200 transition">
                         <div className="flex items-center justify-between">
                             <span className="text-xs font-medium text-slate-500">Net Profit (EBITDA)</span>
@@ -612,25 +597,7 @@ const CompanyFinance = () => {
                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-500 opacity-70"></div>
                     </div>
 
-                    {/* CARD 5: SELLER ESCROW LIABILITY */}
-                    <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm relative overflow-hidden group hover:border-amber-200 transition">
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-slate-500">Seller Escrow Hold</span>
-                            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-sm">
-                                <FiCreditCard />
-                            </div>
-                        </div>
-                        <p className="text-xl font-bold text-amber-600 mt-2 tracking-tight">
-                            {formatINR(kpis.sellerEscrowLiability || 0)}
-                        </p>
-                        <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
-                            <span>Merchant Payable</span>
-                            <span className="font-semibold text-amber-700">Pending Settlement</span>
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-500 opacity-70"></div>
-                    </div>
-
-                    {/* CARD 6: GST LIABILITY */}
+                    {/* CARD 4: GST & TAX ACCRUAL */}
                     <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm relative overflow-hidden group hover:border-purple-200 transition">
                         <div className="flex items-center justify-between">
                             <span className="text-xs font-medium text-slate-500">Tax & GST Accrual</span>
@@ -639,13 +606,49 @@ const CompanyFinance = () => {
                             </div>
                         </div>
                         <p className="text-xl font-bold text-purple-600 mt-2 tracking-tight">
-                            {formatINR(kpis.totalTaxCollected || kpis.netGstLiability || 0)}
+                            {formatINR(kpis.totalTaxCollected || 0)}
                         </p>
                         <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
-                            <span>GSTR-3B Compliant</span>
-                            <span className="font-semibold text-purple-700">18% Standard</span>
+                            <span>GSTR-3B Accrued</span>
+                            <span className="font-semibold text-purple-700">Tax Component</span>
                         </div>
                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-purple-500 opacity-70"></div>
+                    </div>
+
+                    {/* CARD 5: PENDING CLEARANCES */}
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm relative overflow-hidden group hover:border-amber-200 transition">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-slate-500">Pending Clearances</span>
+                            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-sm">
+                                <FiClock />
+                            </div>
+                        </div>
+                        <p className="text-xl font-bold text-amber-600 mt-2 tracking-tight">
+                            {formatINR(kpis.pendingAmount || 0)}
+                        </p>
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
+                            <span>Unsettled Entries</span>
+                            <span className="font-semibold text-amber-700">{kpis.pendingCount || 0} pending</span>
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-500 opacity-70"></div>
+                    </div>
+
+                    {/* CARD 6: AUDITED & RECONCILED */}
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm relative overflow-hidden group hover:border-indigo-200 transition">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-slate-500">Audited & Reconciled</span>
+                            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm">
+                                <FiCheckCircle />
+                            </div>
+                        </div>
+                        <p className="text-xl font-bold text-indigo-600 mt-2 tracking-tight">
+                            {formatINR(kpis.reconciledAmount || 0)}
+                        </p>
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
+                            <span>Settled Entries</span>
+                            <span className="font-semibold text-indigo-700">{kpis.reconciledCount || 0} reconciled</span>
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500 opacity-70"></div>
                     </div>
                 </div>
 
@@ -740,39 +743,47 @@ const CompanyFinance = () => {
                             <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1">
                                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Primary Revenue Streams
                             </p>
-                            {incomeCategories.slice(0, 3).map((cat, i) => (
-                                <div key={i} className="space-y-1">
-                                    <div className="flex justify-between text-xs">
-                                        <span className="font-medium text-slate-700">{cat._id || cat.category}</span>
-                                        <span className="font-bold text-slate-900">{formatINR(cat.total)}</span>
+                            {incomeCategories && incomeCategories.length > 0 ? (
+                                incomeCategories.slice(0, 3).map((cat, i) => (
+                                    <div key={i} className="space-y-1">
+                                        <div className="flex justify-between text-xs">
+                                            <span className="font-medium text-slate-700">{cat._id || cat.category}</span>
+                                            <span className="font-bold text-slate-900">{formatINR(cat.total)}</span>
+                                        </div>
+                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-emerald-500 rounded-full"
+                                                style={{ width: `${Math.min(100, ((cat.total || 0) / (kpis.totalIncome || 1)) * 100)}%` }}
+                                            ></div>
+                                        </div>
                                     </div>
-                                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-emerald-500 rounded-full"
-                                            style={{ width: `${Math.min(100, ((cat.total || 0) / (kpis.totalIncome || 1)) * 100)}%` }}
-                                        ></div>
-                                    </div>
-                                </div>
-                            ))}
+                                ))
+                            ) : (
+                                <p className="text-xs text-slate-400 py-1">No revenue streams in this timeframe</p>
+                            )}
 
                             {/* Top Expense heads */}
                             <p className="text-xs font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1 pt-2">
                                 <span className="w-2 h-2 rounded-full bg-rose-500"></span> Primary Expense Heads
                             </p>
-                            {expenseCategories.slice(0, 3).map((cat, i) => (
-                                <div key={i} className="space-y-1">
-                                    <div className="flex justify-between text-xs">
-                                        <span className="font-medium text-slate-700">{cat._id || cat.category}</span>
-                                        <span className="font-bold text-slate-900">{formatINR(cat.total)}</span>
+                            {expenseCategories && expenseCategories.length > 0 ? (
+                                expenseCategories.slice(0, 3).map((cat, i) => (
+                                    <div key={i} className="space-y-1">
+                                        <div className="flex justify-between text-xs">
+                                            <span className="font-medium text-slate-700">{cat._id || cat.category}</span>
+                                            <span className="font-bold text-slate-900">{formatINR(cat.total)}</span>
+                                        </div>
+                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-rose-500 rounded-full"
+                                                style={{ width: `${Math.min(100, ((cat.total || 0) / (kpis.totalExpense || 1)) * 100)}%` }}
+                                            ></div>
+                                        </div>
                                     </div>
-                                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-rose-500 rounded-full"
-                                            style={{ width: `${Math.min(100, ((cat.total || 0) / (kpis.totalExpense || 1)) * 100)}%` }}
-                                        ></div>
-                                    </div>
-                                </div>
-                            ))}
+                                ))
+                            ) : (
+                                <p className="text-xs text-slate-400 py-1">No operating expenses in this timeframe</p>
+                            )}
                         </div>
 
                         <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">

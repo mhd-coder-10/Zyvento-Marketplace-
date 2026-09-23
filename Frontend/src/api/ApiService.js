@@ -2004,148 +2004,6 @@ const ApiService = {
         });
     },
 
-    // Get seller profile
-    getSellerProfile: () => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/seller/profile`, {
-            headers: headers,
-        });
-    },
-
-    // Update seller profile
-    updateSellerProfile: (data) => {
-        setAuthHeaders();
-        return axios.put(`${API_URL}/seller/profile`, data, {
-            headers: headers,
-        });
-    },
-
-    // Get seller dashboard
-    getSellerDashboard: () => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/seller/dashboard`, {
-            headers: headers,
-        });
-    },
-
-    // Get seller dashboard statistics
-    getSellerDashboardStats: (params) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/seller/dashboard/statistics`, {
-            headers: headers,
-            params: params,
-        });
-    },
-
-    // Upload seller document
-    uploadSellerDocument: (formData) => {
-        setAuthHeaders();
-        return axios.post(`${API_URL}/seller/documents`, formData, {
-            headers: formDataHeaders,
-        });
-    },
-
-    // Delete seller document
-    deleteSellerDocument: (documentId) => {
-        setAuthHeaders();
-        return axios.delete(`${API_URL}/seller/documents/${documentId}`, {
-            headers: headers,
-        });
-    },
-
-    // Get seller documents
-    getSellerDocuments: () => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/seller/documents`, {
-            headers: headers,
-        });
-    },
-
-    // Get seller's products
-    getSellerMyProducts: (params) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/seller/products`, {
-            headers: headers,
-            params: params,
-        });
-    },
-
-    // Create product (Seller)
-    createProductBySeller: (data) => {
-        setAuthHeaders();
-        return axios.post(`${API_URL}/seller/products`, data, {
-            headers: headers,
-        });
-    },
-
-    // Get seller orders
-    getSellerMyOrders: (params) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/seller/orders`, {
-            headers: headers,
-            params: params,
-        });
-    },
-
-    // Get seller order details
-    getSellerMyOrderDetails: (orderId) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/seller/orders/${orderId}`, {
-            headers: headers,
-        });
-    },
-
-    // Update order status (Seller)
-    updateOrderStatusBySeller: (orderId, data) => {
-        setAuthHeaders();
-        return axios.put(`${API_URL}/seller/orders/${orderId}/status`, data, {
-            headers: headers,
-        });
-    },
-
-    // Get seller performance report
-    getSellerPerformanceReport: (params) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/seller/reports/performance`, {
-            headers: headers,
-            params: params,
-        });
-    },
-
-    // Get seller sales report
-    getSellerSalesReport: (params) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/seller/reports/sales`, {
-            headers: headers,
-            params: params,
-        });
-    },
-
-    // Get seller analytics
-    getSellerAnalytics: (params) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/seller/reports/analytics`, {
-            headers: headers,
-            params: params,
-        });
-    },
-
-    // Get seller settings
-    getSellerSettings: () => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/seller/settings`, {
-            headers: headers,
-        });
-    },
-
-    // Update seller settings
-    updateSellerSettings: (data) => {
-        setAuthHeaders();
-        return axios.put(`${API_URL}/seller/settings`, data, {
-            headers: headers,
-        });
-    },
-
     // ============ SELLER APPROVAL MODULE ============
 
     // Get pending sellers (Admin only)
@@ -2392,6 +2250,31 @@ const ApiService = {
         });
     },
 
+    // Get seller earnings & disbursements
+    getSellerEarnings: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/seller/earnings`, {
+            headers: headers,
+            params: params,
+        });
+    },
+
+    // Public / Shared Categories (For Seller & Customers)
+    getPublicCategories: (params) => {
+        return axios.get(`${API_URL}/category`, { params });
+    },
+
+    // Public / Shared Sub-categories by category ID
+    getPublicSubCategories: (categoryId) => {
+        return axios.get(`${API_URL}/category/${categoryId}/sub-categories`);
+    },
+
+    // Create or find category by seller
+    createSellerCategory: (data) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/seller/categories`, data, { headers });
+    },
+
     // Get seller settings
     getSellerSettings: () => {
         setAuthHeaders();
@@ -2404,6 +2287,104 @@ const ApiService = {
     updateSellerSettings: (data) => {
         setAuthHeaders();
         return axios.put(`${API_URL}/seller/settings`, data, {
+            headers: headers,
+        });
+    },
+
+    // Update seller product
+    updateSellerProduct: (productId, data) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/product/${productId}`, data, {
+            headers: headers,
+        });
+    },
+
+    updateProduct: (productId, data) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/product/${productId}`, data, {
+            headers: headers,
+        });
+    },
+
+    // Delete seller product
+    deleteSellerProduct: (productId) => {
+        setAuthHeaders();
+        return axios.delete(`${API_URL}/product/${productId}`, {
+            headers: headers,
+        });
+    },
+
+    // Get seller inventory
+    getSellerInventory: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/inventory/seller`, {
+            headers: headers,
+            params: params,
+        });
+    },
+
+    // Update product inventory stock
+    updateProductInventory: (productId, data) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/inventory/${productId}`, data, {
+            headers: headers,
+        });
+    },
+
+    // Add stock to product
+    addProductStock: (productId, data) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/inventory/${productId}/add-stock`, data, {
+            headers: headers,
+        });
+    },
+
+    // Remove stock from product
+    removeProductStock: (productId, data) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/inventory/${productId}/remove-stock`, data, {
+            headers: headers,
+        });
+    },
+
+    // Get seller product reviews
+    getSellerProductReviews: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/review/seller-products`, {
+            headers: headers,
+            params: params,
+        });
+    },
+
+    // Get seller employees
+    getSellerEmployees: (sellerId, params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/employee/seller/${sellerId}`, {
+            headers: headers,
+            params: params,
+        });
+    },
+
+    // Create employee for seller
+    createSellerEmployee: (data) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/admin/employees`, data, {
+            headers: headers,
+        });
+    },
+
+    // Update seller employee status
+    updateSellerEmployeeStatus: (employeeId, data) => {
+        setAuthHeaders();
+        return axios.patch(`${API_URL}/employee/${employeeId}/status`, data, {
+            headers: headers,
+        });
+    },
+
+    // Delete seller employee
+    deleteSellerEmployee: (employeeId) => {
+        setAuthHeaders();
+        return axios.delete(`${API_URL}/employee/${employeeId}`, {
             headers: headers,
         });
     },

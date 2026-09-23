@@ -34,7 +34,7 @@ const SellerLayout = () => {
     }, [isAuthenticated, loading, navigate]);
 
     if (loading) {
-        return <LoadingSpinner fullPage text="Loading Seller Portal..." />;
+        return <LoadingSpinner fullPage text="Loading Seller Panel..." />;
     }
 
     if (!isAuthenticated) {
@@ -42,7 +42,7 @@ const SellerLayout = () => {
     }
 
     const userRole = user?.role?.roleName || user?.role_name || user?.user_type || 'customer';
-    const isSeller = userRole === 'seller';
+    const isSeller = userRole === 'seller' || user?.user_type === 'seller';
 
     if (!isSeller) {
         navigate('/');
@@ -50,7 +50,8 @@ const SellerLayout = () => {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 w-full max-w-full overflow-x-hidden">
+        <div className="min-h-screen bg-slate-50 w-full max-w-full overflow-x-hidden text-slate-800">
+            {/* Seller Sidebar */}
             <SellerSidebar
                 isOpen={sidebarOpen}
                 setIsOpen={setSidebarOpen}
@@ -58,11 +59,13 @@ const SellerLayout = () => {
                 user={user}
             />
 
+            {/* Main Area */}
             <div
                 className={`transition-all duration-300 w-full max-w-full min-w-0 overflow-x-hidden ${
                     sidebarOpen && !isMobile ? 'lg:ml-64 lg:w-[calc(100%-16rem)]' : 'lg:ml-0'
                 }`}
             >
+                {/* Header Navbar */}
                 <SellerHeader
                     sidebarOpen={sidebarOpen}
                     setSidebarOpen={setSidebarOpen}
@@ -89,7 +92,7 @@ const SellerLayout = () => {
                             -ms-overflow-style: none !important;
                         }
                     `}</style>
-                    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 w-full max-w-full min-w-0">
+                    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-6 w-full max-w-full min-w-0">
                         <Outlet />
                     </div>
                 </main>

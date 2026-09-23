@@ -742,17 +742,28 @@ const ProductDetail = () => {
                             {/* Seller Store Badge Card */}
                             <div className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-3.5">
-                                    <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-lg flex items-center justify-center shadow-md shadow-blue-600/20">
-                                        {(seller.business_name || 'Z')[0]}
-                                    </div>
+                                    {seller.logo ? (
+                                        <img
+                                            src={seller.logo}
+                                            alt={seller.store_name || seller.business_name || 'Seller'}
+                                            className="h-12 w-12 rounded-2xl object-cover border border-slate-200 shadow-md shadow-slate-200/50"
+                                        />
+                                    ) : (
+                                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-lg flex items-center justify-center shadow-md shadow-blue-600/20">
+                                            {(seller.store_name || seller.business_name || 'Z')[0]}
+                                        </div>
+                                    )}
                                     <div>
                                         <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Sold by Authorized Partner</p>
-                                        <p className="text-sm font-extrabold text-slate-900">{seller.business_name || 'Zyvento Prime Store'}</p>
+                                        <p className="text-sm font-extrabold text-slate-900">{seller.store_name || seller.business_name || 'Zyvento Prime Store'}</p>
+                                        {seller.tagline && (
+                                            <p className="text-[11px] text-slate-500 font-medium truncate max-w-xs">{seller.tagline}</p>
+                                        )}
                                         <div className="flex items-center gap-1.5 mt-0.5">
                                             <span className="px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-black">
                                                 ★ {seller.rating || '4.9'}
                                             </span>
-                                            <span className="text-[11px] text-slate-500 font-medium">99.4% Positive Ratings</span>
+                                            <span className="text-[11px] text-slate-500 font-medium">Verified Merchant</span>
                                         </div>
                                     </div>
                                 </div>

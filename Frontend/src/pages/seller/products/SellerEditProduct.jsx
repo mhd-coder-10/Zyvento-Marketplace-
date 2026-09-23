@@ -11,9 +11,10 @@ import {
     FiTag,
     FiLayers,
     FiLoader,
+    FiPlus,
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
-import AdminTopbar from '../../../components/admin/AdminTopbar';
+import AddCategoryModal from '../../../components/seller/AddCategoryModal';
 
 const SellerEditProduct = () => {
     const { id } = useParams();
@@ -22,6 +23,7 @@ const SellerEditProduct = () => {
     const [submitting, setSubmitting] = useState(false);
     const [categories, setCategories] = useState([]);
     const [subCategories, setSubCategories] = useState([]);
+    const [showCategoryModal, setShowCategoryModal] = useState(false);
 
     const [form, setForm] = useState({
         product_name: '',
@@ -54,7 +56,7 @@ const SellerEditProduct = () => {
         setLoading(true);
         try {
             const [catRes, prodRes] = await Promise.allSettled([
-                ApiService.getAllCategories({ limit: 100 }),
+                ApiService.getPublicCategories({ status: 'active' }),
                 ApiService.getProductById(id),
             ]);
 
@@ -95,13 +97,34 @@ const SellerEditProduct = () => {
 
     const fetchSubCategories = async (catId) => {
         try {
-            const res = await ApiService.getAllSubCategories({ categoryId: catId, limit: 100 });
+            const res = await ApiService.getPublicSubCategories(catId);
             if (res?.data?.data) {
                 const list = Array.isArray(res.data.data) ? res.data.data : res.data.data.subCategories || [];
                 setSubCategories(list);
             }
         } catch (err) {
             console.error('Failed to load subcategories:', err);
+        }
+    };
+
+    const handleCategoryCreated = (newCategory, newSubCategory) => {
+        if (!newCategory) return;
+        const newCatId = newCategory._id || newCategory.id;
+        setCategories((prev) => {
+            const exists = prev.some((c) => (c._id || c.id) === newCatId);
+            return exists ? prev : [newCategory, ...prev];
+        });
+        setForm((prev) => ({
+            ...prev,
+            category_id: newCatId,
+            sub_category_id: newSubCategory ? (newSubCategory._id || newSubCategory.id) : prev.sub_category_id,
+        }));
+        if (newSubCategory) {
+            const newSubId = newSubCategory._id || newSubCategory.id;
+            setSubCategories((prev) => {
+                const exists = prev.some((sc) => (sc._id || sc.id) === newSubId);
+                return exists ? prev : [newSubCategory, ...prev];
+            });
         }
     };
 
@@ -160,7 +183,7 @@ const SellerEditProduct = () => {
 
         setSubmitting(true);
         try {
-            const res = await ApiService.updateProduct(id, payload);
+            const res = await ApiService.updateSellerProduct(id, payload);
             if (res?.data?.success) {
                 toast.success('Product updated successfully!');
                 navigate('/seller/products');
@@ -188,20 +211,35 @@ const SellerEditProduct = () => {
 
     return (
         <div className="space-y-6">
-            <AdminTopbar
-                title="Edit Product"
-                subtitle={`Editing: ${form.product_name || 'Product Details'}`}
-                actions={
+            <div className="bg-white p-4 rounded-md border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
+                        <span>Seller Central</span>
+                        <span>/</span>
+                        <span>Inventory</span>
+                        <span>/</span>
+                        <span className="font-bold text-slate-800">Edit Product</span>
+                    </div>
+                    <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                        <FiEdit2 className="text-amber-500" />
+                        Edit Listing: {form.product_name || 'Product Details'}
+                    </h1>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                        Update vital listing information, stock quantity, variations, and pricing.
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
                     <button
                         type="button"
                         onClick={() => navigate('/seller/products')}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs"
                     >
-                        <FiArrowLeft className="h-4 w-4" />
-                        <span>Back to Products</span>
+                        <FiArrowLeft className="h-3.5 w-3.5" />
+                        <span>Cancel & Return</span>
                     </button>
-                }
-            />
+                </div>
+            </div>
 
             <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <div className="lg:col-span-2 space-y-6">
@@ -367,15 +405,27 @@ const SellerEditProduct = () => {
                 {/* Sidebar */}
                 <div className="space-y-6">
                     <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm space-y-4">
-                        <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                            <FiLayers className="text-sky-600" />
-                            Category Organization
-                        </h3>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                                <FiLayers className="text-sky-600" />
+                                Category Organization
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => setShowCategoryModal(true)}
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition"
+                            >
+                                <FiPlus className="h-3.5 w-3.5" />
+                                + Add Custom
+                            </button>
+                        </div>
 
                         <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                                Primary Category
-                            </label>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    Primary Category
+                                </label>
+                            </div>
                             <select
                                 name="category_id"
                                 value={form.category_id}
@@ -447,6 +497,12 @@ const SellerEditProduct = () => {
                     </div>
                 </div>
             </form>
+
+            <AddCategoryModal
+                isOpen={showCategoryModal}
+                onClose={() => setShowCategoryModal(false)}
+                onCategoryCreated={handleCategoryCreated}
+            />
         </div>
     );
 };

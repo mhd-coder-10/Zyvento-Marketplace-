@@ -7,7 +7,7 @@ import {
     FiUser, FiMapPin, FiCreditCard, FiSave,
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
-import AdminTopbar from '../../../components/admin/AdminTopbar';
+
 
 const STATUS_FLOW = ['pending', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered'];
 
@@ -114,16 +114,35 @@ const SellerOrderDetails = () => {
 
     return (
         <div className="space-y-6">
-            <AdminTopbar
-                title={`Order #${order.order_number || order.order_id || order._id?.slice(-6)?.toUpperCase()}`}
-                subtitle={`Placed on ${order.created_at ? new Date(order.created_at).toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}`}
-                actions={
-                    <button onClick={() => navigate('/seller/orders')}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
-                        <FiArrowLeft className="h-4 w-4" /><span>All Orders</span>
+            <div className="bg-white p-4 rounded-md border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
+                        <span>Seller Central</span>
+                        <span>/</span>
+                        <span>Orders</span>
+                        <span>/</span>
+                        <span className="font-bold text-slate-800">Order #{order.order_number || order.order_id || order._id?.slice(-6)?.toUpperCase()}</span>
+                    </div>
+                    <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                        <FiPackage className="text-amber-500" />
+                        Order Details #{order.order_number || order.order_id || order._id?.slice(-6)?.toUpperCase()}
+                    </h1>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                        Purchased on {order.created_at ? new Date(order.created_at).toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => navigate('/seller/orders')}
+                        className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs"
+                    >
+                        <FiArrowLeft className="h-3.5 w-3.5" />
+                        <span>Back to All Orders</span>
                     </button>
-                }
-            />
+                </div>
+            </div>
 
             {/* Status Timeline */}
             <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm">

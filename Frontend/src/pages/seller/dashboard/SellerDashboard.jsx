@@ -1,356 +1,387 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { toast } from 'react-toastify';
 import {
-    FiShoppingBag,
+    FiHome,
+    FiRefreshCw,
     FiPackage,
+    FiShoppingCart,
     FiDollarSign,
-    FiClock,
+    FiTrendingUp,
+    FiArrowRight,
+    FiEye,
     FiCheckCircle,
+    FiClock,
     FiTruck,
     FiXCircle,
-    FiRefreshCw,
-    FiArrowRight,
-    FiPlusCircle,
-    FiTrendingUp,
-    FiAlertTriangle,
-    FiEye,
-    FiSettings,
-    FiUsers,
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
-import AdminTopbar from '../../../components/admin/AdminTopbar';
-import AdminTable from '../../../components/admin/AdminTable';
 
-const STATUS_CONFIG = {
-    pending: { label: 'Pending', bg: 'bg-amber-50 text-amber-700 ring-amber-200', icon: FiClock },
-    confirmed: { label: 'Confirmed', bg: 'bg-blue-50 text-blue-700 ring-blue-200', icon: FiCheckCircle },
-    packed: { label: 'Packed', bg: 'bg-indigo-50 text-indigo-700 ring-indigo-200', icon: FiPackage },
-    shipped: { label: 'Shipped', bg: 'bg-cyan-50 text-cyan-700 ring-cyan-200', icon: FiTruck },
-    delivered: { label: 'Delivered', bg: 'bg-emerald-50 text-emerald-700 ring-emerald-200', icon: FiCheckCircle },
-    cancelled: { label: 'Cancelled', bg: 'bg-rose-50 text-rose-700 ring-rose-200', icon: FiXCircle },
+const STATUS_BADGE = {
+    pending: { bg: 'bg-amber-50 text-amber-700 border-amber-200', icon: FiClock },
+    confirmed: { bg: 'bg-blue-50 text-blue-700 border-blue-200', icon: FiCheckCircle },
+    packed: { bg: 'bg-indigo-50 text-indigo-700 border-indigo-200', icon: FiPackage },
+    shipped: { bg: 'bg-purple-50 text-purple-700 border-purple-200', icon: FiTruck },
+    out_for_delivery: { bg: 'bg-sky-50 text-sky-700 border-sky-200', icon: FiTruck },
+    delivered: { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: FiCheckCircle },
+    cancelled: { bg: 'bg-rose-50 text-rose-700 border-rose-200', icon: FiXCircle },
+    returned: { bg: 'bg-orange-50 text-orange-700 border-orange-200', icon: FiRefreshCw },
 };
 
-const formatCurrency = (val) =>
-    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val || 0);
+const formatCurrency = (val) => {
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0,
+    }).format(val || 0);
+};
 
 const SellerDashboard = () => {
     const navigate = useNavigate();
     const { user } = useSelector((state) => state.auth);
-
     const [loading, setLoading] = useState(true);
-    const [dashboardData, setDashboardData] = useState(null);
-    const [statsPeriod, setStatsPeriod] = useState('weekly');
-    const [chartData, setChartData] = useState(null);
+
+    const [stats, setStats] = useState({
+        totalProducts: 0,
+        totalOrders: 0,
+        netEarnings: 0,
+        deliveredOrders: 0,
+    });
+    const [recentOrders, setRecentOrders] = useState([]);
     const mounted = useRef(true);
+
+    const firstName = user?.first_name || user?.name?.split(' ')[0] || user?.business_name || 'Seller';
 
     useEffect(() => {
         mounted.current = true;
-        fetchDashboard();
+        loadDashboardData();
         return () => {
             mounted.current = false;
         };
     }, []);
 
-    const fetchDashboard = async () => {
+    const loadDashboardData = async () => {
         setLoading(true);
         try {
-            const [dashRes, statsRes] = await Promise.allSettled([
+            // Fetch Dashboard Data in parallel
+            const [dashRes, ordersRes, productsRes] = await Promise.allSettled([
                 ApiService.getSellerDashboard(),
-                ApiService.getSellerDashboardStats({ period: statsPeriod }),
+                ApiService.getSellerMyOrders({ limit: 5 }),
+                ApiService.getSellerMyProducts({ limit: 1 }),
             ]);
 
-            if (!mounted.current) return;
+            let totalProducts = 0;
+            let totalOrders = 0;
+            let netEarnings = 0;
+            let deliveredOrders = 0;
+            let ordersList = [];
 
-            if (dashRes.status === 'fulfilled' && dashRes.value?.data?.success) {
-                setDashboardData(dashRes.value.data.data);
+            if (dashRes.status === 'fulfilled' && dashRes.value?.data?.data) {
+                const d = dashRes.value.data.data;
+                totalProducts = d.totalProducts || d.products_count || d.total_products || 0;
+                totalOrders = d.totalOrders || d.orders_count || d.total_orders || 0;
+                netEarnings = d.netEarnings || d.totalEarnings || d.total_revenue || d.revenue || 0;
+                deliveredOrders = d.deliveredOrders || d.completed_orders || d.delivered_count || 0;
             }
 
-            if (statsRes.status === 'fulfilled' && statsRes.value?.data?.success) {
-                setChartData(statsRes.value.data.data);
+            if (ordersRes.status === 'fulfilled' && ordersRes.value?.data?.data) {
+                const oData = ordersRes.value.data.data;
+                ordersList = Array.isArray(oData) ? oData : (oData.orders || []);
+                if (!totalOrders) {
+                    totalOrders = ordersRes.value.data?.pagination?.total || ordersList.length;
+                }
+                if (!deliveredOrders) {
+                    deliveredOrders = ordersList.filter(o => o.order_status === 'delivered').length;
+                }
             }
-        } catch (error) {
-            console.error('Seller dashboard load error:', error);
-            toast.error('Failed to load dashboard data');
+
+            if (productsRes.status === 'fulfilled' && productsRes.value?.data?.data) {
+                const pData = productsRes.value.data;
+                const pTotal = pData.pagination?.total || (Array.isArray(pData.data) ? pData.data.length : pData.data?.products?.length);
+                if (pTotal && !totalProducts) {
+                    totalProducts = pTotal;
+                }
+            }
+
+            if (mounted.current) {
+                setStats({
+                    totalProducts,
+                    totalOrders,
+                    netEarnings,
+                    deliveredOrders,
+                });
+                setRecentOrders(ordersList);
+            }
+        } catch (err) {
+            console.error('Failed to load seller dashboard data:', err);
         } finally {
             if (mounted.current) setLoading(false);
         }
     };
 
-    const overview = dashboardData?.overview || dashboardData?.stats || {
-        total_products: dashboardData?.total_products || 0,
-        total_orders: dashboardData?.total_orders || 0,
-        total_revenue: dashboardData?.total_revenue || 0,
-        pending_orders: dashboardData?.pending_orders || 0,
-    };
-
-    const recentOrders = dashboardData?.recent_orders || dashboardData?.orders || [];
-    const lowStockProducts = dashboardData?.low_stock_products || [];
-
-    const statsCards = [
-        {
-            title: 'Total Revenue',
-            value: formatCurrency(overview.total_revenue),
-            icon: FiDollarSign,
-            color: 'from-blue-600 to-indigo-600',
-            textColor: 'text-blue-600',
-            bgColor: 'bg-blue-50',
-        },
-        {
-            title: 'Total Orders',
-            value: overview.total_orders || 0,
-            icon: FiShoppingBag,
-            color: 'from-sky-500 to-blue-600',
-            textColor: 'text-sky-600',
-            bgColor: 'bg-sky-50',
-        },
-        {
-            title: 'Active Products',
-            value: overview.total_products || 0,
-            icon: FiPackage,
-            color: 'from-emerald-500 to-teal-600',
-            textColor: 'text-emerald-600',
-            bgColor: 'bg-emerald-50',
-        },
-        {
-            title: 'Pending Orders',
-            value: overview.pending_orders || 0,
-            icon: FiClock,
-            color: 'from-amber-500 to-orange-600',
-            textColor: 'text-amber-600',
-            bgColor: 'bg-amber-50',
-        },
-    ];
-
-    const orderColumns = [
-        {
-            key: 'order_number',
-            label: 'Order',
-            render: (value, row) => (
-                <span className="font-semibold text-slate-800">
-                    #{value || row.order_id || row._id?.slice(-6)?.toUpperCase() || '—'}
-                </span>
-            ),
-        },
-        {
-            key: 'customer',
-            label: 'Customer',
-            render: (value, row) => (
-                <div>
-                    <p className="font-medium text-slate-800">
-                        {row.customer_name || row.user?.first_name ? `${row.user?.first_name} ${row.user?.last_name || ''}` : 'Customer'}
-                    </p>
-                    <p className="text-xs text-slate-400">{row.customer_email || row.user?.email || '—'}</p>
-                </div>
-            ),
-        },
-        {
-            key: 'total_amount',
-            label: 'Amount',
-            render: (value) => (
-                <span className="font-bold text-blue-700">{formatCurrency(value)}</span>
-            ),
-        },
-        {
-            key: 'status',
-            label: 'Status',
-            render: (value, row) => {
-                const s = row.order_status || value || 'pending';
-                const meta = STATUS_CONFIG[s] || STATUS_CONFIG.pending;
-                const Icon = meta.icon;
-                return (
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${meta.bg}`}>
-                        <Icon className="h-3.5 w-3.5" />
-                        {meta.label}
-                    </span>
-                );
-            },
-        },
-        {
-            key: 'created_at',
-            label: 'Date',
-            render: (value) => (
-                <span className="text-xs text-slate-500">
-                    {value ? new Date(value).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                </span>
-            ),
-        },
-    ];
-
-    const orderActions = [
-        {
-            label: 'View Order',
-            icon: <FiEye className="h-4 w-4 text-blue-600" />,
-            onClick: (row) => navigate(`/seller/orders/${row._id || row.id}`),
-        },
-    ];
-
     return (
         <div className="space-y-6">
-            <AdminTopbar
-                title={user?.business_name ? `${user.business_name} Dashboard` : 'Seller Dashboard'}
-                subtitle={`Welcome back, ${user?.first_name || 'Seller'}! Monitor your sales, orders, and products.`}
-                actions={
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={fetchDashboard}
-                            disabled={loading}
-                            className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-3.5 py-2 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50 disabled:opacity-50"
-                        >
-                            <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                            <span className="hidden sm:inline">Refresh</span>
-                        </button>
-                        <button
-                            onClick={() => navigate('/seller/products/create')}
-                            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:from-sky-600 hover:to-blue-700"
-                        >
-                            <FiPlusCircle className="h-4 w-4" />
-                            <span>Add Product</span>
-                        </button>
-                    </div>
-                }
-            />
-
-            {/* Metrics Overview Cards */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {statsCards.map((card, idx) => (
-                    <div
-                        key={idx}
-                        className="relative overflow-hidden rounded-2xl border border-sky-100 bg-white p-5 shadow-sm transition hover:shadow-md"
-                    >
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{card.title}</span>
-                            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.bgColor} ${card.textColor}`}>
-                                <card.icon className="h-5 w-5" />
-                            </div>
-                        </div>
-                        <div className="mt-3">
-                            <h3 className="text-2xl font-extrabold text-slate-800">
-                                {loading ? '...' : card.value}
-                            </h3>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Quick Actions & Low Stock Alerts */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                {/* Quick Navigation Panel */}
-                <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm">
-                    <h3 className="mb-4 text-base font-bold text-slate-800 flex items-center gap-2">
-                        <FiTrendingUp className="text-sky-600" />
-                        Quick Actions
-                    </h3>
-                    <div className="space-y-2.5">
-                        <button
-                            onClick={() => navigate('/seller/products')}
-                            className="w-full flex items-center justify-between p-3 rounded-xl border border-sky-100 bg-sky-50/40 hover:bg-white hover:border-blue-200 hover:shadow-sm transition text-left"
-                        >
-                            <div className="flex items-center gap-3">
-                                <FiPackage className="text-sky-600" />
-                                <span className="text-sm font-semibold text-slate-700">Manage Catalog</span>
-                            </div>
-                            <FiArrowRight className="text-slate-400" />
-                        </button>
-                        <button
-                            onClick={() => navigate('/seller/orders')}
-                            className="w-full flex items-center justify-between p-3 rounded-xl border border-sky-100 bg-sky-50/40 hover:bg-white hover:border-blue-200 hover:shadow-sm transition text-left"
-                        >
-                            <div className="flex items-center gap-3">
-                                <FiShoppingBag className="text-blue-600" />
-                                <span className="text-sm font-semibold text-slate-700">Process Orders</span>
-                            </div>
-                            <FiArrowRight className="text-slate-400" />
-                        </button>
-                        <button
-                            onClick={() => navigate('/seller/earnings')}
-                            className="w-full flex items-center justify-between p-3 rounded-xl border border-sky-100 bg-sky-50/40 hover:bg-white hover:border-blue-200 hover:shadow-sm transition text-left"
-                        >
-                            <div className="flex items-center gap-3">
-                                <FiDollarSign className="text-emerald-600" />
-                                <span className="text-sm font-semibold text-slate-700">Financial Reports</span>
-                            </div>
-                            <FiArrowRight className="text-slate-400" />
-                        </button>
-                        <button
-                            onClick={() => navigate('/seller/settings')}
-                            className="w-full flex items-center justify-between p-3 rounded-xl border border-sky-100 bg-sky-50/40 hover:bg-white hover:border-blue-200 hover:shadow-sm transition text-left"
-                        >
-                            <div className="flex items-center gap-3">
-                                <FiSettings className="text-slate-600" />
-                                <span className="text-sm font-semibold text-slate-700">Store Settings & Docs</span>
-                            </div>
-                            <FiArrowRight className="text-slate-400" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Low Stock Warning or Top Products */}
-                <div className="lg:col-span-2 rounded-2xl border border-sky-100 bg-white p-6 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                            <FiAlertTriangle className="text-amber-500" />
-                            Inventory Health & Alerts
-                        </h3>
-                        <button
-                            onClick={() => navigate('/seller/products')}
-                            className="text-xs font-bold text-blue-600 hover:underline"
-                        >
-                            View Products
-                        </button>
-                    </div>
-                    {lowStockProducts.length > 0 ? (
-                        <div className="divide-y divide-slate-100">
-                            {lowStockProducts.slice(0, 4).map((p, idx) => (
-                                <div key={idx} className="flex items-center justify-between py-3">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-10 w-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-500 text-xs">
-                                            {p.images?.[0] ? (
-                                                <img src={p.images[0].url || p.images[0]} alt="" className="h-full w-full object-cover rounded-lg" />
-                                            ) : (
-                                                'IMG'
-                                            )}
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-medium text-slate-800 truncate max-w-xs">{p.product_name}</p>
-                                            <p className="text-xs text-slate-400">SKU: {p.sku || '—'}</p>
-                                        </div>
-                                    </div>
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 ring-1 ring-amber-200">
-                                        {p.stock ?? p.quantity ?? 0} in stock
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="py-8 text-center text-slate-400">
-                            <FiCheckCircle className="h-8 w-8 mx-auto text-emerald-500 mb-2" />
-                            <p className="text-sm font-medium">All products have healthy inventory levels!</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Recent Orders Table */}
-            <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-base font-bold text-slate-800">Recent Customer Orders</h3>
+            {/* Top Breadcrumb & Welcome Banner */}
+            <div className="bg-white rounded-2xl border border-sky-100 p-6 shadow-xs">
+                {/* Breadcrumbs */}
+                <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-4">
                     <button
-                        onClick={() => navigate('/seller/orders')}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800"
+                        onClick={() => navigate('/seller/dashboard')}
+                        className="p-1 rounded-md hover:bg-sky-50 text-blue-600 transition-colors"
                     >
-                        View All Orders
-                        <FiArrowRight className="h-3.5 w-3.5" />
+                        <FiHome className="w-4 h-4" />
+                    </button>
+                    <span>/</span>
+                    <span className="bg-sky-50 text-blue-700 px-2.5 py-1 rounded-lg font-semibold text-xs">
+                        Dashboard
+                    </span>
+                </div>
+
+                {/* Banner Content */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+                    <div>
+                        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                            Welcome, {firstName}!
+                        </h1>
+                        <p className="text-sm text-slate-500 mt-1">
+                            Here's an overview of your store performance.
+                        </p>
+                    </div>
+
+                    <button
+                        onClick={loadDashboardData}
+                        disabled={loading}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold shadow-xs hover:border-slate-300 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                        <FiRefreshCw className={`w-4 h-4 text-slate-600 ${loading ? 'animate-spin text-blue-600' : ''}`} />
+                        <span>Refresh</span>
                     </button>
                 </div>
-                <AdminTable
-                    columns={orderColumns}
-                    data={recentOrders}
-                    loading={loading}
-                    actions={orderActions}
-                    emptyMessage="No recent orders received yet."
-                />
+            </div>
+
+            {/* 4 Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Total Products */}
+                <div className="bg-white rounded-2xl p-5 border border-sky-100 shadow-xs flex items-center justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Total Products
+                        </p>
+                        <h3 className="text-2xl font-extrabold text-slate-800 mt-1">
+                            {loading ? '—' : stats.totalProducts}
+                        </h3>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-inner flex-shrink-0">
+                        <FiPackage className="w-6 h-6" />
+                    </div>
+                </div>
+
+                {/* Total Orders */}
+                <div className="bg-white rounded-2xl p-5 border border-sky-100 shadow-xs flex items-center justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Total Orders
+                        </p>
+                        <h3 className="text-2xl font-extrabold text-slate-800 mt-1">
+                            {loading ? '—' : stats.totalOrders}
+                        </h3>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-inner flex-shrink-0">
+                        <FiShoppingCart className="w-6 h-6" />
+                    </div>
+                </div>
+
+                {/* Net Earnings */}
+                <div className="bg-white rounded-2xl p-5 border border-sky-100 shadow-xs flex items-center justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Net Earnings
+                        </p>
+                        <h3 className="text-2xl font-extrabold text-slate-800 mt-1">
+                            {loading ? '—' : formatCurrency(stats.netEarnings)}
+                        </h3>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-inner flex-shrink-0">
+                        <FiDollarSign className="w-6 h-6" />
+                    </div>
+                </div>
+
+                {/* Delivered Orders */}
+                <div className="bg-white rounded-2xl p-5 border border-sky-100 shadow-xs flex items-center justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Delivered
+                        </p>
+                        <h3 className="text-2xl font-extrabold text-slate-800 mt-1">
+                            {loading ? '—' : stats.deliveredOrders}
+                        </h3>
+                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                            Completed orders
+                        </p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 shadow-inner flex-shrink-0">
+                        <FiTrendingUp className="w-6 h-6" />
+                    </div>
+                </div>
+            </div>
+
+            {/* 2-Column Section: Recent Orders & Quick Actions */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* RECENT ORDERS (8 Cols) */}
+                <div className="lg:col-span-8 bg-white rounded-2xl border border-sky-100 shadow-xs overflow-hidden">
+                    <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                            <FiShoppingCart className="w-5 h-5 text-blue-600" />
+                            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                                Recent Orders
+                            </h2>
+                        </div>
+                        <button
+                            onClick={() => navigate('/seller/orders')}
+                            className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
+                        >
+                            <span>View All</span>
+                            <FiArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50/70 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <th className="py-3 px-4">Order ID</th>
+                                    <th className="py-3 px-4">Customer</th>
+                                    <th className="py-3 px-4">Total</th>
+                                    <th className="py-3 px-4">Status</th>
+                                    <th className="py-3 px-4">Date</th>
+                                    <th className="py-3 px-4 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-xs">
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan="6" className="py-8 text-center text-slate-400">
+                                            <FiRefreshCw className="w-5 h-5 animate-spin mx-auto text-blue-600 mb-2" />
+                                            <span>Loading orders...</span>
+                                        </td>
+                                    </tr>
+                                ) : recentOrders.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="6" className="py-10 text-center text-slate-400">
+                                            <FiShoppingCart className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                                            <p className="font-semibold text-slate-600">No recent orders yet</p>
+                                            <p className="text-[11px] text-slate-400 mt-0.5">When customers order your products, they will show up here.</p>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    recentOrders.map((order) => {
+                                        const status = order.order_status?.toLowerCase() || 'pending';
+                                        const badge = STATUS_BADGE[status] || STATUS_BADGE.pending;
+                                        const StatusIcon = badge.icon;
+                                        const customerName = order.user_id?.full_name || order.shipping_address?.full_name || 'Customer';
+                                        const orderNumber = order.order_number || order._id?.slice(-8).toUpperCase();
+                                        const dateStr = order.created_at ? new Date(order.created_at).toLocaleDateString() : 'N/A';
+
+                                        return (
+                                            <tr key={order._id} className="hover:bg-sky-50/40 transition-colors">
+                                                <td className="py-3.5 px-4 font-bold text-slate-800">
+                                                    #{orderNumber}
+                                                </td>
+                                                <td className="py-3.5 px-4 text-slate-600">
+                                                    {customerName}
+                                                </td>
+                                                <td className="py-3.5 px-4 font-semibold text-slate-900">
+                                                    {formatCurrency(order.total_amount)}
+                                                </td>
+                                                <td className="py-3.5 px-4">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${badge.bg}`}>
+                                                        <StatusIcon className="w-3 h-3" />
+                                                        <span className="capitalize">{status.replace('_', ' ')}</span>
+                                                    </span>
+                                                </td>
+                                                <td className="py-3.5 px-4 text-slate-400">
+                                                    {dateStr}
+                                                </td>
+                                                <td className="py-3.5 px-4 text-right">
+                                                    <button
+                                                        onClick={() => navigate(`/seller/orders/${order._id}`)}
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                        title="View Details"
+                                                    >
+                                                        <FiEye className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* QUICK ACTIONS (4 Cols - look at screenshot with blue top bar) */}
+                <div className="lg:col-span-4 bg-white rounded-2xl border border-sky-100 shadow-xs overflow-hidden border-t-4 border-t-blue-500">
+                    <div className="p-5 border-b border-slate-100">
+                        <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider text-center">
+                            Quick Actions
+                        </h2>
+                    </div>
+
+                    <div className="p-5 space-y-3">
+                        <button
+                            onClick={() => navigate('/seller/products')}
+                            className="w-full flex items-center justify-between p-3.5 rounded-xl bg-slate-50/80 hover:bg-sky-50 border border-slate-100 hover:border-sky-200 transition-all text-slate-700 hover:text-blue-700 group text-left"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-white shadow-xs flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform">
+                                    <FiPackage className="w-4 h-4" />
+                                </div>
+                                <span className="text-sm font-semibold">My Products</span>
+                            </div>
+                            <FiArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
+                        </button>
+
+                        <button
+                            onClick={() => navigate('/seller/orders')}
+                            className="w-full flex items-center justify-between p-3.5 rounded-xl bg-slate-50/80 hover:bg-sky-50 border border-slate-100 hover:border-sky-200 transition-all text-slate-700 hover:text-blue-700 group text-left"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-white shadow-xs flex items-center justify-center text-indigo-600 group-hover:scale-105 transition-transform">
+                                    <FiShoppingCart className="w-4 h-4" />
+                                </div>
+                                <span className="text-sm font-semibold">My Orders</span>
+                            </div>
+                            <FiArrowRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" />
+                        </button>
+
+                        <button
+                            onClick={() => navigate('/seller/earnings')}
+                            className="w-full flex items-center justify-between p-3.5 rounded-xl bg-slate-50/80 hover:bg-sky-50 border border-slate-100 hover:border-sky-200 transition-all text-slate-700 hover:text-blue-700 group text-left"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-white shadow-xs flex items-center justify-center text-emerald-600 group-hover:scale-105 transition-transform">
+                                    <FiDollarSign className="w-4 h-4" />
+                                </div>
+                                <span className="text-sm font-semibold">My Earnings</span>
+                            </div>
+                            <FiArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
+                        </button>
+
+                        <button
+                            onClick={() => navigate('/seller/inventory')}
+                            className="w-full flex items-center justify-between p-3.5 rounded-xl bg-slate-50/80 hover:bg-sky-50 border border-slate-100 hover:border-sky-200 transition-all text-slate-700 hover:text-blue-700 group text-left"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-white shadow-xs flex items-center justify-center text-sky-600 group-hover:scale-105 transition-transform">
+                                    <FiTrendingUp className="w-4 h-4" />
+                                </div>
+                                <span className="text-sm font-semibold">Inventory Manager</span>
+                            </div>
+                            <FiArrowRight className="w-4 h-4 text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition-all" />
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );
