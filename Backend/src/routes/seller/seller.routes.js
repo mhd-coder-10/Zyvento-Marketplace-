@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 
 const sellerController = require('../../controllers/seller/seller.controller');
+const productController = require('../../controllers/product/product.controller');
 const auth = require('../../middleware/auth.middleware');
 const { authorize, checkPermission, checkSellerAccess } = require('../../middleware/authorization.middleware');
 const { validate } = require('../../middleware/validation.middleware');
@@ -500,6 +501,19 @@ router.post(
     sellerController.createProduct
 );
 
+router.put(
+    '/products/:productId',
+    authorize('seller'),
+    validate(productValidation.updateProduct),
+    productController.updateProduct
+);
+
+router.delete(
+    '/products/:productId',
+    authorize('seller'),
+    productController.deleteProduct
+);
+
 // ============ SELLER ORDERS ============
 
 /**
@@ -766,6 +780,31 @@ router.get(
     sellerController.getAnalytics
 );
 
+// ============ SELLER EARNINGS & PAYOUTS ============
+
+/**
+ * @swagger
+ * /seller/earnings:
+ *   get:
+ *     summary: Get seller earnings and settlement transactions
+ *     description: Get earnings, gross revenue, deductions, and payout history
+ *     tags: [Seller]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Earnings fetched successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Seller role required
+ */
+router.get(
+    '/earnings',
+    authorize('seller'),
+    sellerController.getEarnings
+);
+
 // ============ SELLER SETTINGS ============
 
 /**
@@ -841,6 +880,45 @@ router.put(
     authorize('seller'),
     validate(sellerValidation.updateSellerSettings),
     sellerController.updateSettings
+);
+
+// ============ SELLER CATEGORY CREATION ============
+/**
+ * @swagger
+ * /seller/categories:
+ *   post:
+ *     summary: Create or find category (Seller)
+ *     description: Allows seller to add a custom category if not in database
+ *     tags: [Seller]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - category_name
+ *             properties:
+ *               category_name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               sub_category_name:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Category created or retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Seller role required
+ */
+router.post(
+    '/categories',
+    authorize('seller'),
+    sellerController.createCategory
 );
 
 module.exports = router;

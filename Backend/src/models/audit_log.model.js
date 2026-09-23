@@ -73,7 +73,8 @@ const audit_log_schema = new mongoose.Schema(
                 "shipping",
                 "coupon",
                 "return",
-                "analytics"
+                "analytics",
+                "finance"
             ]
         },
 

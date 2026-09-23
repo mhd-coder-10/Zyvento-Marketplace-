@@ -131,7 +131,7 @@ class ProductService {
 
     async getProductById(productId) {
         const product = await Product.findById(productId)
-            .populate('seller_id', 'business_name rating total_orders')
+            .populate('seller_id', 'business_name store_name logo banner tagline store_description rating total_orders')
             .populate('category_id', 'category_name')
             .populate('sub_category_id', 'sub_category_name');
 
@@ -434,20 +434,22 @@ class ProductService {
     }
 
     async updateProduct({ productId, sellerId, updateData }) {
-        const product = await Product.findOne({
-            _id: productId,
-            seller_id: sellerId
-        });
+        const query = sellerId ? { _id: productId, seller_id: sellerId } : { _id: productId };
+        const product = await Product.findOne(query);
 
         if (!product) {
             throw ApiError.notFound('Product not found or unauthorized');
+        }
+
+        if (updateData.stock !== undefined && updateData.stock_quantity === undefined) {
+            updateData.stock_quantity = updateData.stock;
         }
 
         const allowedFields = [
             'product_name', 'brand', 'description', 'category_id', 'sub_category_id',
             'price', 'compare_at_price', 'cost_per_item', 'discount', 'weight',
             'dimensions', 'variants', 'specifications', 'tags', 'seo',
-            'return_policy', 'is_featured'
+            'return_policy', 'is_featured', 'status', 'stock_quantity'
         ];
 
         const filteredData = {};
@@ -457,11 +459,21 @@ class ProductService {
             }
         }
 
+        if (updateData.images !== undefined) {
+            filteredData.images = Array.isArray(updateData.images)
+                ? updateData.images.map((img) => (typeof img === 'string' ? img : img.url || '')).filter(Boolean)
+                : updateData.images;
+        }
+
         // Recalculate final price if price or discount changed
         if (updateData.price !== undefined || updateData.discount !== undefined) {
-            const price = updateData.price !== undefined ? updateData.price : product.price;
-            const discount = updateData.discount !== undefined ? updateData.discount : product.discount;
-            filteredData.final_price = price - (price * discount / 100);
+            const price = Number(updateData.price !== undefined ? updateData.price : product.price);
+            const discount = Number(updateData.discount ?? product.discount ?? product.discount_percent ?? 0);
+            filteredData.final_price = discount > 0 ? (price - (price * discount / 100)) : price;
+        }
+
+        if (filteredData.status === 'active') {
+            filteredData.approval_status = 'approved';
         }
 
         Object.assign(product, filteredData);
@@ -485,10 +497,8 @@ class ProductService {
     }
 
     async deleteProduct({ productId, sellerId }) {
-        const product = await Product.findOne({
-            _id: productId,
-            seller_id: sellerId
-        });
+        const query = sellerId ? { _id: productId, seller_id: sellerId } : { _id: productId };
+        const product = await Product.findOne(query);
 
         if (!product) {
             throw ApiError.notFound('Product not found or unauthorized');

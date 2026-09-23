@@ -6,6 +6,7 @@
 
 const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
+const Seller = require('../models/seller.model');
 const ApiError = require('../utils/apiError');
 const asyncHandler = require('../utils/asyncHandler');
 const environment = require('../config/environment');
@@ -80,6 +81,19 @@ const auth = asyncHandler(async (req, res, next) => {
     const activeRoles = (user.role_ids || []).filter(
         (role) => role && role.is_active !== false
     );
+
+    // ============ AUTO-RESOLVE SELLER ID FOR SELLER USERS ============
+    if (!user.seller_id && (user.user_type === 'seller' || user.user_type === 'seller_employee')) {
+        try {
+            const sellerDoc = await Seller.findOne({ user_id: user._id }).select('_id');
+            if (sellerDoc) {
+                user.seller_id = sellerDoc._id;
+                User.updateOne({ _id: user._id }, { $set: { seller_id: sellerDoc._id } }).exec().catch(() => {});
+            }
+        } catch (err) {
+            // Ignore resolution failure and proceed
+        }
+    }
 
     // ============ ATTACH USER TO REQUEST ============
     req.user = user;

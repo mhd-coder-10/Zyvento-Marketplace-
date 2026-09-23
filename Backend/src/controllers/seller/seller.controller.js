@@ -58,30 +58,23 @@ const sellerController = {
 
     // ============ SELLER PROFILE ============
     getProfile: asyncHandler(async (req, res) => {
-        const sellerId = req.sellerId;
-        const profile = await sellerService.getProfile(sellerId);
+        const profile = await sellerService.getProfile(req.sellerId, req.userId);
         res.status(200).json(
             ApiResponse.success(profile, 'Profile fetched successfully')
         );
     }),
 
     updateProfile: asyncHandler(async (req, res) => {
-        const sellerId = req.sellerId;
         const updateData = req.body;
+        const profile = await sellerService.updateProfile(req.sellerId, updateData, req.userId);
         
-        // Get old profile for audit
-        const oldProfile = await sellerService.getProfile(sellerId);
-        
-        const profile = await sellerService.updateProfile(sellerId, updateData);
-        
-        // ✅ AUDIT LOG - Seller Profile Update
+        // AUDIT LOG - Seller Profile Update
         await auditService.log({
             userId: req.userId,
             action: 'update',
             module: 'seller',
-            moduleId: sellerId,
-            description: `Seller profile updated: ${oldProfile.business_name}`,
-            oldData: { business_name: oldProfile.business_name },
+            moduleId: profile._id,
+            description: `Seller profile updated: ${profile.business_name}`,
             newData: updateData,
             ip: req.ip,
             userAgent: req.get('user-agent'),
@@ -95,17 +88,15 @@ const sellerController = {
 
     // ============ DASHBOARD ============
     getDashboard: asyncHandler(async (req, res) => {
-        const sellerId = req.sellerId;
-        const dashboard = await sellerService.getDashboard(sellerId);
+        const dashboard = await sellerService.getDashboard(req.sellerId, req.userId);
         res.status(200).json(
             ApiResponse.success(dashboard, 'Dashboard fetched successfully')
         );
     }),
 
     getDashboardStatistics: asyncHandler(async (req, res) => {
-        const sellerId = req.sellerId;
         const { period = 'weekly' } = req.query;
-        const statistics = await sellerService.getDashboardStatistics(sellerId, period);
+        const statistics = await sellerService.getDashboardStatistics(req.sellerId, period, req.userId);
         res.status(200).json(
             ApiResponse.success(statistics, 'Dashboard statistics fetched successfully')
         );
@@ -113,7 +104,6 @@ const sellerController = {
 
     // ============ DOCUMENTS ============
     uploadDocument: asyncHandler(async (req, res) => {
-        const sellerId = req.sellerId;
         const { document_type } = req.body;
         const file = req.file;
 
@@ -122,17 +112,18 @@ const sellerController = {
         }
 
         const document = await sellerService.uploadDocument({
-            sellerId,
+            sellerId: req.sellerId,
             documentType: document_type,
-            file
+            file,
+            userId: req.userId
         });
 
-        // ✅ AUDIT LOG - Document Upload
+        // AUDIT LOG - Document Upload
         await auditService.log({
             userId: req.userId,
             action: 'upload',
             module: 'seller',
-            moduleId: sellerId,
+            moduleId: req.sellerId,
             description: `Document uploaded: ${document_type}`,
             newData: { document_type, document_url: document.document_url },
             ip: req.ip,
@@ -146,16 +137,15 @@ const sellerController = {
     }),
 
     deleteDocument: asyncHandler(async (req, res) => {
-        const sellerId = req.sellerId;
         const { documentId } = req.params;
-        await sellerService.deleteDocument(sellerId, documentId);
+        await sellerService.deleteDocument(req.sellerId, documentId, req.userId);
         
-        // ✅ AUDIT LOG - Document Delete
+        // AUDIT LOG - Document Delete
         await auditService.log({
             userId: req.userId,
             action: 'delete',
             module: 'seller',
-            moduleId: sellerId,
+            moduleId: req.sellerId,
             description: `Document deleted: ${documentId}`,
             ip: req.ip,
             userAgent: req.get('user-agent'),
@@ -168,8 +158,7 @@ const sellerController = {
     }),
 
     getDocuments: asyncHandler(async (req, res) => {
-        const sellerId = req.sellerId;
-        const documents = await sellerService.getDocuments(sellerId);
+        const documents = await sellerService.getDocuments(req.sellerId, req.userId);
         res.status(200).json(
             ApiResponse.success(documents, 'Documents fetched successfully')
         );
@@ -199,7 +188,7 @@ const sellerController = {
     createProduct: asyncHandler(async (req, res) => {
         const sellerId = req.sellerId;
         const productData = req.body;
-        const product = await sellerService.createProduct(sellerId, productData);
+        const product = await sellerService.createProduct(sellerId, productData, req.userId);
         
         // ✅ AUDIT LOG - Product Creation
         await auditService.log({
@@ -325,26 +314,32 @@ const sellerController = {
         );
     }),
 
+    // ============ EARNINGS ============
+    getEarnings: asyncHandler(async (req, res) => {
+        const earnings = await sellerService.getEarnings(req.sellerId, req.userId);
+        res.status(200).json(
+            ApiResponse.success(earnings, 'Earnings fetched successfully')
+        );
+    }),
+
     // ============ SETTINGS ============
     getSettings: asyncHandler(async (req, res) => {
-        const sellerId = req.sellerId;
-        const settings = await sellerService.getSettings(sellerId);
+        const settings = await sellerService.getSettings(req.sellerId, req.userId);
         res.status(200).json(
             ApiResponse.success(settings, 'Settings fetched successfully')
         );
     }),
 
     updateSettings: asyncHandler(async (req, res) => {
-        const sellerId = req.sellerId;
         const settingsData = req.body;
-        const settings = await sellerService.updateSettings(sellerId, settingsData);
+        const settings = await sellerService.updateSettings(req.sellerId, settingsData, req.userId);
         
         // ✅ AUDIT LOG - Settings Update
         await auditService.log({
             userId: req.userId,
             action: 'update',
             module: 'settings',
-            moduleId: sellerId,
+            moduleId: req.sellerId || req.userId,
             description: 'Seller settings updated',
             newData: settingsData,
             ip: req.ip,
@@ -354,6 +349,18 @@ const sellerController = {
 
         res.status(200).json(
             ApiResponse.success(settings, 'Settings updated successfully')
+        );
+    }),
+
+    // ============ CATEGORIES ============
+    createCategory: asyncHandler(async (req, res) => {
+        const { category_name, description, sub_category_name } = req.body;
+        const result = await sellerService.createCategory(
+            { category_name, description, sub_category_name },
+            req.userId
+        );
+        res.status(201).json(
+            ApiResponse.success(result, 'Category created or retrieved successfully')
         );
     })
 };

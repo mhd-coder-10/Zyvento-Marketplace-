@@ -44,9 +44,13 @@ class AuditService {
             
             if (userId) {
                 const user = await User.findById(userId).select('user_type');
-                if (user) {
+                if (user && user.user_type) {
                     userType = user.user_type;
                 }
+            }
+
+            if (!userType) {
+                userType = 'super_admin';
             }
 
             const auditLog = new AuditLog({

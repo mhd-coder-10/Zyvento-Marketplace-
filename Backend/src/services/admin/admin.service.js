@@ -3350,6 +3350,7 @@ class AdminService {
         }
 
         await order.save(); // <-- Save hamesha execute hoga
+
         return order;
     }
 
@@ -3892,34 +3893,25 @@ class AdminService {
     // ============ COMPANY GENERAL FINANCE MANAGEMENT (Amazon-Grade) ============
 
     // 1. Executive Finance Analytics & Accounting KPI Metrics
-    async getFinanceAnalytics({ startDate, endDate } = {}) {
-        const dateMatch = { deleted_at: null };
+    async getFinanceAnalytics({ startDate, endDate, type, category, status } = {}) {
+        const dateMatch = { deleted_at: null, status: { $ne: 'cancelled' } };
         if (startDate || endDate) {
             dateMatch.entry_date = {};
             if (startDate) dateMatch.entry_date.$gte = new Date(startDate);
             if (endDate) dateMatch.entry_date.$lte = new Date(endDate);
         }
 
-        // Live GMV and marketplace orders metrics
-        const orderDateMatch = { order_status: { $ne: 'cancelled' } };
-        if (startDate || endDate) {
-            orderDateMatch.created_at = {};
-            if (startDate) orderDateMatch.created_at.$gte = new Date(startDate);
-            if (endDate) orderDateMatch.created_at.$lte = new Date(endDate);
+        if (status && status !== 'all') {
+            dateMatch.status = status;
+        }
+        if (category && category !== 'all') {
+            dateMatch.category = category;
+        }
+        if (type && type !== 'all') {
+            dateMatch.entry_type = type;
         }
 
-        const [gmvResult, financeAgg, categoryIncomeAgg, categoryExpenseAgg] = await Promise.all([
-            Order.aggregate([
-                { $match: orderDateMatch },
-                {
-                    $group: {
-                        _id: null,
-                        totalGMV: { $sum: '$total_amount' },
-                        totalOrders: { $sum: 1 },
-                        totalDeliveryFees: { $sum: '$delivery_charge' }
-                    }
-                }
-            ]),
+        const [financeAgg, categoryIncomeAgg, categoryExpenseAgg, statusAgg] = await Promise.all([
             Finance.aggregate([
                 { $match: dateMatch },
                 {
@@ -3941,34 +3933,53 @@ class AdminService {
                 { $match: { ...dateMatch, entry_type: 'expense' } },
                 { $group: { _id: '$category', total: { $sum: '$amount' }, count: { $sum: 1 } } },
                 { $sort: { total: -1 } }
+            ]),
+            Finance.aggregate([
+                { $match: { deleted_at: null } },
+                {
+                    $group: {
+                        _id: '$status',
+                        totalAmount: { $sum: '$amount' },
+                        count: { $sum: 1 }
+                    }
+                }
             ])
         ]);
 
-        const gmv = gmvResult[0]?.totalGMV || 0;
-        const totalOrders = gmvResult[0]?.totalOrders || 0;
-        const deliveryRevenue = gmvResult[0]?.totalDeliveryFees || 0;
-
         let totalIncome = 0;
+        let incomeCount = 0;
         let totalExpense = 0;
+        let expenseCount = 0;
         let totalTaxCollected = 0;
 
         for (const f of financeAgg) {
             if (f._id === 'income') {
-                totalIncome = f.totalAmount;
-                totalTaxCollected += (f.totalTax || 0);
+                totalIncome = Number(f.totalAmount.toFixed(2));
+                incomeCount = f.count || 0;
+                totalTaxCollected += Number((f.totalTax || 0).toFixed(2));
             } else if (f._id === 'expense') {
-                totalExpense = f.totalAmount;
+                totalExpense = Number(f.totalAmount.toFixed(2));
+                expenseCount = f.count || 0;
             }
         }
 
-        const netProfit = totalIncome - totalExpense;
-        const profitMargin = totalIncome > 0 ? ((netProfit / totalIncome) * 100).toFixed(1) : 0;
+        const netProfit = Number((totalIncome - totalExpense).toFixed(2));
+        const profitMargin = totalIncome > 0 ? Number(((netProfit / totalIncome) * 100).toFixed(1)) : 0;
 
-        // Calculate Seller Escrow Liability (GMV minus Platform Commission estimate)
-        const commissionSetting = await SystemSetting.findOne({ key: 'platform_commission_rate', status: 'active' }).lean();
-        const commissionRate = commissionSetting?.value || 10;
-        const estimatedCommission = (gmv * commissionRate) / 100;
-        const sellerEscrowLiability = Math.max(0, gmv - estimatedCommission);
+        let pendingAmount = 0;
+        let pendingCount = 0;
+        let reconciledAmount = 0;
+        let reconciledCount = 0;
+
+        statusAgg.forEach(s => {
+            if (s._id === 'pending') {
+                pendingAmount += Number((s.totalAmount || 0).toFixed(2));
+                pendingCount += s.count || 0;
+            } else if (s._id === 'reconciled' || s._id === 'completed') {
+                reconciledAmount += Number((s.totalAmount || 0).toFixed(2));
+                reconciledCount += s.count || 0;
+            }
+        });
 
         // 6-Month Rolling Monthly Cashflow History
         const sixMonthsAgo = new Date();
@@ -3980,6 +3991,7 @@ class AdminService {
             {
                 $match: {
                     deleted_at: null,
+                    status: { $ne: 'cancelled' },
                     entry_date: { $gte: sixMonthsAgo }
                 }
             },
@@ -3998,7 +4010,6 @@ class AdminService {
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const monthlyTrendMap = {};
 
-        // Prepare rolling 6 months keys
         for (let i = 5; i >= 0; i--) {
             const d = new Date();
             d.setMonth(d.getMonth() - i);
@@ -4015,11 +4026,11 @@ class AdminService {
             const key = `${item._id.year}-${item._id.month}`;
             if (monthlyTrendMap[key]) {
                 if (item._id.type === 'income') {
-                    monthlyTrendMap[key].income = item.total;
+                    monthlyTrendMap[key].income = Number(item.total.toFixed(2));
                 } else {
-                    monthlyTrendMap[key].expense = item.total;
+                    monthlyTrendMap[key].expense = Number(item.total.toFixed(2));
                 }
-                monthlyTrendMap[key].net = monthlyTrendMap[key].income - monthlyTrendMap[key].expense;
+                monthlyTrendMap[key].net = Number((monthlyTrendMap[key].income - monthlyTrendMap[key].expense).toFixed(2));
             }
         });
 
@@ -4027,22 +4038,35 @@ class AdminService {
 
         return {
             kpis: {
-                gmv,
-                totalOrders,
                 totalIncome,
+                incomeCount,
                 totalExpense,
+                expenseCount,
                 netProfit,
-                profitMargin: Number(profitMargin),
-                sellerEscrowLiability,
-                deliveryRevenue,
-                totalTaxCollected,
-                commissionRate
+                profitMargin,
+                totalTaxCollected: Number(totalTaxCollected.toFixed(2)),
+                pendingAmount: Number(pendingAmount.toFixed(2)),
+                pendingCount,
+                reconciledAmount: Number(reconciledAmount.toFixed(2)),
+                reconciledCount,
+                totalVouchers: incomeCount + expenseCount,
+                // Fallbacks for backwards compatibility
+                gmv: totalIncome,
+                totalOrders: incomeCount,
+                sellerEscrowLiability: 0,
+                deliveryRevenue: 0,
+                commissionRate: 10
+            },
+            categories: {
+                income: categoryIncomeAgg,
+                expense: categoryExpenseAgg
             },
             categoryBreakdown: {
                 income: categoryIncomeAgg,
                 expense: categoryExpenseAgg
             },
-            monthlyCashFlow
+            monthlyCashFlow,
+            monthlyTrends: monthlyCashFlow
         };
     }
 
@@ -4060,6 +4084,7 @@ class AdminService {
         sortBy = 'entry_date',
         sortOrder = 'desc'
     } = {}) {
+
         const query = { deleted_at: null };
 
         if (type && type !== 'all') {
@@ -4110,7 +4135,7 @@ class AdminService {
                 .lean(),
             Finance.countDocuments(query),
             Finance.aggregate([
-                { $match: query },
+                { $match: { ...query, status: { $ne: 'cancelled' } } },
                 {
                     $group: {
                         _id: '$entry_type',
@@ -4127,17 +4152,25 @@ class AdminService {
         let totalTax = 0;
 
         summaryAgg.forEach(s => {
-            if (s._id === 'income') totalIncome = s.total;
-            else if (s._id === 'expense') totalExpense = s.total;
-            totalTax += (s.totalTax || 0);
+            if (s._id === 'income') totalIncome = Number(s.total.toFixed(2));
+            else if (s._id === 'expense') totalExpense = Number(s.total.toFixed(2));
+            totalTax += Number((s.totalTax || 0).toFixed(2));
         });
+
+        const netBalance = Number((totalIncome - totalExpense).toFixed(2));
 
         return {
             entries,
             totalIncome,
             totalExpense,
-            netBalance: totalIncome - totalExpense,
+            netBalance,
             totalTax,
+            summary: {
+                totalIncome,
+                totalExpense,
+                netBalance,
+                totalTax
+            },
             pagination: {
                 page: parseInt(page),
                 limit: parseInt(limit),

@@ -91,6 +91,9 @@ const checkSellerAccess = (paramName = 'sellerId') => {
             const sellerId = req.params[paramName] || req.body[paramName];
 
             if (!sellerId) {
+                if (req.userType === 'seller' && req.sellerId) {
+                    return next();
+                }
                 return next(ApiError.badRequest('Seller ID is required'));
             }
 

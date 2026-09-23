@@ -31,11 +31,38 @@ const seller_schema = new mongoose.Schema(
         default: null
     },
 
-    // ============ BUSINESS DETAILS ============
+    // ============ BUSINESS & STOREFRONT IDENTITY ============
     business_name: {
         type: String,
         required: true,
         trim: true
+    },
+
+    store_name: {
+        type: String,
+        trim: true,
+        default: null
+    },
+
+    tagline: {
+        type: String,
+        trim: true,
+        default: 'Quality Products & Reliable Delivery'
+    },
+
+    store_description: {
+        type: String,
+        default: ''
+    },
+
+    logo: {
+        type: String,
+        default: null
+    },
+
+    banner: {
+        type: String,
+        default: null
     },
 
     owner_name: {
@@ -135,6 +162,20 @@ const seller_schema = new mongoose.Schema(
     settings: {
         order_processing_time: { type: Number, default: 24 },
         return_policy: { type: String, default: '30 days return policy' },
+        fulfillment_type: {
+            type: String,
+            enum: ['easy_ship', 'self_ship'],
+            default: 'easy_ship'
+        },
+        default_shipping_fee: { type: Number, default: 49 },
+        pickup_address: {
+            street: String,
+            city: String,
+            state: String,
+            postal_code: String,
+            country: { type: String, default: 'India' }
+        },
+        vacation_mode: { type: Boolean, default: false },
         shipping_methods: [{
             name: String,
             cost: Number,

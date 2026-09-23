@@ -119,6 +119,18 @@ const productValidation = {
         return_policy: Joi.string()
             .optional(),
 
+        stock: Joi.number().min(0).optional(),
+        stock_quantity: Joi.number().min(0).optional(),
+        images: Joi.array().items(Joi.alternatives().try(
+            Joi.string(),
+            Joi.object({
+                url: Joi.string().required(),
+                is_primary: Joi.boolean().optional(),
+                _id: Joi.any().optional(),
+            })
+        )).optional(),
+        product_code: Joi.string().optional(),
+
         status: Joi.string()
             .valid('active', 'inactive', 'draft')
             .default('draft'),
@@ -217,6 +229,18 @@ const productValidation = {
 
         return_policy: Joi.string()
             .optional(),
+
+        stock: Joi.number().min(0).optional(),
+        stock_quantity: Joi.number().min(0).optional(),
+        images: Joi.array().items(Joi.alternatives().try(
+            Joi.string(),
+            Joi.object({
+                url: Joi.string().required(),
+                is_primary: Joi.boolean().optional(),
+                _id: Joi.any().optional(),
+            })
+        )).optional(),
+        product_code: Joi.string().optional(),
 
         status: Joi.string()
             .valid('active', 'inactive', 'draft', 'blocked')
@@ -454,11 +478,11 @@ const productValidation = {
     updateInventory: Joi.object({
         product_id: Joi.string()
             .pattern(/^[0-9a-fA-F]{24}$/)
-            .required()
-            .messages({
-                'string.pattern.base': 'Invalid product ID',
-                'string.empty': 'Product ID is required',
-            }),
+            .optional(),
+
+        productId: Joi.string()
+            .pattern(/^[0-9a-fA-F]{24}$/)
+            .optional(),
 
         stock_quantity: Joi.number()
             .integer()

@@ -594,37 +594,6 @@ router.put(
     adminController.updatePaymentStatus
 );
 
-// ============ COMPANY FINANCE ROUTES ============
-
-router.get(
-    '/finance',
-    checkPermission('FINANCE_READ'),
-    adminController.getFinanceEntries
-);
-
-router.post(
-    '/finance',
-    checkPermission('FINANCE_UPDATE'),
-    adminController.addFinanceEntry
-);
-
-router.put(
-    '/finance/:entryId',
-    checkPermission('FINANCE_UPDATE'),
-    adminController.updateFinanceEntry
-);
-
-router.delete(
-    '/finance/:entryId',
-    checkPermission('FINANCE_UPDATE'),
-    adminController.deleteFinanceEntry
-);
-
-router.get(
-    '/finance/export/pdf',
-    checkPermission('FINANCE_EXPORT'),
-    adminController.exportFinancePDF
-);
 
 // ============ TRANSACTION ROUTES ============
 

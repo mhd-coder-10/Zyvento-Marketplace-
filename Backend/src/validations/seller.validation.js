@@ -127,35 +127,93 @@ const sellerValidation = {
             .max(100)
             .optional(),
 
+        store_name: Joi.string()
+            .max(100)
+            .allow('', null)
+            .optional(),
+
+        tagline: Joi.string()
+            .max(200)
+            .allow('', null)
+            .optional(),
+
+        store_description: Joi.string()
+            .max(2000)
+            .allow('', null)
+            .optional(),
+
+        logo: Joi.string()
+            .allow('', null)
+            .optional(),
+
+        banner: Joi.string()
+            .allow('', null)
+            .optional(),
+
+        owner_name: Joi.string()
+            .min(2)
+            .max(100)
+            .optional(),
+
+        mobile_number: Joi.string()
+            .allow('', null)
+            .optional(),
+
+        email: Joi.string()
+            .email()
+            .allow('', null)
+            .optional(),
+
+        business_type: Joi.string()
+            .valid('individual', 'company', 'brand', 'partnership')
+            .optional(),
+
+        gst_number: Joi.string()
+            .allow('', null)
+            .optional(),
+
+        pan_number: Joi.string()
+            .allow('', null)
+            .optional(),
+
+        tax_id: Joi.string()
+            .allow('', null)
+            .optional(),
+
         business_address: Joi.object({
-            street: Joi.string().optional(),
-            city: Joi.string().optional(),
-            state: Joi.string().optional(),
-            country: Joi.string().optional(),
-            zip_code: Joi.string()
-                .pattern(/^[0-9]{5,6}$/)
-                .optional(),
+            street: Joi.string().allow('', null).optional(),
+            city: Joi.string().allow('', null).optional(),
+            state: Joi.string().allow('', null).optional(),
+            country: Joi.string().allow('', null).optional(),
+            zip_code: Joi.string().allow('', null).optional(),
+            postal_code: Joi.string().allow('', null).optional(),
         }).optional(),
 
         bank_details: Joi.object({
-            account_holder_name: Joi.string().optional(),
-            bank_name: Joi.string().optional(),
-            account_number: Joi.string().optional(),
-            ifsc_code: Joi.string()
-                .pattern(/^[A-Z]{4}0[A-Z0-9]{6}$/)
-                .optional(),
-            upi_id: Joi.string()
-                .email()
-                .optional(),
+            account_holder_name: Joi.string().allow('', null).optional(),
+            bank_name: Joi.string().allow('', null).optional(),
+            account_number: Joi.string().allow('', null).optional(),
+            ifsc_code: Joi.string().allow('', null).optional(),
+            upi_id: Joi.string().allow('', null).optional(),
         }).optional(),
 
         settings: Joi.object({
             order_processing_time: Joi.number()
                 .integer()
                 .min(1)
-                .max(72)
+                .max(168)
                 .optional(),
-            return_policy: Joi.string().optional(),
+            return_policy: Joi.string().allow('', null).optional(),
+            fulfillment_type: Joi.string().valid('easy_ship', 'self_ship').optional(),
+            default_shipping_fee: Joi.number().min(0).optional(),
+            pickup_address: Joi.object({
+                street: Joi.string().allow('', null).optional(),
+                city: Joi.string().allow('', null).optional(),
+                state: Joi.string().allow('', null).optional(),
+                postal_code: Joi.string().allow('', null).optional(),
+                country: Joi.string().allow('', null).optional(),
+            }).optional(),
+            vacation_mode: Joi.boolean().optional(),
             shipping_methods: Joi.array()
                 .items(
                     Joi.object({
@@ -266,6 +324,27 @@ const sellerValidation = {
         sort_order: Joi.string()
             .valid('asc', 'desc')
             .default('desc'),
+    }),
+
+    // ============ SELLER SETTINGS ============
+    updateSellerSettings: Joi.object({
+        order_processing_time: Joi.number().integer().min(1).max(168).optional(),
+        return_policy: Joi.string().allow('', null).optional(),
+        fulfillment_type: Joi.string().valid('easy_ship', 'self_ship').optional(),
+        default_shipping_fee: Joi.number().min(0).optional(),
+        pickup_address: Joi.object({
+            street: Joi.string().allow('', null).optional(),
+            city: Joi.string().allow('', null).optional(),
+            state: Joi.string().allow('', null).optional(),
+            postal_code: Joi.string().allow('', null).optional(),
+            country: Joi.string().allow('', null).optional(),
+        }).optional(),
+        vacation_mode: Joi.boolean().optional(),
+    }),
+
+    // ============ DASHBOARD PERIOD ============
+    dashboardPeriod: Joi.object({
+        period: Joi.string().valid('weekly', 'monthly', 'yearly', '7d', '30d', '12m').default('weekly'),
     }),
 };
 
