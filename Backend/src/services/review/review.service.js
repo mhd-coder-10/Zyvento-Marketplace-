@@ -2,135 +2,191 @@
 // Manages review creation, update, delete, and helpful votes
 // Also handles product reviews, seller reviews, and review approval
 
+const mongoose = require('mongoose');
 const Review = require('../../models/review.model');
 const Product = require('../../models/product.model');
 const Seller = require('../../models/seller.model');
 const Order = require('../../models/order.model');
 const User = require('../../models/user.model');
 const notificationService = require('../notification/notification.service');
+const cloudinaryHelper = require('../../utils/cloudinary.helper');
 const ApiError = require('../../utils/apiError');
+const logger = require('../../utils/logger');
 const constants = require('../../config/constants');
 
 class ReviewService {
 
     // ============ CREATE REVIEW ============
-    async createReview({ userId, productId, orderId, rating, title, comment, images = [] }) {
-        // Check if user already reviewed this product for this order
+    async createReview({ userId, productId, orderId, rating, title, comment, images = [], videos = [] }) {
+        // Enforce 1 review per user per product
         const existingReview = await Review.findOne({
             user_id: userId,
-            product_id: productId,
-            order_id: orderId
+            product_id: productId
         });
 
         if (existingReview) {
-            throw ApiError.conflict('You have already reviewed this product for this order');
+            throw ApiError.conflict('You have already submitted a review for this product. You can edit your existing review.');
         }
 
-        // Check if order exists and user has purchased this product
-        const order = await Order.findOne({
-            _id: orderId,
-            user_id: userId,
-            order_status: 'delivered'
-        });
-
-        if (!order) {
-            throw ApiError.badRequest('Order not found or not delivered');
-        }
-
-        // Check if product exists in order
-        const orderItem = await order.order_items.find(async (item) => {
-            const orderItemData = await OrderItem.findById(item);
-            return orderItemData && orderItemData.product_id.toString() === productId;
-        });
-
-        if (!orderItem) {
-            throw ApiError.badRequest('Product not found in this order');
-        }
-
-        // Get product and seller details
+        // Get product details
         const product = await Product.findById(productId);
         if (!product) {
             throw ApiError.notFound('Product not found');
         }
 
-        // Create review
+        const reviewCode = `REV-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+
+        // Create review (approved and published immediately)
         const review = await Review.create({
+            review_code: reviewCode,
             user_id: userId,
             product_id: productId,
-            order_id: orderId,
-            seller_id: product.seller_id,
-            rating,
+            product_code: product.product_code || `PRD-${product._id.toString().slice(-6).toUpperCase()}`,
+            order_id: orderId || null,
+            order_code: '',
+            order_item_id: null,
+            seller_id: product.seller_id || null,
+            rating: Number(rating),
             title: title || '',
             comment: comment || '',
-            images,
-            review_status: 'pending'
+            images: Array.isArray(images) ? images : [],
+            videos: Array.isArray(videos) ? videos : [],
+            review_status: 'approved',
+            status: 'published',
+            is_edited: false,
+            initial_comment: comment || '',
+            initial_rating: Number(rating),
+            initial_created_at: new Date()
         });
 
         // Populate user details
-        await review.populate('user_id', 'first_name last_name profile_image');
+        await review.populate('user_id', 'first_name last_name username profile_image email');
 
-        // Update product rating (async - don't wait)
+        // Update product rating and reviews count
         await this.updateProductRating(productId);
 
-        // Update seller rating (async - don't wait)
-        await this.updateSellerRating(product.seller_id);
-
-        // Send notification to seller
-        await notificationService.createNotification({
-            userId: product.seller_id,
-            receiverType: 'seller',
-            title: 'New Product Review',
-            message: `${rating}⭐ review received on "${product.product_name}"`,
-            notificationType: 'product',
-            referenceId: productId,
-            referenceModel: 'Product',
-            channel: 'in_app',
-            priority: 'medium',
-            metadata: {
-                reviewId: review._id,
-                rating: rating,
-                productName: product.product_name
-            }
-        });
+        // Update seller rating
+        if (product.seller_id) {
+            await this.updateSellerRating(product.seller_id);
+            // Dispatch notification asynchronously without blocking response
+            notificationService.createNotification({
+                userId: product.seller_id,
+                receiverType: 'seller',
+                title: 'New Product Review',
+                message: `${rating}⭐ review received on "${product.product_name}"`,
+                notificationType: 'product',
+                referenceId: productId,
+                referenceModel: 'Product',
+                channel: 'in_app',
+                priority: 'medium',
+                metadata: {
+                    reviewId: review._id,
+                    rating: rating,
+                    productName: product.product_name
+                }
+            }).catch(() => {});
+        }
 
         return review;
     }
 
     // ============ UPDATE REVIEW ============
-    async updateReview({ reviewId, userId, rating, title, comment }) {
+    async updateReview({ reviewId, userId, rating, title, comment, images, videos }) {
+        const rId = typeof reviewId === 'string' && mongoose.Types.ObjectId.isValid(reviewId)
+            ? new mongoose.Types.ObjectId(reviewId)
+            : reviewId;
+        const uId = typeof userId === 'string' && mongoose.Types.ObjectId.isValid(userId)
+            ? new mongoose.Types.ObjectId(userId)
+            : userId;
+
         const review = await Review.findOne({
-            _id: reviewId,
-            user_id: userId
+            _id: rId,
+            user_id: uId
         });
 
         if (!review) {
             throw ApiError.notFound('Review not found or you are not authorized');
         }
 
-        // Cannot update approved/rejected reviews
-        if (review.review_status !== 'pending') {
-            throw ApiError.badRequest('Cannot update a review that is already approved or rejected');
+        // Enforce maximum 1 edit per review
+        if (review.is_edited) {
+            throw ApiError.badRequest('You have already edited this review once. Reviews can only be edited once.');
         }
 
-        // Update fields
-        if (rating) review.rating = rating;
-        if (title) review.title = title;
-        if (comment) review.comment = comment;
+        // Initialize edit history tracking
+        if (!review.edit_history) review.edit_history = [];
+        if (!review.initial_comment) {
+            review.initial_comment = review.comment || '';
+            review.initial_rating = review.rating;
+            review.initial_created_at = review.created_at || new Date();
+        }
 
+        // Store old version in edit_history
+        review.edit_history.push({
+            comment: review.comment,
+            rating: review.rating,
+            title: review.title,
+            edited_at: new Date()
+        });
+
+        review.is_edited = true;
+
+        if (rating !== undefined && rating !== null) review.rating = Number(rating);
+        if (title !== undefined) review.title = title;
+        if (comment !== undefined) review.comment = comment;
+
+        // Clean up removed images from Cloudinary
+        if (images !== undefined) {
+            const newImages = Array.isArray(images) ? images : [];
+            const oldImages = Array.isArray(review.images) ? review.images : [];
+            const removedImages = oldImages.filter(img => !newImages.includes(img));
+            for (const img of removedImages) {
+                cloudinaryHelper.deleteFile(img).catch(err => {
+                    logger.error('Failed to delete removed review image from Cloudinary:', err);
+                });
+            }
+            review.images = newImages;
+        }
+
+        // Clean up removed videos from Cloudinary
+        if (videos !== undefined) {
+            const newVideos = Array.isArray(videos) ? videos : [];
+            const oldVideos = Array.isArray(review.videos) ? review.videos : [];
+            const removedVideos = oldVideos.filter(vid => !newVideos.includes(vid));
+            for (const vid of removedVideos) {
+                cloudinaryHelper.deleteFile(vid, { resource_type: 'video' }).catch(err => {
+                    logger.error('Failed to delete removed review video from Cloudinary:', err);
+                });
+            }
+            review.videos = newVideos;
+        }
+
+        review.updated_at = new Date();
         await review.save();
 
-        // Recalculate product rating
+        await review.populate('user_id', 'first_name last_name username profile_image email');
+
+        // Recalculate product and seller ratings
         await this.updateProductRating(review.product_id);
-        await this.updateSellerRating(review.seller_id);
+        if (review.seller_id) {
+            await this.updateSellerRating(review.seller_id);
+        }
 
         return review;
     }
 
     // ============ DELETE REVIEW ============
     async deleteReview({ reviewId, userId }) {
+        const rId = typeof reviewId === 'string' && mongoose.Types.ObjectId.isValid(reviewId)
+            ? new mongoose.Types.ObjectId(reviewId)
+            : reviewId;
+        const uId = typeof userId === 'string' && mongoose.Types.ObjectId.isValid(userId)
+            ? new mongoose.Types.ObjectId(userId)
+            : userId;
+
         const review = await Review.findOne({
-            _id: reviewId,
-            user_id: userId
+            _id: rId,
+            user_id: uId
         });
 
         if (!review) {
@@ -140,22 +196,38 @@ class ReviewService {
         const productId = review.product_id;
         const sellerId = review.seller_id;
 
-        await review.deleteOne();
+        // Delete all attached images and videos from Cloudinary
+        if (Array.isArray(review.images) && review.images.length > 0) {
+            for (const img of review.images) {
+                cloudinaryHelper.deleteFile(img).catch(() => {});
+            }
+        }
+        if (Array.isArray(review.videos) && review.videos.length > 0) {
+            for (const vid of review.videos) {
+                cloudinaryHelper.deleteFile(vid, { resource_type: 'video' }).catch(() => {});
+            }
+        }
+
+        // Hard delete permanently as requested by the user
+        await Review.deleteOne({ _id: rId, user_id: uId });
 
         // Recalculate ratings
         await this.updateProductRating(productId);
-        await this.updateSellerRating(sellerId);
+        if (sellerId) {
+            await this.updateSellerRating(sellerId);
+        }
 
         return { message: 'Review deleted successfully' };
     }
 
     // ============ UPDATE PRODUCT RATING ============
     async updateProductRating(productId) {
+        const prodId = typeof productId === 'string' ? new mongoose.Types.ObjectId(productId) : productId;
         const result = await Review.aggregate([
             {
                 $match: {
-                    product_id: productId,
-                    review_status: 'approved'
+                    product_id: prodId,
+                    status: 'published'
                 }
             },
             {
@@ -168,25 +240,33 @@ class ReviewService {
         ]);
 
         if (result.length > 0) {
+            const avg = Math.round(result[0].averageRating * 10) / 10;
+            const total = result[0].totalReviews;
             await Product.findByIdAndUpdate(productId, {
-                rating: Math.round(result[0].averageRating * 10) / 10,
-                total_reviews: result[0].totalReviews
+                rating: avg,
+                ratings: avg,
+                total_reviews: total,
+                num_reviews: total
             });
         } else {
             await Product.findByIdAndUpdate(productId, {
                 rating: 0,
-                total_reviews: 0
+                ratings: 0,
+                total_reviews: 0,
+                num_reviews: 0
             });
         }
     }
 
     // ============ UPDATE SELLER RATING ============
     async updateSellerRating(sellerId) {
+        if (!sellerId) return;
+        const sId = typeof sellerId === 'string' ? new mongoose.Types.ObjectId(sellerId) : sellerId;
         const result = await Review.aggregate([
             {
                 $match: {
-                    seller_id: sellerId,
-                    review_status: 'approved'
+                    seller_id: sId,
+                    status: 'published'
                 }
             },
             {
@@ -202,6 +282,10 @@ class ReviewService {
             await Seller.findByIdAndUpdate(sellerId, {
                 rating: Math.round(result[0].averageRating * 10) / 10
             });
+        } else {
+            await Seller.findByIdAndUpdate(sellerId, {
+                rating: 0
+            });
         }
     }
 
@@ -213,17 +297,26 @@ class ReviewService {
         rating = null,
         sortBy = 'created_at',
         sortOrder = 'desc',
-        withImages = false
+        withImages = false,
+        userId = null
     }) {
-        // Check product exists
-        const product = await Product.findById(productId);
+        let queryProduct;
+        if (mongoose.Types.ObjectId.isValid(productId)) {
+            queryProduct = { _id: productId };
+        } else {
+            queryProduct = { product_code: productId };
+        }
+
+        const product = await Product.findOne(queryProduct);
         if (!product) {
             throw ApiError.notFound('Product not found');
         }
 
+        const actualProductId = product._id;
+
         const query = {
-            product_id: productId,
-            review_status: 'approved'
+            product_id: actualProductId,
+            status: 'published'
         };
 
         if (rating) {
@@ -231,7 +324,10 @@ class ReviewService {
         }
 
         if (withImages) {
-            query.images = { $ne: [] };
+            query.$or = [
+                { 'images.0': { $exists: true } },
+                { 'videos.0': { $exists: true } }
+            ];
         }
 
         const sortOptions = {};
@@ -239,19 +335,19 @@ class ReviewService {
 
         const [reviews, total] = await Promise.all([
             Review.find(query)
-                .populate('user_id', 'first_name last_name profile_image')
+                .populate('user_id', 'first_name last_name username profile_image email')
                 .sort(sortOptions)
                 .skip((page - 1) * limit)
                 .limit(parseInt(limit)),
             Review.countDocuments(query)
         ]);
 
-        // Get rating distribution
+        // Get rating distribution (published only)
         const distribution = await Review.aggregate([
             {
                 $match: {
-                    product_id: productId,
-                    review_status: 'approved'
+                    product_id: actualProductId,
+                    status: 'published'
                 }
             },
             {
@@ -263,14 +359,25 @@ class ReviewService {
             { $sort: { _id: 1 } }
         ]);
 
-        const ratingDistribution = {};
-        for (let i = 1; i <= 5; i++) {
-            const found = distribution.find(d => d._id === i);
-            ratingDistribution[i] = found ? found.count : 0;
+        const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        distribution.forEach(d => {
+            if (ratingDistribution[d._id] !== undefined) {
+                ratingDistribution[d._id] = d.count;
+            }
+        });
+
+        // If authenticated user ID provided, get user's own review
+        let userReview = null;
+        if (userId) {
+            userReview = await Review.findOne({
+                product_id: actualProductId,
+                user_id: userId
+            }).populate('user_id', 'first_name last_name username profile_image email');
         }
 
         return {
             reviews,
+            userReview,
             pagination: {
                 page: parseInt(page),
                 limit: parseInt(limit),
@@ -278,8 +385,8 @@ class ReviewService {
                 totalPages: Math.ceil(total / limit)
             },
             ratingDistribution,
-            averageRating: product.rating || 0,
-            totalReviews: product.total_reviews || 0
+            averageRating: product.ratings || product.rating || 0,
+            totalReviews: product.num_reviews || product.total_reviews || 0
         };
     }
 
@@ -288,25 +395,76 @@ class ReviewService {
         sellerId,
         page = 1,
         limit = 10,
+        productId = null,
+        sentiment = null,
         rating = null,
+        status = null,
         reviewStatus = null,
+        search = null,
         sortBy = 'created_at',
         sortOrder = 'desc'
     }) {
-        // Check seller exists
-        const seller = await Seller.findById(sellerId);
+        let sId = sellerId;
+        if (typeof sellerId === 'string' && mongoose.Types.ObjectId.isValid(sellerId)) {
+            sId = new mongoose.Types.ObjectId(sellerId);
+        }
+
+        let seller = await Seller.findById(sId);
+        if (!seller) {
+            seller = await Seller.findOne({ user_id: sId });
+        }
         if (!seller) {
             throw ApiError.notFound('Seller not found');
         }
 
-        const query = { seller_id: sellerId };
+        const actualSellerId = seller._id;
+        const sellerProducts = await Product.find({ seller_id: actualSellerId }).select('_id');
+        const productIds = sellerProducts.map(p => p._id);
 
-        if (rating) {
+        let query = {
+            $or: [
+                { seller_id: actualSellerId },
+                { product_id: { $in: productIds } }
+            ]
+        };
+
+        if (productId) {
+            let pObjectId = productId;
+            if (typeof productId === 'string' && mongoose.Types.ObjectId.isValid(productId)) {
+                pObjectId = new mongoose.Types.ObjectId(productId);
+            }
+            query.product_id = pObjectId;
+        }
+
+        if (sentiment) {
+            if (sentiment === 'bad') {
+                query.rating = { $lte: 2 };
+            } else if (sentiment === 'medium') {
+                query.rating = { $eq: 3 };
+            } else if (sentiment === 'better' || sentiment === 'good') {
+                query.rating = { $gte: 4 };
+            }
+        } else if (rating) {
             query.rating = { $eq: parseInt(rating) };
         }
 
-        if (reviewStatus) {
+        // Support status filtering (published, hidden, flagged, rejected)
+        if (status && status !== 'all') {
+            query.status = status;
+        } else if (reviewStatus && reviewStatus !== 'all') {
             query.review_status = reviewStatus;
+        }
+
+        if (search && search.trim()) {
+            const searchRegex = new RegExp(search.trim(), 'i');
+            query.$and = query.$and || [];
+            query.$and.push({
+                $or: [
+                    { title: searchRegex },
+                    { comment: searchRegex },
+                    { review_code: searchRegex }
+                ]
+            });
         }
 
         const sortOptions = {};
@@ -314,22 +472,25 @@ class ReviewService {
 
         const [reviews, total] = await Promise.all([
             Review.find(query)
-                .populate('user_id', 'first_name last_name profile_image')
-                .populate('product_id', 'product_name images sku')
+                .populate('user_id', 'first_name last_name username profile_image email')
+                .populate('product_id', 'product_name images sku product_code price')
                 .sort(sortOptions)
                 .skip((page - 1) * limit)
                 .limit(parseInt(limit)),
             Review.countDocuments(query)
         ]);
 
-        // Get rating distribution
+        // Get rating distribution for this seller (or filtered product)
+        let matchStage = {
+            $or: [
+                { seller_id: actualSellerId },
+                { product_id: { $in: productIds } }
+            ]
+        };
+        if (query.product_id) matchStage = { product_id: query.product_id };
+
         const distribution = await Review.aggregate([
-            {
-                $match: {
-                    seller_id: sellerId,
-                    review_status: 'approved'
-                }
-            },
+            { $match: matchStage },
             {
                 $group: {
                     _id: '$rating',
@@ -339,27 +500,34 @@ class ReviewService {
             { $sort: { _id: 1 } }
         ]);
 
-        const ratingDistribution = {};
-        for (let i = 1; i <= 5; i++) {
-            const found = distribution.find(d => d._id === i);
-            ratingDistribution[i] = found ? found.count : 0;
-        }
+        const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        distribution.forEach(d => {
+            if (ratingDistribution[d._id] !== undefined) {
+                ratingDistribution[d._id] = d.count;
+            }
+        });
 
         // Get review statistics
         const stats = await Review.aggregate([
-            {
-                $match: {
-                    seller_id: sellerId,
-                    review_status: 'approved'
-                }
-            },
+            { $match: matchStage },
             {
                 $group: {
                     _id: null,
                     avgRating: { $avg: '$rating' },
                     totalReviews: { $sum: 1 },
                     withImagesCount: {
-                        $sum: { $cond: [{ $gt: [{ $size: '$images' }, 0] }, 1, 0] }
+                        $sum: {
+                            $cond: [
+                                {
+                                    $or: [
+                                        { $gt: [{ $size: '$images' }, 0] },
+                                        { $gt: [{ $size: '$videos' }, 0] }
+                                    ]
+                                },
+                                1,
+                                0
+                            ]
+                        }
                     }
                 }
             }
@@ -375,7 +543,7 @@ class ReviewService {
             },
             ratingDistribution,
             statistics: {
-                averageRating: stats[0]?.avgRating || 0,
+                averageRating: stats[0]?.avgRating ? Math.round(stats[0].avgRating * 10) / 10 : 0,
                 totalReviews: stats[0]?.totalReviews || 0,
                 withImagesCount: stats[0]?.withImagesCount || 0
             },
@@ -437,22 +605,31 @@ class ReviewService {
         }
 
         review.review_status = status;
+        if (status === 'approved') {
+            review.status = 'published';
+            review.published_at = new Date();
+        } else if (status === 'rejected') {
+            review.status = 'rejected';
+            review.rejected_at = new Date();
+        }
         if (adminComment) {
             review.admin_comment = adminComment;
         }
         await review.save();
 
-        // Update product and seller ratings if approved
-        if (status === 'approved') {
-            await this.updateProductRating(review.product_id);
+        // Always update product and seller ratings
+        await this.updateProductRating(review.product_id);
+        if (review.seller_id) {
             await this.updateSellerRating(review.seller_id);
+        }
 
-            // Send notification to user
+        // Send notification to user
+        if (status === 'approved') {
             await notificationService.createNotification({
                 userId: review.user_id,
                 receiverType: 'customer',
                 title: 'Your Review is Approved',
-                message: `Your review for "${review.product_id.product_name}" has been approved`,
+                message: `Your review has been approved and published`,
                 notificationType: 'product',
                 referenceId: review._id,
                 referenceModel: 'Review',
@@ -568,6 +745,18 @@ class ReviewService {
 
         const productId = review.product_id;
         const sellerId = review.seller_id;
+
+        // Delete all attached images and videos from Cloudinary
+        if (Array.isArray(review.images) && review.images.length > 0) {
+            for (const img of review.images) {
+                cloudinaryHelper.deleteFile(img).catch(() => {});
+            }
+        }
+        if (Array.isArray(review.videos) && review.videos.length > 0) {
+            for (const vid of review.videos) {
+                cloudinaryHelper.deleteFile(vid, { resource_type: 'video' }).catch(() => {});
+            }
+        }
 
         await review.deleteOne();
 
@@ -709,7 +898,7 @@ class ReviewService {
 
     // ============ GET REVIEW STATISTICS ============
     async getReviewStatistics({ sellerId = null, productId = null }) {
-        const matchQuery = { review_status: 'approved' };
+        const matchQuery = { status: 'published' };
 
         if (sellerId) {
             matchQuery.seller_id = sellerId;

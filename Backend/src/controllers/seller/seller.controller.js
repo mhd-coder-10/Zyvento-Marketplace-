@@ -1,12 +1,15 @@
 // Handles all seller related API requests
 // Manages seller profile, dashboard, documents, and products
-// Also handles seller orders, employees, reports, and settings
+// Also handles seller orders, reports, and settings
 
+const path = require('path');
 const sellerService = require('../../services/seller/seller.service');
 const ApiResponse = require('../../utils/apiResponse');
 const ApiError = require('../../utils/apiError');
 const asyncHandler = require('../../utils/asyncHandler');
 const auditService = require('../../services/audit.service'); // ✅ ADDED
+const cloudinaryHelper = require('../../utils/cloudinary.helper');
+const logger = require('../../utils/logger');
 
 const sellerController = {
     // ============ PUBLIC PROFILE ============
@@ -185,6 +188,15 @@ const sellerController = {
         );
     }),
 
+    getProductById: asyncHandler(async (req, res) => {
+        const sellerId = req.sellerId;
+        const { productId } = req.params;
+        const product = await sellerService.getProductById(sellerId, productId, req.userId);
+        res.status(200).json(
+            ApiResponse.success(product, 'Product details fetched successfully')
+        );
+    }),
+
     createProduct: asyncHandler(async (req, res) => {
         const sellerId = req.sellerId;
         const productData = req.body;
@@ -205,6 +217,59 @@ const sellerController = {
 
         res.status(201).json(
             ApiResponse.created(product, 'Product created successfully')
+        );
+    }),
+
+    updateProduct: asyncHandler(async (req, res) => {
+        const sellerId = req.sellerId;
+        const { productId } = req.params;
+        const updateData = req.body;
+        const product = await sellerService.updateProduct(sellerId, productId, updateData, req.userId);
+
+        // ✅ AUDIT LOG - Product / Stock Update
+        const isStockUpdate = updateData.stock_quantity !== undefined || updateData.stock !== undefined;
+        await auditService.log({
+            userId: req.userId,
+            action: 'update',
+            module: isStockUpdate ? 'inventory' : 'product',
+            moduleId: product._id,
+            description: isStockUpdate
+                ? `Stock updated to ${product.stock_quantity} units for product: ${product.product_name}`
+                : `Product updated: ${product.product_name}`,
+            newData: { 
+                product_name: product.product_name, 
+                sku: product.sku, 
+                stock_quantity: product.stock_quantity 
+            },
+            ip: req.ip,
+            userAgent: req.get('user-agent'),
+            status: 'success'
+        });
+
+        res.status(200).json(
+            ApiResponse.success(product, 'Product updated successfully')
+        );
+    }),
+
+    deleteProduct: asyncHandler(async (req, res) => {
+        const sellerId = req.sellerId;
+        const { productId } = req.params;
+        await sellerService.deleteProduct(sellerId, productId, req.userId);
+
+        // ✅ AUDIT LOG - Product Delete
+        await auditService.log({
+            userId: req.userId,
+            action: 'delete',
+            module: 'product',
+            moduleId: productId,
+            description: `Product deleted: ${productId}`,
+            ip: req.ip,
+            userAgent: req.get('user-agent'),
+            status: 'success'
+        });
+
+        res.status(200).json(
+            ApiResponse.success(null, 'Product deleted successfully')
         );
     }),
 
@@ -354,13 +419,70 @@ const sellerController = {
 
     // ============ CATEGORIES ============
     createCategory: asyncHandler(async (req, res) => {
-        const { category_name, description, sub_category_name } = req.body;
+        const { category_id, category_name, description, sub_category_name } = req.body;
         const result = await sellerService.createCategory(
-            { category_name, description, sub_category_name },
+            { category_id, category_name, description, sub_category_name },
             req.userId
         );
         res.status(201).json(
             ApiResponse.success(result, 'Category created or retrieved successfully')
+        );
+    }),
+
+    createSubCategory: asyncHandler(async (req, res) => {
+        const { category_id, sub_category_name, description } = req.body;
+        const result = await sellerService.createSubCategory(
+            { category_id, sub_category_name, description },
+            req.userId
+        );
+        res.status(201).json(
+            ApiResponse.success(result, result.isNewSub ? 'Sub-category created successfully' : 'Sub-category already exists')
+        );
+    }),
+
+    // ============ PRODUCT IMAGE UPLOAD (CLOUDINARY) ============
+    uploadProductImages: asyncHandler(async (req, res) => {
+        const files = req.files || (req.file ? [req.file] : []);
+        if (!files || files.length === 0) {
+            throw ApiError.badRequest('No image files provided');
+        }
+
+        if (files.length > 10) {
+            throw ApiError.badRequest('Maximum 10 images can be uploaded at a time');
+        }
+
+        const uploadedImages = [];
+        const errors = [];
+
+        for (const file of files) {
+            try {
+                const result = await cloudinaryHelper.uploadFile(file.path, {
+                    folder: `products/${req.userId || 'general'}`,
+                });
+                uploadedImages.push({
+                    url: result.url || result.secure_url,
+                    public_id: result.public_id,
+                    name: file.originalname,
+                    size: file.size,
+                });
+            } catch (err) {
+                logger.error('Error uploading file to Cloudinary:', err);
+                errors.push({
+                    file: file.originalname,
+                    error: err.message || 'Cloudinary upload failed'
+                });
+            }
+        }
+
+        if (uploadedImages.length === 0 && errors.length > 0) {
+            throw ApiError.badRequest(`Cloudinary upload failed: ${errors.map(e => e.error).join('; ')}`);
+        }
+
+        res.status(200).json(
+            ApiResponse.success(
+                { images: uploadedImages, errors: errors.length ? errors : undefined },
+                'Images uploaded successfully'
+            )
         );
     })
 };

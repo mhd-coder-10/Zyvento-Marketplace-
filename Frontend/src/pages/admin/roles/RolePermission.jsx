@@ -21,7 +21,6 @@ const ROLE_TYPE_LABELS = {
     admin: 'Admin',
     sub_admin: 'Sub-Admin',
     seller: 'Seller',
-    employee: 'Employee',
     customer: 'Customer'
 };
 
@@ -30,7 +29,6 @@ const ROLE_TYPE_STYLES = {
     admin: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     sub_admin: 'bg-blue-50 text-blue-700 border-blue-200',
     seller: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    employee: 'bg-teal-50 text-teal-700 border-teal-200',
     customer: 'bg-slate-50 text-slate-600 border-slate-200'
 };
 

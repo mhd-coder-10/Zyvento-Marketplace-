@@ -1,15 +1,17 @@
 // Seller main route definitions
-// Profile, dashboard, documents, products, orders, employees
+// Profile, dashboard, documents, products, orders
 // All seller routes require authentication and seller role
 
 const express = require('express');
 const router = express.Router();
 
 const sellerController = require('../../controllers/seller/seller.controller');
+const sellerRequestController = require('../../controllers/seller/seller_request.controller');
 const productController = require('../../controllers/product/product.controller');
 const auth = require('../../middleware/auth.middleware');
 const { authorize, checkPermission, checkSellerAccess } = require('../../middleware/authorization.middleware');
 const { validate } = require('../../middleware/validation.middleware');
+const { uploadMultiple } = require('../../middleware/upload.middleware');
 const sellerValidation = require('../../validations/seller.validation');
 const productValidation = require('../../validations/product.validation');
 const orderValidation = require('../../validations/order.validation');
@@ -420,6 +422,12 @@ router.get(
     sellerController.getMyProducts
 );
 
+router.get(
+    '/products/:productId',
+    authorize('seller'),
+    sellerController.getProductById
+);
+
 /**
  * @swagger
  * /seller/products:
@@ -505,13 +513,13 @@ router.put(
     '/products/:productId',
     authorize('seller'),
     validate(productValidation.updateProduct),
-    productController.updateProduct
+    sellerController.updateProduct
 );
 
 router.delete(
     '/products/:productId',
     authorize('seller'),
-    productController.deleteProduct
+    sellerController.deleteProduct
 );
 
 // ============ SELLER ORDERS ============
@@ -919,6 +927,38 @@ router.post(
     '/categories',
     authorize('seller'),
     sellerController.createCategory
+);
+
+router.post(
+    '/sub-categories',
+    authorize('seller'),
+    sellerController.createSubCategory
+);
+
+router.post(
+    '/upload-images',
+    authorize('seller'),
+    uploadMultiple('images', 10),
+    sellerController.uploadProductImages
+);
+
+// ============ SELLER REQUESTS ============
+router.post(
+    '/requests',
+    authorize('seller'),
+    sellerRequestController.createRequest
+);
+
+router.get(
+    '/requests',
+    authorize('seller'),
+    sellerRequestController.getMyRequests
+);
+
+router.get(
+    '/requests/:requestCode',
+    authorize('seller'),
+    sellerRequestController.getRequestByCode
 );
 
 module.exports = router;

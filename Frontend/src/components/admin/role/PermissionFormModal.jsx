@@ -19,7 +19,7 @@ const ACTION_OPTIONS = [
 ];
 
 const MODULE_OPTIONS = [
-    'dashboard', 'users', 'sub_admins', 'employees', 'sellers',
+    'dashboard', 'users', 'sub_admins', 'sellers',
     'products', 'categories', 'inventory', 'orders', 'returns',
     'payments', 'transactions', 'finance', 'reviews', 'coupons',
     'notifications', 'reports', 'marketing', 'roles', 'permissions', 'settings'

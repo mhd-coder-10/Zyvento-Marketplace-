@@ -17,6 +17,16 @@ const sellerValidation = {
                 'string.max': 'Business name cannot exceed 100 characters',
             }),
 
+        store_name: Joi.string()
+            .max(100)
+            .allow('', null)
+            .optional(),
+
+        brand_name: Joi.string()
+            .max(100)
+            .allow('', null)
+            .optional(),
+
         owner_name: Joi.string()
             .min(2)
             .max(50)
@@ -128,6 +138,11 @@ const sellerValidation = {
             .optional(),
 
         store_name: Joi.string()
+            .max(100)
+            .allow('', null)
+            .optional(),
+
+        brand_name: Joi.string()
             .max(100)
             .allow('', null)
             .optional(),

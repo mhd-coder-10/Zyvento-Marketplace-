@@ -1,5 +1,5 @@
 // Handles all sub-admin related API requests
-// Manages sub-admin dashboard, profile, sellers, employees
+// Manages sub-admin dashboard, profile, sellers
 // Also handles order management, reports, notifications, and activity logs
 
 const subAdminService = require('../../services/subAdmin/subAdmin.service');
@@ -104,30 +104,6 @@ const subAdminController = {
         );
     }),
 
-    // ============ EMPLOYEE MANAGEMENT ============
-    getEmployees: asyncHandler(async (req, res) => {
-        const { page, limit, search, seller_id, status } = req.query;
-        const result = await subAdminService.getEmployees({
-            page, limit, search,
-            sellerId: seller_id,
-            status
-        });
-        res.status(200).json(
-            ApiResponse.paginated(
-                result.employees,
-                result.pagination,
-                'Employees fetched successfully'
-            )
-        );
-    }),
-
-    getEmployeeDetails: asyncHandler(async (req, res) => {
-        const { employeeId } = req.params;
-        const employee = await subAdminService.getEmployeeDetails(employeeId);
-        res.status(200).json(
-            ApiResponse.success(employee, 'Employee details fetched successfully')
-        );
-    }),
 
     // ============ ORDER MANAGEMENT ============
     getOrders: asyncHandler(async (req, res) => {

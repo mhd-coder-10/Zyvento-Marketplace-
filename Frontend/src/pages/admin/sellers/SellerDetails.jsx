@@ -26,6 +26,9 @@ import {
     FiTrendingUp,
     FiDollarSign,
     FiHash,
+    FiEye,
+    FiTag,
+    FiExternalLink,
 } from 'react-icons/fi';
 import { FaStore } from 'react-icons/fa';
 import { motion } from 'framer-motion';
@@ -195,7 +198,7 @@ const SellerDetails = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 via-[#eaf4ff] to-white">
+            <div className="min-h-screen flex items-center justify-center from-sky-50 via-[#eaf4ff] to-white">
                 <div className="flex flex-col items-center">
                     <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4" />
                     <p className="text-slate-700 font-medium">Loading seller details...</p>
@@ -233,7 +236,9 @@ const SellerDetails = () => {
     }
 
     const seller = data.seller || {};
-    const employees = data.employees || [];
+    const products = data.products || [];
+    const activities = data.activities || [];
+    const complaintsList = data.complaintsList || [];
     const statistics = data.statistics || {};
     const reviews = statistics.reviews || {};
     const complaints = statistics.complaints || {};
@@ -244,15 +249,14 @@ const SellerDetails = () => {
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: <FiBriefcase size={16} /> },
-        { id: 'employees', label: `Employees (${employees.length})`, icon: <FiUsers size={16} /> },
-        { id: 'products', label: 'Products', icon: <FiPackage size={16} /> },
+        { id: 'products', label: `Products (${products.length})`, icon: <FiPackage size={16} /> },
         { id: 'reviews', label: `Reviews (${reviews.totalReviews || 0})`, icon: <FiStar size={16} /> },
-        { id: 'complaints', label: `Complaints (${complaints.total || 0})`, icon: <FiAlertCircle size={16} /> },
-        { id: 'activity', label: 'Activity', icon: <FiActivity size={16} /> },
+        { id: 'complaints', label: `Complaints (${complaints.total || complaintsList.length})`, icon: <FiAlertCircle size={16} /> },
+        { id: 'activity', label: `Activity (${activities.length})`, icon: <FiActivity size={16} /> },
     ];
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-sky-50 via-[#eaf4ff] to-white pb-10">
+        <div className="min-h-screen from-sky-50 via-[#eaf4ff] to-white pb-10">
 
             {/* HEADER */}
             <AdminTopbar
@@ -553,20 +557,21 @@ const SellerDetails = () => {
                             >
                                 <div className="space-y-3">
                                     <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                                        <FiUser className="text-blue-600" /> Contact Information
+                                        <FaStore className="text-blue-600" /> Business & Brand Identity
                                     </h3>
-                                    <InfoRow icon={<FiMail size={16} />} label="Email" value={seller.email} />
-                                    <InfoRow icon={<FiPhone size={16} />} label="Phone" value={seller.mobile_number} />
-                                    <InfoRow
-                                        icon={<FiUser size={16} />}
-                                        label="Owner"
-                                        value={seller.owner_name}
-                                    />
-                                    <InfoRow
-                                        icon={<FiBriefcase size={16} />}
-                                        label="Business Type"
-                                        value={seller.business_type}
-                                    />
+                                    <InfoRow icon={<FiTag size={16} />} label="Brand Name" value={seller.brand_name || 'N/A'} />
+                                    <InfoRow icon={<FaStore size={16} />} label="Public Store Name" value={seller.store_name || seller.business_name} />
+                                    <InfoRow icon={<FiBriefcase size={16} />} label="Legal Business Name" value={seller.business_name} />
+                                    <InfoRow icon={<FiBriefcase size={16} />} label="Business Type" value={seller.business_type} />
+                                </div>
+
+                                <div className="space-y-3">
+                                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                        <FiUser className="text-blue-600" /> Owner & Contact Information
+                                    </h3>
+                                    <InfoRow icon={<FiUser size={16} />} label="Owner Name" value={seller.owner_name} />
+                                    <InfoRow icon={<FiMail size={16} />} label="Official Email" value={seller.email} />
+                                    <InfoRow icon={<FiPhone size={16} />} label="Official Phone" value={seller.mobile_number} />
                                 </div>
 
                                 <div className="space-y-3">
@@ -602,93 +607,147 @@ const SellerDetails = () => {
                             </motion.div>
                         )}
 
-                        {/* EMPLOYEES */}
-                        {activeTab === 'employees' && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                            >
-                                {employees.length === 0 ? (
-                                    <EmptyTab
-                                        icon={<FiUsers size={28} className="text-sky-500" />}
-                                        title="No employees"
-                                        subtitle="This seller has not added any employees yet."
-                                    />
-                                ) : (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full min-w-[720px]">
-                                            <thead className="bg-slate-50">
-                                                <tr>
-                                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
-                                                        Employee
-                                                    </th>
-                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase">
-                                                        Role
-                                                    </th>
-                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase">
-                                                        Department
-                                                    </th>
-                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase">
-                                                        Status
-                                                    </th>
-                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase">
-                                                        Joined
-                                                    </th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {employees.map((emp, idx) => (
-                                                    <tr key={emp._id || idx} className="hover:bg-sky-50/40">
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-9 h-9 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 text-white flex items-center justify-center text-xs font-semibold">
-                                                                    {(emp.user_id?.first_name?.[0] || 'U').toUpperCase()}
-                                                                    {(emp.user_id?.last_name?.[0] || '').toUpperCase()}
-                                                                </div>
-                                                                <div className="min-w-0">
-                                                                    <p className="font-medium text-slate-800 truncate">
-                                                                        {emp.user_id?.first_name} {emp.user_id?.last_name}
-                                                                    </p>
-                                                                    <p className="text-xs text-slate-500 truncate">
-                                                                        {emp.user_id?.email}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            <span className="inline-block px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 border border-teal-200 text-[11px] font-semibold capitalize">
-                                                                {(emp.employee_type || 'employee').replace(/_/g, ' ')}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center text-xs text-slate-600">
-                                                            {emp.department || 'N/A'}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            <StatusBadge status={emp.status || 'active'} />
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center text-xs text-slate-500">
-                                                            {formatDate(emp.created_at)}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </motion.div>
-                        )}
 
                         {/* PRODUCTS */}
                         {activeTab === 'products' && (
                             <motion.div
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
+                                className="space-y-4"
                             >
-                                <EmptyTab
-                                    icon={<FiPackage size={28} className="text-sky-500" />}
-                                    title="Products Tab Coming Soon"
-                                    subtitle="Detailed product list with filters will be added here."
-                                />
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+                                    <div>
+                                        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                            <FiPackage className="text-blue-600" />
+                                            Seller Products Catalog ({products.length})
+                                        </h4>
+                                        <p className="text-xs text-slate-500">
+                                            All products created and managed by this seller
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                                            {products.filter(p => p.status === 'active').length} Active
+                                        </span>
+                                        <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200">
+                                            {products.filter(p => p.status !== 'active').length} Inactive / Draft
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {products.length === 0 ? (
+                                    <EmptyTab
+                                        icon={<FiPackage size={28} className="text-sky-500" />}
+                                        title="No Products Created Yet"
+                                        subtitle="This seller has not created any products in their catalog."
+                                    />
+                                ) : (
+                                    <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs">
+                                        <table className="w-full min-w-[750px] divide-y divide-slate-100">
+                                            <thead className="bg-slate-50">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</th>
+                                                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Price / MRP</th>
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Stock</th>
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Approval</th>
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Created</th>
+                                                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 bg-white">
+                                                {products.map((p) => {
+                                                    const imgUrl = Array.isArray(p.images) && p.images[0] ? p.images[0] : (p.image || '');
+                                                    const stockQty = p.inventory?.stock_quantity ?? p.stock_quantity ?? 0;
+                                                    return (
+                                                        <tr key={p._id} className="hover:bg-sky-50/40 transition-colors">
+                                                            <td className="px-4 py-3.5">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                                                        {imgUrl ? (
+                                                                            <img src={imgUrl} alt={p.product_name} className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            <FiPackage className="text-slate-400 w-5 h-5" />
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="min-w-0 max-w-xs">
+                                                                        <p className="text-xs font-bold text-slate-900 truncate" title={p.product_name}>
+                                                                            {p.product_name}
+                                                                        </p>
+                                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                                            {p.sku && (
+                                                                                <span className="text-[10px] font-mono text-slate-500 font-semibold">
+                                                                                    SKU: {p.sku}
+                                                                                </span>
+                                                                            )}
+                                                                            {p.brand && (
+                                                                                <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium">
+                                                                                    {p.brand}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3.5 text-xs text-slate-600">
+                                                                <div className="font-semibold text-slate-800">
+                                                                    {p.category_id?.category_name || 'Uncategorized'}
+                                                                </div>
+                                                                {p.sub_category_id?.sub_category_name && (
+                                                                    <div className="text-[11px] text-slate-400">
+                                                                        {p.sub_category_id.sub_category_name}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3.5 text-right">
+                                                                <div className="text-xs font-bold text-slate-900">
+                                                                    {formatCurrency(p.final_price || p.price)}
+                                                                </div>
+                                                                {p.mrp && p.mrp > (p.final_price || p.price) && (
+                                                                    <div className="text-[10px] text-slate-400 line-through">
+                                                                        {formatCurrency(p.mrp)}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3.5 text-center">
+                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${stockQty <= 0
+                                                                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                                                    : stockQty <= 5
+                                                                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                                    }`}>
+                                                                    {stockQty} in stock
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-3.5 text-center">
+                                                                <StatusBadge status={p.status} />
+                                                            </td>
+                                                            <td className="px-4 py-3.5 text-center">
+                                                                <VerificationBadge status={p.approval_status || 'approved'} />
+                                                            </td>
+                                                            <td className="px-4 py-3.5 text-center text-xs text-slate-500 whitespace-nowrap">
+                                                                {formatDate(p.created_at)}
+                                                            </td>
+                                                            <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                                                                <a
+                                                                    href={`/products/${p._id}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-sky-50 text-blue-600 text-xs font-semibold transition-colors"
+                                                                    title="View on store"
+                                                                >
+                                                                    <FiEye size={12} />
+                                                                    <span>View</span>
+                                                                </a>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </motion.div>
                         )}
 
@@ -841,6 +900,48 @@ const SellerDetails = () => {
                                         </div>
                                     </div>
                                 )}
+
+                                {complaintsList.length > 0 && (
+                                    <div className="pt-4 border-t border-slate-100">
+                                        <h4 className="text-sm font-bold text-slate-800 mb-3">
+                                            Recent Complaints ({complaintsList.length})
+                                        </h4>
+                                        <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                                            <table className="w-full min-w-[600px] divide-y divide-slate-100">
+                                                <thead className="bg-slate-50">
+                                                    <tr>
+                                                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase">Complaint Code</th>
+                                                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase">Customer</th>
+                                                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase">Subject</th>
+                                                        <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase">Status</th>
+                                                        <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase">Date</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 bg-white">
+                                                    {complaintsList.map((c) => (
+                                                        <tr key={c._id} className="hover:bg-sky-50/40">
+                                                            <td className="px-4 py-3 text-xs font-mono font-bold text-blue-600">
+                                                                {c.complaint_code || c._id}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-xs text-slate-800">
+                                                                {c.user_id ? `${c.user_id.first_name || ''} ${c.user_id.last_name || ''}`.trim() || c.user_id.email : 'Customer'}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-xs text-slate-600 max-w-xs truncate">
+                                                                {c.subject || c.description || 'N/A'}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <StatusBadge status={c.status} />
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center text-xs text-slate-500 whitespace-nowrap">
+                                                                {formatDate(c.created_at)}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
                             </motion.div>
                         )}
 
@@ -849,40 +950,127 @@ const SellerDetails = () => {
                             <motion.div
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="space-y-3"
+                                className="space-y-6"
                             >
-                                <InfoRow
-                                    icon={<FiCalendar size={16} />}
-                                    label="Account created"
-                                    value={formatDateTime(seller.created_at)}
-                                />
-                                <InfoRow
-                                    icon={<FiActivity size={16} />}
-                                    label="Last updated"
-                                    value={formatDateTime(seller.updated_at)}
-                                />
-                                {seller.approved_at && (
+                                {/* Account Milestones Card */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80">
                                     <InfoRow
-                                        icon={<FiCheckCircle size={16} />}
-                                        label="Approved on"
-                                        value={formatDateTime(seller.approved_at)}
+                                        icon={<FiCalendar size={16} />}
+                                        label="Account created"
+                                        value={formatDateTime(seller.created_at)}
                                     />
-                                )}
-                                {seller.approved_by && (
                                     <InfoRow
-                                        icon={<FiUser size={16} />}
-                                        label="Approved by"
-                                        value={`${seller.approved_by.first_name || ''} ${seller.approved_by.last_name || ''}`.trim()}
+                                        icon={<FiActivity size={16} />}
+                                        label="Last profile update"
+                                        value={formatDateTime(seller.updated_at)}
                                     />
-                                )}
+                                    {seller.approved_at && (
+                                        <InfoRow
+                                            icon={<FiCheckCircle size={16} />}
+                                            label="Approved on"
+                                            value={formatDateTime(seller.approved_at)}
+                                        />
+                                    )}
+                                    {seller.approved_by && (
+                                        <InfoRow
+                                            icon={<FiUser size={16} />}
+                                            label="Approved by"
+                                            value={`${seller.approved_by.first_name || ''} ${seller.approved_by.last_name || ''}`.trim()}
+                                        />
+                                    )}
+                                </div>
+
+                                {/* Dynamic Live Activity Audit Timeline */}
+                                <div className="space-y-3">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                                        <div>
+                                            <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                                <FiActivity className="text-blue-600" />
+                                                Live Activity & Audit History ({activities.length})
+                                            </h4>
+                                            <p className="text-xs text-slate-500">
+                                                Chronological events recorded across products, account, and orders
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {activities.length === 0 ? (
+                                        <EmptyTab
+                                            icon={<FiActivity size={28} className="text-sky-500" />}
+                                            title="No Activity Logs Yet"
+                                            subtitle="Activity logs will appear automatically as the seller creates products, updates profile, or processes orders."
+                                        />
+                                    ) : (
+                                        <div className="space-y-2.5">
+                                            {activities.map((act) => {
+                                                const actionType = act.action?.toLowerCase() || 'update';
+                                                const badgeColor =
+                                                    actionType === 'create'
+                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                        : actionType === 'delete'
+                                                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                                            : actionType === 'upload'
+                                                                ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                                                : actionType === 'approve'
+                                                                    ? 'bg-teal-50 text-teal-700 border-teal-200'
+                                                                    : 'bg-blue-50 text-blue-700 border-blue-200';
+
+                                                const userName = act.user_id
+                                                    ? `${act.user_id.first_name || ''} ${act.user_id.last_name || ''}`.trim() || act.user_id.email
+                                                    : 'Seller User';
+
+                                                return (
+                                                    <div
+                                                        key={act._id}
+                                                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-white rounded-xl border border-slate-200/80 hover:border-blue-200 hover:bg-slate-50/50 transition-colors shadow-xs"
+                                                    >
+                                                        <div className="flex items-start gap-3 min-w-0">
+                                                            <div className="mt-0.5 shrink-0">
+                                                                <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border ${badgeColor}`}>
+                                                                    {act.action}
+                                                                </span>
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs sm:text-sm font-semibold text-slate-800 break-words">
+                                                                    {act.description || `${act.action} on ${act.module}`}
+                                                                </p>
+                                                                <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-slate-500">
+                                                                    <span className="font-semibold text-slate-700">By: {userName}</span>
+                                                                    {act.user_type && (
+                                                                        <span className="text-[10px] px-1.5 py-0.2 bg-slate-100 rounded text-slate-600 capitalize">
+                                                                            {act.user_type.replace(/_/g, ' ')}
+                                                                        </span>
+                                                                    )}
+                                                                    {act.module && (
+                                                                        <span className="text-[10px] uppercase font-bold text-sky-700 bg-sky-50 px-1.5 py-0.2 rounded">
+                                                                            {act.module}
+                                                                        </span>
+                                                                    )}
+                                                                    {act.ip_address && (
+                                                                        <span className="text-slate-400 font-mono text-[10px]">
+                                                                            IP: {act.ip_address}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="shrink-0 text-left sm:text-right text-[11px] text-slate-400 whitespace-nowrap">
+                                                            {formatDateTime(act.created_at)}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
 
                                 {recentOrders.length > 0 && (
-                                    <div className="pt-4">
-                                        <h4 className="text-sm font-semibold text-slate-700 mb-3">
-                                            Recent Orders
+                                    <div className="pt-2 border-t border-slate-100">
+                                        <h4 className="text-sm font-bold text-slate-800 mb-3">
+                                            Recent Orders ({recentOrders.length})
                                         </h4>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full min-w-[600px]">
+                                        <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs">
+                                            <table className="w-full min-w-[600px] divide-y divide-slate-100">
                                                 <thead className="bg-slate-50">
                                                     <tr>
                                                         <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">
@@ -899,7 +1087,7 @@ const SellerDetails = () => {
                                                         </th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="divide-y divide-slate-100">
+                                                <tbody className="divide-y divide-slate-100 bg-white">
                                                     {recentOrders.map((o) => (
                                                         <tr key={o._id} className="hover:bg-sky-50/40">
                                                             <td className="px-4 py-3 text-sm font-medium text-slate-800">
@@ -911,7 +1099,7 @@ const SellerDetails = () => {
                                                             <td className="px-4 py-3 text-center">
                                                                 <StatusBadge status={o.order_status} />
                                                             </td>
-                                                            <td className="px-4 py-3 text-center text-xs text-slate-500">
+                                                            <td className="px-4 py-3 text-center text-xs text-slate-500 whitespace-nowrap">
                                                                 {formatDate(o.created_at)}
                                                             </td>
                                                         </tr>

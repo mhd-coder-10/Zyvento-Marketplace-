@@ -2,14 +2,24 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-    FiHome, FiUsers, FiBriefcase, FiUserPlus, FiUserCheck, FiPackage,
+    FiHome, FiUsers, FiBriefcase, FiUserCheck, FiPackage,
     FiGrid, FiBox, FiLayers, FiShoppingCart, FiCreditCard,
     FiRefreshCw, FiStar, FiTag, FiBell, FiSettings, FiExternalLink,
     FiChevronLeft, FiChevronRight, FiShield, FiPieChart,
     FiDollarSign, FiShoppingBag, FiTrendingUp
 } from 'react-icons/fi';
 
-const AdminSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
+const AdminSidebar = ({
+    isOpen,
+    setIsOpen,
+    isExpanded = isOpen,
+    isMobile,
+    user,
+    onNavigate,
+    onClose,
+    onMouseEnter,
+    onMouseLeave,
+}) => {
     const location = useLocation();
     const [expandedModules, setExpandedModules] = useState({});
 
@@ -74,8 +84,14 @@ const AdminSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
 
         { name: 'Users', icon: FiUsers, path: '/admin/users', permission: 'USERS_READ' },
         { name: 'Sub-Admins', icon: FiUsers, path: '/admin/sub-admins', permission: 'SUB_ADMINS_READ' },
-        { name: 'Sellers', icon: FiBriefcase, path: '/admin/sellers', permission: 'SELLERS_READ' },
-        { name: 'Employees', icon: FiUserPlus, path: '/admin/employees', permission: 'EMPLOYEES_READ' },
+        {
+            name: 'Sellers',
+            icon: FiBriefcase,
+            children: [
+                { name: 'All Sellers', path: '/admin/sellers', permission: 'SELLERS_READ' },
+                { name: 'Seller Requests', path: '/admin/sellers/requests', permission: 'SELLERS_READ' },
+            ],
+        },
         { name: 'Company Finance', path: '/admin/company-finance', permission: 'FINANCE_READ', icon: FiDollarSign },
         { name: 'Products', path: '/admin/products', permission: 'PRODUCTS_READ', icon: FiPackage },
         { name: 'Inventory', path: '/admin/inventory', permission: 'INVENTORY_READ', icon: FiBox },
@@ -107,7 +123,6 @@ const AdminSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
     ];
 
     const filteredNavigation = navigation.filter((item) => {
-    
         if (!item.permission && !item.children) return true;
 
         if (item.children) {
@@ -117,16 +132,26 @@ const AdminSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
         return hasPermission(item.permission);
     });
 
-
     return (
         <>
-            {isMobile && isOpen && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsOpen(false)} />
+            {isMobile && isExpanded && (
+                <div
+                    className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden"
+                    onClick={() => {
+                        if (onClose) onClose();
+                        else setIsOpen(false);
+                    }}
+                />
             )}
 
-            <aside className={`fixed top-0 left-0 h-full z-50 bg-white border-r border-sky-100 shadow-[4px_0_24px_-12px_rgba(2,132,199,0.25)] transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} ${isMobile ? 'w-[17rem]' : 'w-64'} lg:translate-x-0 flex flex-col`}
-                style={{ overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-
+            <aside
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
+                className={`fixed top-0 left-0 h-full z-50 bg-white border-r border-sky-100 shadow-[4px_0_24px_-12px_rgba(2,132,199,0.25)] transition-transform duration-300 ease-in-out ${
+                    isExpanded ? 'translate-x-0' : '-translate-x-full'
+                } ${isMobile ? 'w-[17rem]' : 'w-64'} flex flex-col`}
+                style={{ overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
                 <style>{`
                     aside::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
                     aside { scrollbar-width: none !important; -ms-overflow-style: none !important; }
@@ -143,7 +168,14 @@ const AdminSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
                             <span className="block text-[11px] font-medium text-sky-600 !text-left">Super Control</span>
                         </div>
                     </div>
-                    <button onClick={() => setIsOpen(false)} className="p-1.5 rounded-lg text-slate-400 hover:bg-sky-50 hover:text-sky-600 transition-colors lg:hidden">
+                    <button
+                        onClick={() => {
+                            if (onClose) onClose();
+                            else setIsOpen(false);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:bg-sky-50 hover:text-sky-600 transition-colors"
+                        title="Collapse Sidebar"
+                    >
                         <FiChevronLeft className="w-5 h-5" />
                     </button>
                 </div>
@@ -155,28 +187,29 @@ const AdminSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
                     <ul className="space-y-1">
                         {filteredNavigation.map((item, index) => {
                             if (item.children) {
-                                const isExpanded = expandedModules[item.name] || false;
                                 const anyChildActive = isChildActive(item);
+                                const isSubmenuOpen = expandedModules[item.name] !== undefined ? expandedModules[item.name] : anyChildActive;
                                 return (
                                     <li key={index}>
                                         <button
                                             onClick={() => toggleModule(item.name)}
-                                            className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 !text-left ${isExpanded || anyChildActive
-                                                ? 'bg-sky-50 text-blue-700 font-semibold'
-                                                : 'text-slate-600 hover:bg-sky-50/70 hover:text-blue-700'
-                                                }`}
+                                            className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 !text-left ${
+                                                isSubmenuOpen || anyChildActive
+                                                    ? 'bg-sky-50 text-blue-700 font-semibold'
+                                                    : 'text-slate-600 hover:bg-sky-50/70 hover:text-blue-700'
+                                            }`}
                                         >
                                             <div className="flex items-center gap-3 min-w-0 flex-1 !text-left">
                                                 <item.icon className={`w-[18px] h-[18px] flex-shrink-0 ${anyChildActive ? 'text-blue-700' : ''}`} />
                                                 <span className="truncate !text-left flex-1">{item.name}</span>
                                             </div>
-                                            {isExpanded ? (
+                                            {isSubmenuOpen ? (
                                                 <FiChevronRight className="w-4 h-4 rotate-90 transition-transform duration-200" />
                                             ) : (
                                                 <FiChevronRight className="w-4 h-4 transition-transform duration-200" />
                                             )}
                                         </button>
-                                        {isExpanded && (
+                                        {isSubmenuOpen && (
                                             <ul className="ml-5 mt-1 space-y-1 border-l border-sky-100 pl-3">
                                                 {item.children.map((child) => {
                                                     if (!hasPermission(child.permission)) return null;
@@ -185,10 +218,15 @@ const AdminSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
                                                         <li key={child.path}>
                                                             <NavLink
                                                                 to={child.path}
+                                                                onClick={() => {
+                                                                    if (onNavigate) onNavigate();
+                                                                    else setIsOpen(false);
+                                                                }}
                                                                 className={({ isActive }) =>
-                                                                    `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 !text-left ${isActive
-                                                                        ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white font-semibold shadow-md shadow-sky-200'
-                                                                        : 'text-slate-500 hover:bg-sky-50 hover:text-blue-700'
+                                                                    `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 !text-left ${
+                                                                        isActive
+                                                                            ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white font-semibold shadow-md shadow-sky-200'
+                                                                            : 'text-slate-500 hover:bg-sky-50 hover:text-blue-700'
                                                                     }`
                                                                 }
                                                             >
@@ -204,14 +242,39 @@ const AdminSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
                                 );
                             }
 
+                            if (item.external) {
+                                return (
+                                    <li key={index}>
+                                        <a
+                                            href={item.path}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={() => {
+                                                if (onNavigate) onNavigate();
+                                                else setIsOpen(false);
+                                            }}
+                                            className="group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 text-slate-600 hover:bg-sky-50/70 hover:text-blue-700 !text-left"
+                                        >
+                                            <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
+                                            <span className="truncate !text-left flex-1">{item.name}</span>
+                                        </a>
+                                    </li>
+                                );
+                            }
+
                             return (
                                 <li key={index}>
                                     <NavLink
                                         to={item.path}
+                                        onClick={() => {
+                                            if (onNavigate) onNavigate();
+                                            else setIsOpen(false);
+                                        }}
                                         className={({ isActive }) =>
-                                            `group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 !text-left ${isActive
-                                                ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white font-semibold shadow-md shadow-sky-200'
-                                                : 'text-slate-600 hover:bg-sky-50/70 hover:text-blue-700'
+                                            `group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 !text-left ${
+                                                isActive
+                                                    ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white font-semibold shadow-md shadow-sky-200'
+                                                    : 'text-slate-600 hover:bg-sky-50/70 hover:text-blue-700'
                                             }`
                                         }
                                     >

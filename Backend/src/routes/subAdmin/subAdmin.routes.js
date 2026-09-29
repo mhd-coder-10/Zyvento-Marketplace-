@@ -1,5 +1,5 @@
 // Sub-admin route definitions
-// Dashboard, profile, seller management, employee management
+// Dashboard, profile, seller management
 // All sub-admin routes require authentication and sub-admin role
 
 const express = require('express');
@@ -372,92 +372,6 @@ router.put(
     subAdminController.suspendSeller
 );
 
-// ============ SUB-ADMIN EMPLOYEE MANAGEMENT ============
-
-/**
- * @swagger
- * /sub-admin/employees:
- *   get:
- *     summary: Get employees (Sub-Admin)
- *     description: Get all employees with filters
- *     tags: [Sub-Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *       - in: query
- *         name: search
- *         schema:
- *           type: string
- *       - in: query
- *         name: seller_id
- *         schema:
- *           type: string
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [active, inactive, blocked, pending]
- *       - in: query
- *         name: employee_type
- *         schema:
- *           type: string
- *           enum: [product_manager, order_manager, inventory_manager, shipping_manager, customer_service_manager, marketing_manager, account_manager]
- *     responses:
- *       200:
- *         description: Employees fetched successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden - Sub-Admin role required
- */
-router.get(
-    '/employees',
-    checkPermission('manage_employees'),
-    subAdminController.getEmployees
-);
-
-/**
- * @swagger
- * /sub-admin/employees/{employeeId}:
- *   get:
- *     summary: Get employee details (Sub-Admin)
- *     description: Get detailed information of a specific employee
- *     tags: [Sub-Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: employeeId
- *         required: true
- *         schema:
- *           type: string
- *         description: Employee ID
- *     responses:
- *       200:
- *         description: Employee details fetched successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden - Sub-Admin role required
- *       404:
- *         description: Employee not found
- */
-router.get(
-    '/employees/:employeeId',
-    checkPermission('manage_employees'),
-    validate(adminValidation.employeeIdParam),
-    subAdminController.getEmployeeDetails
-);
 
 // ============ SUB-ADMIN ORDER MANAGEMENT ============
 

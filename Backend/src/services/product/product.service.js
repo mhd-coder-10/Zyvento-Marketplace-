@@ -2,6 +2,7 @@
 // Manages product CRUD, search, filtering, and product reviews
 // Also handles product images, approval, and featured products
 
+const mongoose = require('mongoose');
 const Product = require('../../models/product.model');
 const Category = require('../../models/category.model');
 const SubCategory = require('../../models/sub_category.model');
@@ -9,6 +10,7 @@ const Seller = require('../../models/seller.model');
 const Inventory = require('../../models/inventory.model');
 const Review = require('../../models/review.model');
 const Notification = require('../../models/notification.model');
+const AuditLog = require('../../models/audit_log.model');
 const ApiError = require('../../utils/apiError');
 const cloudinaryHelper = require('../../utils/cloudinary.helper');
 const Helpers = require('../../utils/helpers');
@@ -28,13 +30,27 @@ class ProductService {
         maxPrice = null,
         brand = null,
         rating = null,
+        sellerId = null,
+        seller = null,
         sortBy = 'created_at',
         sortOrder = 'desc'
     }) {
         const query = {
-            status: 'active',
+            status: { $in: ['active', 'suspended'] },
             approval_status: 'approved'
         };
+
+        const targetSeller = sellerId || seller;
+        if (targetSeller) {
+            if (mongoose.Types.ObjectId.isValid(targetSeller)) {
+                query.seller_id = targetSeller;
+            } else {
+                const foundSeller = await Seller.findOne({ seller_code: targetSeller }).select('_id');
+                if (foundSeller) {
+                    query.seller_id = foundSeller._id;
+                }
+            }
+        }
 
         if (search && typeof search === 'string' && search.trim()) {
             const trimmed = search.trim();
@@ -87,7 +103,7 @@ class ProductService {
 
         const [products, total] = await Promise.all([
             Product.find(query)
-                .populate('seller_id', 'business_name rating')
+                .populate('seller_id', 'business_name store_name brand_name rating seller_code logo')
                 .populate('category_id', 'category_name')
                 .populate('sub_category_id', 'sub_category_name')
                 .sort(sortOptions)
@@ -130,8 +146,15 @@ class ProductService {
     }
 
     async getProductById(productId) {
-        const product = await Product.findById(productId)
-            .populate('seller_id', 'business_name store_name logo banner tagline store_description rating total_orders')
+        let query;
+        if (mongoose.Types.ObjectId.isValid(productId)) {
+            query = { _id: productId };
+        } else {
+            query = { product_code: productId };
+        }
+
+        const product = await Product.findOne(query)
+            .populate('seller_id', 'business_name store_name brand_name logo banner tagline store_description rating total_orders seller_code')
             .populate('category_id', 'category_name')
             .populate('sub_category_id', 'sub_category_name');
 
@@ -144,12 +167,12 @@ class ProductService {
         await product.save({ validateBeforeSave: false });
 
         // Get inventory
-        const inventory = await Inventory.findOne({ product_id: productId });
+        const inventory = await Inventory.findOne({ product_id: product._id });
 
-        // Get reviews
+        // Get reviews (published only)
         const reviews = await Review.find({
-            product_id: productId,
-            review_status: 'approved'
+            product_id: product._id,
+            status: 'published'
         })
             .populate('user_id', 'first_name last_name profile_image')
             .sort({ created_at: -1 })
@@ -175,7 +198,7 @@ class ProductService {
         const query = {
             category_id: categoryId,
             status: 'active',
-            approval_status: 'approved'
+            approval_status: { $ne: 'rejected' }
         };
 
         const sortOptions = {};
@@ -210,7 +233,7 @@ class ProductService {
         const query = {
             sub_category_id: subCategoryId,
             status: 'active',
-            approval_status: 'approved'
+            approval_status: { $ne: 'rejected' }
         };
 
         const sortOptions = {};
@@ -434,7 +457,16 @@ class ProductService {
     }
 
     async updateProduct({ productId, sellerId, updateData }) {
-        const query = sellerId ? { _id: productId, seller_id: sellerId } : { _id: productId };
+        let query = { _id: productId };
+        if (sellerId) {
+            query = {
+                _id: productId,
+                $or: [
+                    { seller_id: sellerId },
+                    { created_by: sellerId }
+                ]
+            };
+        }
         const product = await Product.findOne(query);
 
         if (!product) {
@@ -460,9 +492,20 @@ class ProductService {
         }
 
         if (updateData.images !== undefined) {
-            filteredData.images = Array.isArray(updateData.images)
+            const newImagesList = Array.isArray(updateData.images)
                 ? updateData.images.map((img) => (typeof img === 'string' ? img : img.url || '')).filter(Boolean)
                 : updateData.images;
+            filteredData.images = newImagesList;
+
+            // Delete any images that were removed in this update from Cloudinary
+            if (Array.isArray(product.images) && Array.isArray(newImagesList)) {
+                const removedImages = product.images.filter(oldImg => !newImagesList.includes(oldImg));
+                for (const oldImg of removedImages) {
+                    cloudinaryHelper.deleteFile(oldImg).catch(err => {
+                        logger.error('Failed to delete removed product image from Cloudinary:', err);
+                    });
+                }
+            }
         }
 
         // Recalculate final price if price or discount changed
@@ -481,13 +524,29 @@ class ProductService {
 
         // Update inventory if stock quantity provided
         if (updateData.stock_quantity !== undefined) {
-            const inventory = await Inventory.findOne({ product_id: productId });
+            const stockQty = Number(updateData.stock_quantity);
+            let inventory = await Inventory.findOne({ product_id: productId });
+            const lowLimit = inventory?.low_stock_limit || 5;
+            const newStatus = stockQty > lowLimit ? 'available' : (stockQty > 0 ? 'low_stock' : 'out_of_stock');
+
             if (inventory) {
-                inventory.stock_quantity = updateData.stock_quantity;
-                inventory.available_quantity = updateData.stock_quantity - inventory.reserved_quantity;
-                inventory.stock_status = updateData.stock_quantity > 10 ? 'available' :
-                                        updateData.stock_quantity > 0 ? 'low_stock' : 'out_of_stock';
+                inventory.stock_quantity = stockQty;
+                inventory.available_quantity = Math.max(0, stockQty - (inventory.reserved_quantity || 0));
+                inventory.stock_status = newStatus;
+                inventory.last_stock_update = new Date();
                 await inventory.save();
+            } else {
+                await Inventory.create({
+                    product_id: product._id,
+                    seller_id: product.seller_id,
+                    stock_quantity: stockQty,
+                    available_quantity: stockQty,
+                    sold_quantity: 0,
+                    reserved_quantity: 0,
+                    low_stock_limit: 5,
+                    stock_status: newStatus,
+                    last_stock_update: new Date()
+                });
             }
         }
 
@@ -508,10 +567,9 @@ class ProductService {
         if (product.images && product.images.length > 0) {
             for (const imageUrl of product.images) {
                 try {
-                    const publicId = imageUrl.split('/').pop().split('.')[0];
-                    await cloudinaryHelper.deleteFile(publicId);
+                    await cloudinaryHelper.deleteFile(imageUrl);
                 } catch (error) {
-                    logger.error('Error deleting product image:', error);
+                    logger.error('Error deleting product image from Cloudinary:', error);
                 }
             }
         }
@@ -779,10 +837,9 @@ class ProductService {
         if (product.images && product.images.length > 0) {
             for (const imageUrl of product.images) {
                 try {
-                    const publicId = imageUrl.split('/').pop().split('.')[0];
-                    await cloudinaryHelper.deleteFile(publicId);
+                    await cloudinaryHelper.deleteFile(imageUrl);
                 } catch (error) {
-                    logger.error('Error deleting product image:', error);
+                    logger.error('Error deleting product image from Cloudinary:', error);
                 }
             }
         }
@@ -838,6 +895,129 @@ class ProductService {
                 total,
                 totalPages: Math.ceil(total / limit)
             }
+        };
+    }
+
+    async getProductActivity(productId) {
+        let query;
+        if (mongoose.Types.ObjectId.isValid(productId)) {
+            query = { _id: productId };
+        } else {
+            query = { product_code: productId };
+        }
+
+        const product = await Product.findOne(query)
+            .populate('created_by', 'first_name last_name username email')
+            .populate('approved_by', 'first_name last_name username email')
+            .populate('rejected_by', 'first_name last_name username email')
+            .populate('seller_id', 'business_name store_name');
+
+        if (!product) {
+            throw ApiError.notFound('Product not found');
+        }
+
+        const actualId = product._id;
+
+        // Fetch audit logs related to this product
+        const auditLogs = await AuditLog.find({
+            module: 'product',
+            $or: [
+                { module_id: actualId },
+                { 'new_data.productId': actualId },
+                { 'new_data.productId': actualId.toString() }
+            ]
+        })
+            .populate('user_id', 'first_name last_name username email')
+            .sort({ created_at: -1 })
+            .limit(20);
+
+        // Fetch recent reviews
+        const recentReviews = await Review.find({ product_id: actualId })
+            .populate('user_id', 'first_name last_name username')
+            .sort({ created_at: -1 })
+            .limit(5);
+
+        const activities = [];
+
+        // 1. Audit Logs
+        auditLogs.forEach(log => {
+            activities.push({
+                id: log._id,
+                type: log.action || 'system',
+                title: log.description || `Product ${log.action}`,
+                user: log.user_id ? `${log.user_id.first_name || ''} ${log.user_id.last_name || ''}`.trim() || log.user_id.username : 'System / Admin',
+                user_role: log.user_type || 'admin',
+                timestamp: log.created_at,
+                details: log.new_data || {}
+            });
+        });
+
+        // 2. Reviews activity
+        recentReviews.forEach(rev => {
+            const reviewerName = rev.user_id ? `${rev.user_id.first_name || ''} ${rev.user_id.last_name || ''}`.trim() || rev.user_id.username : 'Customer';
+            activities.push({
+                id: `rev-${rev._id}`,
+                type: 'review',
+                title: `Customer review: ${rev.rating}★ rating received`,
+                user: reviewerName,
+                user_role: 'customer',
+                timestamp: rev.created_at,
+                details: { comment: rev.comment, rating: rev.rating }
+            });
+        });
+
+        // 3. Approval milestone
+        if (product.approved_at) {
+            const approverName = product.approved_by ? `${product.approved_by.first_name || ''} ${product.approved_by.last_name || ''}`.trim() : 'Super Admin';
+            activities.push({
+                id: `appr-${product._id}`,
+                type: 'approve',
+                title: 'Product Approved by Marketplace Admin',
+                user: approverName,
+                user_role: 'admin',
+                timestamp: product.approved_at,
+                details: { status: 'approved' }
+            });
+        }
+
+        // 4. Rejection milestone
+        if (product.rejected_at) {
+            const rejecterName = product.rejected_by ? `${product.rejected_by.first_name || ''} ${product.rejected_by.last_name || ''}`.trim() : 'Super Admin';
+            activities.push({
+                id: `rej-${product._id}`,
+                type: 'reject',
+                title: `Product Rejected by Admin: ${product.rejection_reason || 'Policy mismatch'}`,
+                user: rejecterName,
+                user_role: 'admin',
+                timestamp: product.rejected_at,
+                details: { reason: product.rejection_reason }
+            });
+        }
+
+        // 5. Creation milestone
+        const creatorName = product.created_by ? `${product.created_by.first_name || ''} ${product.created_by.last_name || ''}`.trim() : 'Seller';
+        activities.push({
+            id: `create-${product._id}`,
+            type: 'create',
+            title: `Product Created "${product.product_name}" (SKU: ${product.sku || 'N/A'})`,
+            user: creatorName,
+            user_role: 'seller',
+            timestamp: product.created_at,
+            details: { price: product.price, stock: product.stock_quantity }
+        });
+
+        // Sort all newest first
+        activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        return {
+            product: {
+                id: product._id,
+                name: product.product_name,
+                code: product.product_code,
+                status: product.status,
+                approval_status: product.approval_status
+            },
+            activities
         };
     }
 }

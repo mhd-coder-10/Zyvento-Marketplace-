@@ -12,7 +12,6 @@ const STATIC_ROUTE_NAMES = {
     roles: 'Roles',
     permissions: 'Permissions',
     sellers: 'Sellers',
-    employees: 'Employees',
     products: 'Products',
     categories: 'Categories',
     inventory: 'Inventory',
@@ -72,7 +71,7 @@ const AdminTopbar = ({ title, subtitle, actions }) => {
     const isDetailPage = pathnames.length > 2;
 
     return (
-        <div className="relative isolate mb-0 rounded-2xl border border-sky-100 bg-white shadow-sm shadow-sky-100/60 overflow-hidden w-full max-w-full min-w-0">
+        <div className="relative isolate mb-8 rounded-2xl border border-sky-100 bg-white shadow-sm shadow-sky-100/60 overflow-hidden w-full max-w-full min-w-0">
             <span className="pointer-events-none absolute inset-x-0 top-0 z-0 h-1 rounded-t-2xl bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
             <span className="pointer-events-none absolute -right-16 -top-16 z-0 h-40 w-40 rounded-full bg-sky-200/30 blur-3xl" />
 
@@ -117,7 +116,7 @@ const AdminTopbar = ({ title, subtitle, actions }) => {
 
                 {/* Desktop Layout */}
                 <div className="hidden lg:flex lg:items-center lg:justify-between lg:gap-4">
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 mt-6 ">
                         <h1
                             title={pageTitle}
                             className="truncate"
@@ -157,7 +156,7 @@ const AdminTopbar = ({ title, subtitle, actions }) => {
                     </div>
 
                     {actions && (
-                        <div className="flex items-center gap-3 shrink-0 -mt-2">
+                        <div className="flex items-center gap-3 shrink-0    mt-2">
                             {actions}
                         </div>
                     )}

@@ -18,8 +18,6 @@ const sellerRoutes = require('./routes/seller/seller.routes');
 const sellerRegistrationRoutes = require('./routes/seller/sellerRegistration.routes');
 const sellerApprovalRoutes = require('./routes/seller/sellerApproval.routes');
 
-const employeeRoutes = require('./routes/employee/employee.routes');
-
 const productRoutes = require('./routes/product/product.routes');
 const categoryRoutes = require('./routes/product/category.routes');
 const inventoryRoutes = require('./routes/product/inventory.routes');
@@ -51,8 +49,6 @@ router.use('/sub-admin', subAdminRoutes);
 router.use('/seller', sellerRoutes);
 router.use('/seller/registration', sellerRegistrationRoutes);
 router.use('/seller/approval', sellerApprovalRoutes);
-
-router.use('/employee', employeeRoutes);
 
 router.use('/product', productRoutes);
 router.use('/category', categoryRoutes);

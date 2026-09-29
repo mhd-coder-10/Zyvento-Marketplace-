@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
@@ -15,6 +15,7 @@ import {
     FiPackage,
     FiChevronLeft,
     FiChevronRight,
+    FiLoader,
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
 
@@ -24,12 +25,16 @@ const formatCurrency = (val) =>
 const SellerInventory = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
-    const [products, setProducts] = useState([]);
-    const [pagination, setPagination] = useState({ page: 1, limit: 12, total: 0, totalPages: 1 });
+    const [allProducts, setAllProducts] = useState([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 12;
     const [search, setSearch] = useState('');
     const [stockFilter, setStockFilter] = useState('all');
 
-    // Quick stock edit state
+    // Inline row quick saving state
+    const [savingRowId, setSavingRowId] = useState(null);
+
+    // Quick stock edit modal state
     const [editingProduct, setEditingProduct] = useState(null);
     const [tempStock, setTempStock] = useState(0);
     const [savingStock, setSavingStock] = useState(false);
@@ -42,40 +47,21 @@ const SellerInventory = () => {
         return () => {
             mounted.current = false;
         };
-    }, [pagination.page, stockFilter]);
+    }, []);
 
     const fetchInventory = async () => {
         setLoading(true);
         try {
             const res = await ApiService.getSellerMyProducts({
-                page: pagination.page,
-                limit: pagination.limit,
-                search: search || undefined,
+                page: 1,
+                limit: 200,
             });
 
             if (!mounted.current) return;
 
             if (res?.data?.success) {
-                let list = res.data.data?.products || (Array.isArray(res.data.data) ? res.data.data : []);
-
-                // Filter by stock status if requested
-                if (stockFilter === 'low') {
-                    list = list.filter((p) => (p.stock_quantity || 0) > 0 && (p.stock_quantity || 0) <= 5);
-                } else if (stockFilter === 'out') {
-                    list = list.filter((p) => (p.stock_quantity || 0) <= 0);
-                } else if (stockFilter === 'in_stock') {
-                    list = list.filter((p) => (p.stock_quantity || 0) > 5);
-                }
-
-                setProducts(list);
-                const pag = res.data.pagination || res.data.data?.pagination;
-                if (pag) {
-                    setPagination((p) => ({
-                        ...p,
-                        total: pag.total || list.length,
-                        totalPages: pag.totalPages || Math.ceil((pag.total || list.length) / p.limit) || 1,
-                    }));
-                }
+                const list = res.data.data?.products || (Array.isArray(res.data.data) ? res.data.data : []);
+                setAllProducts(list);
             }
         } catch (err) {
             console.error('Inventory fetch error:', err);
@@ -85,37 +71,106 @@ const SellerInventory = () => {
         }
     };
 
-    const handleSearchSubmit = (e) => {
-        e.preventDefault();
-        setPagination((p) => ({ ...p, page: 1 }));
-        fetchInventory();
+    // Calculate global stats across all products regardless of active filter
+    const stats = useMemo(() => {
+        const totalSKUs = allProducts.length;
+        const inStockCount = allProducts.filter((p) => (p.stock_quantity ?? 0) > 5).length;
+        const lowStockCount = allProducts.filter((p) => (p.stock_quantity ?? 0) > 0 && (p.stock_quantity ?? 0) <= 5).length;
+        const outOfStockCount = allProducts.filter((p) => (p.stock_quantity ?? 0) <= 0).length;
+        return { totalSKUs, inStockCount, lowStockCount, outOfStockCount };
+    }, [allProducts]);
+
+    // Filter & Search
+    const filteredProducts = useMemo(() => {
+        return allProducts.filter((p) => {
+            const qty = p.stock_quantity ?? 0;
+            // Filter by stock
+            if (stockFilter === 'low' && (qty <= 0 || qty > 5)) return false;
+            if (stockFilter === 'out' && qty > 0) return false;
+            if (stockFilter === 'in_stock' && qty <= 5) return false;
+
+            // Search by name, sku, brand
+            if (search.trim()) {
+                const q = search.trim().toLowerCase();
+                const name = (p.product_name || '').toLowerCase();
+                const sku = (p.sku || '').toLowerCase();
+                const brand = (p.brand || '').toLowerCase();
+                if (!name.includes(q) && !sku.includes(q) && !brand.includes(q)) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }, [allProducts, stockFilter, search]);
+
+    // Pagination
+    const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+    const paginatedProducts = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredProducts.slice(start, start + pageSize);
+    }, [filteredProducts, currentPage, pageSize]);
+
+    // Reset page when filter or search changes
+    const handleFilterChange = (filter) => {
+        setStockFilter(filter);
+        setCurrentPage(1);
     };
 
-    const handleSaveStock = async () => {
-        if (!editingProduct) return;
-        setSavingStock(true);
+    const handleSearchChange = (e) => {
+        setSearch(e.target.value);
+        setCurrentPage(1);
+    };
+
+    // Inline quick adjustment (+1 or -1)
+    const handleQuickAdjust = async (item, delta) => {
+        const pId = item._id || item.id;
+        const currentQty = item.stock_quantity ?? 0;
+        const newQty = Math.max(0, currentQty + delta);
+        if (newQty === currentQty) return;
+
+        // Optimistic UI update
+        setAllProducts((prev) =>
+            prev.map((p) => ((p._id === pId || p.id === pId) ? { ...p, stock_quantity: newQty } : p))
+        );
+        setSavingRowId(pId);
+
         try {
-            const pId = editingProduct._id || editingProduct.id;
-            const newQty = Math.max(0, parseInt(tempStock, 10) || 0);
-
-            // Call backend update
             await ApiService.updateSellerProduct(pId, { stock_quantity: newQty });
-
-            toast.success(`Stock updated for ${editingProduct.product_name}`);
-            setEditingProduct(null);
-            fetchInventory();
+            toast.success(`Stock updated: ${item.product_name} (${newQty} units)`);
         } catch (err) {
             console.error('Failed to update stock:', err);
             toast.error(err.response?.data?.message || 'Failed to update stock');
+            // Revert on error
+            fetchInventory();
         } finally {
-            setSavingStock(false);
+            if (mounted.current) setSavingRowId(null);
         }
     };
 
-    // Calculate quick counts
-    const inStockCount = products.filter((p) => (p.stock_quantity || 0) > 5).length;
-    const lowStockCount = products.filter((p) => (p.stock_quantity || 0) > 0 && (p.stock_quantity || 0) <= 5).length;
-    const outOfStockCount = products.filter((p) => (p.stock_quantity || 0) <= 0).length;
+    // Save stock from Modal
+    const handleSaveStock = async () => {
+        if (!editingProduct) return;
+        const pId = editingProduct._id || editingProduct.id;
+        const newQty = Math.max(0, parseInt(tempStock, 10) || 0);
+
+        setSavingStock(true);
+        // Optimistic update
+        setAllProducts((prev) =>
+            prev.map((p) => ((p._id === pId || p.id === pId) ? { ...p, stock_quantity: newQty } : p))
+        );
+
+        try {
+            await ApiService.updateSellerProduct(pId, { stock_quantity: newQty });
+            toast.success(`Stock updated for ${editingProduct.product_name} (${newQty} units)`);
+            setEditingProduct(null);
+        } catch (err) {
+            console.error('Failed to update stock:', err);
+            toast.error(err.response?.data?.message || 'Failed to update stock');
+            fetchInventory();
+        } finally {
+            if (mounted.current) setSavingStock(false);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -141,7 +196,7 @@ const SellerInventory = () => {
                             <span>Inventory Management</span>
                         </h1>
                         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                            Monitor stock levels, set low inventory warnings, and adjust quantities in real time.
+                            Monitor stock levels, set low inventory warnings, and adjust quantities in real time. Changes automatically sync to Marketplace and Admin catalog.
                         </p>
                     </div>
 
@@ -157,13 +212,10 @@ const SellerInventory = () => {
                 </div>
             </div>
 
-            {/* 4 Inventory Metric Cards */}
+            {/* 4 Inventory Metric Cards (Always show true global totals) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div
-                    onClick={() => {
-                        setStockFilter('all');
-                        setPagination((p) => ({ ...p, page: 1 }));
-                    }}
+                    onClick={() => handleFilterChange('all')}
                     className={`bg-white rounded-2xl p-5 border cursor-pointer transition-all ${
                         stockFilter === 'all'
                             ? 'border-blue-500 ring-2 ring-blue-100 shadow-md'
@@ -173,7 +225,7 @@ const SellerInventory = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total SKUs</p>
-                            <h3 className="text-2xl font-extrabold text-slate-800 mt-1">{pagination.total}</h3>
+                            <h3 className="text-2xl font-extrabold text-slate-800 mt-1">{stats.totalSKUs}</h3>
                         </div>
                         <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
                             <FiPackage className="w-5 h-5" />
@@ -182,10 +234,7 @@ const SellerInventory = () => {
                 </div>
 
                 <div
-                    onClick={() => {
-                        setStockFilter('in_stock');
-                        setPagination((p) => ({ ...p, page: 1 }));
-                    }}
+                    onClick={() => handleFilterChange('in_stock')}
                     className={`bg-white rounded-2xl p-5 border cursor-pointer transition-all ${
                         stockFilter === 'in_stock'
                             ? 'border-emerald-500 ring-2 ring-emerald-100 shadow-md'
@@ -194,8 +243,8 @@ const SellerInventory = () => {
                 >
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">In Stock</p>
-                            <h3 className="text-2xl font-extrabold text-emerald-600 mt-1">{inStockCount}</h3>
+                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">In Stock (&gt;5)</p>
+                            <h3 className="text-2xl font-extrabold text-emerald-600 mt-1">{stats.inStockCount}</h3>
                         </div>
                         <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                             <FiCheckCircle className="w-5 h-5" />
@@ -204,10 +253,7 @@ const SellerInventory = () => {
                 </div>
 
                 <div
-                    onClick={() => {
-                        setStockFilter('low');
-                        setPagination((p) => ({ ...p, page: 1 }));
-                    }}
+                    onClick={() => handleFilterChange('low')}
                     className={`bg-white rounded-2xl p-5 border cursor-pointer transition-all ${
                         stockFilter === 'low'
                             ? 'border-amber-500 ring-2 ring-amber-100 shadow-md'
@@ -217,7 +263,7 @@ const SellerInventory = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Low Stock (≤5)</p>
-                            <h3 className="text-2xl font-extrabold text-amber-600 mt-1">{lowStockCount}</h3>
+                            <h3 className="text-2xl font-extrabold text-amber-600 mt-1">{stats.lowStockCount}</h3>
                         </div>
                         <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
                             <FiAlertTriangle className="w-5 h-5" />
@@ -226,10 +272,7 @@ const SellerInventory = () => {
                 </div>
 
                 <div
-                    onClick={() => {
-                        setStockFilter('out');
-                        setPagination((p) => ({ ...p, page: 1 }));
-                    }}
+                    onClick={() => handleFilterChange('out')}
                     className={`bg-white rounded-2xl p-5 border cursor-pointer transition-all ${
                         stockFilter === 'out'
                             ? 'border-rose-500 ring-2 ring-rose-100 shadow-md'
@@ -239,7 +282,7 @@ const SellerInventory = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Out of Stock</p>
-                            <h3 className="text-2xl font-extrabold text-rose-600 mt-1">{outOfStockCount}</h3>
+                            <h3 className="text-2xl font-extrabold text-rose-600 mt-1">{stats.outOfStockCount}</h3>
                         </div>
                         <div className="w-11 h-11 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
                             <FiXCircle className="w-5 h-5" />
@@ -250,31 +293,28 @@ const SellerInventory = () => {
 
             {/* Filter and Search Bar */}
             <div className="bg-white rounded-2xl border border-sky-100 p-4 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-                <form onSubmit={handleSearchSubmit} className="relative w-full md:w-80">
+                <div className="relative w-full md:w-80">
                     <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <input
                         type="text"
-                        placeholder="Search SKU or product name..."
+                        placeholder="Search SKU, brand or product name..."
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={handleSearchChange}
                         className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 placeholder:text-slate-400 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none transition-all"
                     />
-                </form>
+                </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full md:w-auto justify-end">
                     <span className="text-xs text-slate-500">Filter Stock:</span>
                     <select
                         value={stockFilter}
-                        onChange={(e) => {
-                            setStockFilter(e.target.value);
-                            setPagination((p) => ({ ...p, page: 1 }));
-                        }}
+                        onChange={(e) => handleFilterChange(e.target.value)}
                         className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none transition-all"
                     >
-                        <option value="all">All Products</option>
-                        <option value="in_stock">In Stock (&gt; 5)</option>
-                        <option value="low">Low Stock (≤ 5)</option>
-                        <option value="out">Out of Stock (0)</option>
+                        <option value="all">All Products ({stats.totalSKUs})</option>
+                        <option value="in_stock">In Stock ({stats.inStockCount})</option>
+                        <option value="low">Low Stock ({stats.lowStockCount})</option>
+                        <option value="out">Out of Stock ({stats.outOfStockCount})</option>
                     </select>
                 </div>
             </div>
@@ -301,19 +341,21 @@ const SellerInventory = () => {
                                         <span>Loading inventory...</span>
                                     </td>
                                 </tr>
-                            ) : products.length === 0 ? (
+                            ) : paginatedProducts.length === 0 ? (
                                 <tr>
                                     <td colSpan="6" className="py-12 text-center text-slate-400">
                                         <FiBox className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                                         <p className="font-bold text-slate-700 text-sm">No items in this filter</p>
+                                        <p className="text-xs text-slate-400 mt-1">Try switching filters or clearing your search query.</p>
                                     </td>
                                 </tr>
                             ) : (
-                                products.map((item) => {
+                                paginatedProducts.map((item) => {
                                     const pId = item._id || item.id;
                                     const qty = item.stock_quantity ?? 0;
                                     const isOut = qty <= 0;
                                     const isLow = qty > 0 && qty <= 5;
+                                    const isRowSaving = savingRowId === pId;
                                     const imageSrc = item.images?.[0] || 'https://placehold.co/80x80?text=Product';
 
                                     return (
@@ -326,7 +368,7 @@ const SellerInventory = () => {
                                                         alt={item.product_name}
                                                         className="w-11 h-11 rounded-xl object-cover border border-slate-200 bg-slate-50 flex-shrink-0"
                                                         onError={(e) => {
-                                                            e.target.src = 'https://placehold.co/80x80?text=Product';
+                                                             e.target.src = 'https://placehold.co/80x80?text=Product';
                                                         }}
                                                     />
                                                     <div className="min-w-0">
@@ -346,15 +388,40 @@ const SellerInventory = () => {
                                                 {formatCurrency(item.price || item.final_price)}
                                             </td>
 
-                                            {/* Stock on Hand */}
-                                            <td className="py-3.5 px-4 font-bold text-sm">
-                                                <span
-                                                    className={`${
-                                                        isOut ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900'
-                                                    }`}
-                                                >
-                                                    {qty} units
-                                                </span>
+                                            {/* Stock on Hand with Inline +/- Buttons */}
+                                            <td className="py-3.5 px-4">
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        title="Decrease stock by 1"
+                                                        disabled={isRowSaving || qty <= 0}
+                                                        onClick={() => handleQuickAdjust(item, -1)}
+                                                        className="w-7 h-7 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-100 flex items-center justify-center text-slate-600 active:scale-95 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                                                    >
+                                                        <FiMinus className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <span
+                                                        className={`min-w-[42px] text-center font-extrabold text-sm ${
+                                                            isOut ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900'
+                                                        }`}
+                                                    >
+                                                        {isRowSaving ? (
+                                                            <FiLoader className="w-3.5 h-3.5 animate-spin mx-auto text-blue-600" />
+                                                        ) : (
+                                                            `${qty}`
+                                                        )}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        title="Increase stock by 1"
+                                                        disabled={isRowSaving}
+                                                        onClick={() => handleQuickAdjust(item, 1)}
+                                                        className="w-7 h-7 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-100 flex items-center justify-center text-slate-600 active:scale-95 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                                                    >
+                                                        <FiPlus className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <span className="text-[11px] font-normal text-slate-400">units</span>
+                                                </div>
                                             </td>
 
                                             {/* Status Badge */}
@@ -377,7 +444,7 @@ const SellerInventory = () => {
                                                 )}
                                             </td>
 
-                                            {/* Quick Adjust Button */}
+                                            {/* Quick Adjust Modal Button */}
                                             <td className="py-3.5 px-4 text-right">
                                                 <button
                                                     onClick={() => {
@@ -399,22 +466,26 @@ const SellerInventory = () => {
                 </div>
 
                 {/* Pagination */}
-                {pagination.totalPages > 1 && (
+                {totalPages > 1 && (
                     <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
                         <span>
-                            Page {pagination.page} of {pagination.totalPages}
+                            Showing {(currentPage - 1) * pageSize + 1} to{' '}
+                            {Math.min(currentPage * pageSize, filteredProducts.length)} of {filteredProducts.length} items
                         </span>
                         <div className="flex items-center gap-1.5">
                             <button
-                                onClick={() => setPagination((p) => ({ ...p, page: Math.max(1, p.page - 1) }))}
-                                disabled={pagination.page <= 1}
+                                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                disabled={currentPage <= 1}
                                 className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition-colors"
                             >
                                 <FiChevronLeft className="w-4 h-4" />
                             </button>
+                            <span className="px-2 font-semibold text-slate-700">
+                                Page {currentPage} of {totalPages}
+                            </span>
                             <button
-                                onClick={() => setPagination((p) => ({ ...p, page: Math.min(pagination.totalPages, p.page + 1) }))}
-                                disabled={pagination.page >= pagination.totalPages}
+                                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                                disabled={currentPage >= totalPages}
                                 className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition-colors"
                             >
                                 <FiChevronRight className="w-4 h-4" />
@@ -432,22 +503,22 @@ const SellerInventory = () => {
                             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
                                 <FiBox className="w-5 h-5" />
                             </div>
-                            <div>
+                            <div className="min-w-0 flex-1">
                                 <h3 className="text-base font-bold text-slate-900">Update Stock Quantity</h3>
-                                <p className="text-xs text-slate-500 truncate max-w-xs">{editingProduct.product_name}</p>
+                                <p className="text-xs text-slate-500 truncate">{editingProduct.product_name}</p>
                             </div>
                         </div>
 
                         <div className="space-y-4 my-5">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                                    Current Stock Quantity
+                                    Stock Quantity (units)
                                 </label>
                                 <div className="flex items-center gap-2">
                                     <button
                                         type="button"
-                                        onClick={() => setTempStock(Math.max(0, parseInt(tempStock || 0, 10) - 1))}
-                                        className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold"
+                                        onClick={() => setTempStock((s) => Math.max(0, (parseInt(s, 10) || 0) - 1))}
+                                        className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold active:scale-95 transition"
                                     >
                                         <FiMinus className="w-4 h-4" />
                                     </button>
@@ -455,13 +526,16 @@ const SellerInventory = () => {
                                         type="number"
                                         min="0"
                                         value={tempStock}
-                                        onChange={(e) => setTempStock(e.target.value)}
-                                        className="w-full text-center py-2 text-sm font-bold rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none"
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setTempStock(val === '' ? '' : Math.max(0, parseInt(val, 10) || 0));
+                                        }}
+                                        className="w-full text-center py-2 text-base font-bold rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none"
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => setTempStock(parseInt(tempStock || 0, 10) + 1)}
-                                        className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold"
+                                        onClick={() => setTempStock((s) => (parseInt(s, 10) || 0) + 1)}
+                                        className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold active:scale-95 transition"
                                     >
                                         <FiPlus className="w-4 h-4" />
                                     </button>
@@ -473,8 +547,8 @@ const SellerInventory = () => {
                                     <button
                                         key={delta}
                                         type="button"
-                                        onClick={() => setTempStock(parseInt(tempStock || 0, 10) + delta)}
-                                        className="flex-1 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:text-blue-700 text-xs font-semibold transition"
+                                        onClick={() => setTempStock((s) => (parseInt(s, 10) || 0) + delta)}
+                                        className="flex-1 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-blue-200 hover:text-blue-700 text-xs font-semibold active:scale-95 transition"
                                     >
                                         +{delta}
                                     </button>
@@ -495,9 +569,16 @@ const SellerInventory = () => {
                                 type="button"
                                 onClick={handleSaveStock}
                                 disabled={savingStock}
-                                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-200 transition disabled:opacity-50"
+                                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-200 transition disabled:opacity-50 flex items-center gap-1.5"
                             >
-                                {savingStock ? 'Saving...' : 'Save Changes'}
+                                {savingStock ? (
+                                    <>
+                                        <FiLoader className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Saving...</span>
+                                    </>
+                                ) : (
+                                    'Save Changes'
+                                )}
                             </button>
                         </div>
                     </div>

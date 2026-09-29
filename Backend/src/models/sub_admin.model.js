@@ -1,5 +1,4 @@
-// Sub-admin schema - Manages Zyvento's internal employees (platform level)
-// Distinct from seller_employee (which is seller's staff)
+// Sub-admin schema - Manages Zyvento's internal team members (platform level)
 // Related to: user.model.js, role.model.js
 
 const mongoose = require("mongoose");

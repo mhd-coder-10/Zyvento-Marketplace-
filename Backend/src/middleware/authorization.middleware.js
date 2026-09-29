@@ -117,44 +117,6 @@ const checkSellerAccess = (paramName = 'sellerId') => {
     };
 };
 
-/**
- * Employee Access Check Middleware
- * Ensures employee can only access their own data
- */
-const checkEmployeeAccess = (paramName = 'employeeId') => {
-    return (req, res, next) => {
-        try {
-            if (!req.user) {
-                return next(ApiError.unauthorized('Authentication required'));
-            }
-
-            // Super admin and admins can access all
-            if (['super_admin', 'sub_admin', 'admin_employee'].includes(req.userType)) {
-                return next();
-            }
-
-            const employeeId = req.params[paramName] || req.body[paramName];
-
-            if (!employeeId) {
-                return next(ApiError.badRequest('Employee ID is required'));
-            }
-
-            // Employee can only access their own data
-            if (req.userType === 'seller_employee') {
-                if (req.employeeId?.toString() !== employeeId.toString()) {
-                    return next(
-                        ApiError.forbidden('You can only access your own employee data')
-                    );
-                }
-                return next();
-            }
-
-            return next(ApiError.forbidden('Insufficient permissions'));
-        } catch (error) {
-            next(error);
-        }
-    };
-};
 
 /**
  * Sub-Admin Access Check Middleware
@@ -254,7 +216,6 @@ module.exports = {
     authorize,
     checkPermission,
     checkSellerAccess,
-    checkEmployeeAccess,
     checkSubAdminAccess,
 };
 

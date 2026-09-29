@@ -73,13 +73,12 @@ const user_schema = new mongoose.Schema(
                 "super_admin",
                 "sub_admin",
                 "seller",
-                "seller_employee",
                 "customer"
             ],
             required: true
         },
 
-        // ============ SUB-ADMIN TYPE (Only 4 types - Platform Employees) ============
+        // ============ SUB-ADMIN TYPE (Only 4 types - Platform Administrators) ============
         sub_admin_type: {
             type: String,
             enum: [
@@ -87,20 +86,6 @@ const user_schema = new mongoose.Schema(
                 "finance_manager",
                 "support_manager",
                 "seller_manager"
-            ],
-            default: null
-        },
-
-        // ============ SELLER EMPLOYEE TYPE (6 types) ============
-        employee_type: {
-            type: String,
-            enum: [
-                "manager",
-                "product_manager",
-                "order_manager",
-                "inventory_manager",
-                "support_staff",
-                "account_manager"
             ],
             default: null
         },
@@ -156,12 +141,6 @@ const user_schema = new mongoose.Schema(
         seller_id: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Seller",
-            default: null
-        },
-
-        employee_id: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Employee",
             default: null
         },
 
@@ -282,9 +261,7 @@ user_schema.pre('save', async function () {
 // ============ INDEXES ============
 user_schema.index({ user_type: 1, account_status: 1 });
 user_schema.index({ sub_admin_type: 1 });
-user_schema.index({ employee_type: 1 });
 user_schema.index({ seller_id: 1 });
-user_schema.index({ employee_id: 1 });
 user_schema.index({ role_ids: 1 });
 
 module.exports = mongoose.model("User", user_schema);

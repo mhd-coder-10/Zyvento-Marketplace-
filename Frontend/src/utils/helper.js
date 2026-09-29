@@ -283,7 +283,6 @@ export const getDashboardPath = (role) => {
         super_admin: '/admin/dashboard',
         sub_admin: '/admin/dashboard',
         seller: '/seller/dashboard',
-        seller_employee: '/seller/dashboard',
         customer: '/',
     };
     return paths[role] || '/';

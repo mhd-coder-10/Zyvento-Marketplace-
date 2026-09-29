@@ -10,6 +10,20 @@ const ApiError = require('./apiError');
 const logger = require('./logger');
 
 class CloudinaryHelper {
+    // ============ RESOLVE FOLDER (PREPEND ROOT CLOUDINARY_FOLDER) ============
+    resolveFolder(subfolder) {
+        const rootFolder = (environment.CLOUDINARY_FOLDER || process.env.CLOUDINARY_FOLDER || 'ZYVENTO').trim();
+        if (!subfolder || typeof subfolder !== 'string') {
+            return rootFolder;
+        }
+        const clean = subfolder.replace(/^\/+|\/+$/g, '').trim();
+        if (!clean) return rootFolder;
+        if (clean === rootFolder || clean.startsWith(`${rootFolder}/`)) {
+            return clean;
+        }
+        return `${rootFolder}/${clean}`;
+    }
+
     // ============ UPLOAD FILE ============
     async uploadFile(filePath, options = {}) {
         try {
@@ -18,11 +32,11 @@ class CloudinaryHelper {
             }
 
             const uploadOptions = {
-                folder: options.folder || environment.CLOUDINARY_FOLDER,
                 resource_type: options.resource_type || 'auto',
                 use_filename: true,
                 unique_filename: true,
                 ...options,
+                folder: this.resolveFolder(options.folder),
             };
 
             const result = await cloudinary.uploader.upload(filePath, uploadOptions);
@@ -68,11 +82,11 @@ class CloudinaryHelper {
     async uploadBuffer(buffer, options = {}) {
         return new Promise((resolve, reject) => {
             const uploadOptions = {
-                folder: options.folder || environment.CLOUDINARY_FOLDER,
                 resource_type: options.resource_type || 'auto',
                 use_filename: true,
                 unique_filename: true,
                 ...options,
+                folder: this.resolveFolder(options.folder),
             };
 
             const uploadStream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
@@ -97,36 +111,135 @@ class CloudinaryHelper {
         });
     }
 
+    // ============ EXTRACT PUBLIC ID & RESOURCE TYPE FROM URL OR PUBLIC ID ============
+    extractPublicId(urlOrPublicId) {
+        if (!urlOrPublicId || typeof urlOrPublicId !== 'string') return null;
+        const trimmed = urlOrPublicId.trim();
+
+        // If it's already a public_id (not a full URL)
+        if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+            const cleanId = trimmed.replace(/\.(jpg|jpeg|png|webp|gif|svg|mp4|webm|mov|avi|pdf|doc|docx|xls|xlsx)$/i, '');
+            return {
+                publicId: cleanId,
+                resourceType: 'image'
+            };
+        }
+
+        const uploadIndex = trimmed.indexOf('/upload/');
+        if (uploadIndex === -1) {
+            return null;
+        }
+
+        // Determine resourceType from segment before /upload/
+        const beforeUpload = trimmed.substring(0, uploadIndex);
+        let resourceType = 'image';
+        if (beforeUpload.endsWith('/video')) {
+            resourceType = 'video';
+        } else if (beforeUpload.endsWith('/raw')) {
+            resourceType = 'raw';
+        }
+
+        // Get path after /upload/
+        let afterUpload = trimmed.substring(uploadIndex + '/upload/'.length);
+
+        // Strip queries/hashes
+        afterUpload = afterUpload.split('?')[0].split('#')[0];
+
+        // Process segments, skipping version numbers and transformation params
+        const segments = afterUpload.split('/');
+        const pathSegments = [];
+
+        for (const segment of segments) {
+            if (/^v\d+$/.test(segment)) {
+                continue;
+            }
+            if (segment.startsWith('s--') && segment.endsWith('--')) {
+                continue;
+            }
+            if (/^[a-z]_[a-zA-Z0-9_,-]+$/i.test(segment) || /^[a-z]+,[a-z0-9_,-]+$/i.test(segment)) {
+                continue;
+            }
+            pathSegments.push(segment);
+        }
+
+        if (pathSegments.length === 0) return null;
+
+        const fullPath = pathSegments.join('/');
+        const publicId = fullPath.replace(/\.(jpg|jpeg|png|webp|gif|svg|mp4|webm|mov|avi|pdf|doc|docx|xls|xlsx)$/i, '');
+
+        return {
+            publicId,
+            resourceType
+        };
+    }
+
     // ============ DELETE FILE ============
-    async deleteFile(publicId) {
+    async deleteFile(urlOrPublicId, options = {}) {
         try {
-            if (!publicId) {
-                throw new Error('Public ID is required');
+            if (!urlOrPublicId) {
+                return { success: false, reason: 'No identifier provided' };
             }
 
-            const result = await cloudinary.uploader.destroy(publicId);
-            
-            if (result.result === 'ok') {
-                return { success: true, result };
-            } else {
-                return { success: false, result };
+            // Handle local file deletion if it is a local upload path
+            if (typeof urlOrPublicId === 'string' && (urlOrPublicId.startsWith('/uploads/') || urlOrPublicId.startsWith('uploads/'))) {
+                const localPath = path.join(__dirname, '../../', urlOrPublicId.replace(/^\//, ''));
+                if (fs.existsSync(localPath)) {
+                    try { fs.unlinkSync(localPath); } catch (_) {}
+                }
+                return { success: true, local: true };
             }
+
+            const info = this.extractPublicId(urlOrPublicId);
+            if (!info || !info.publicId) {
+                return { success: false, reason: 'Could not extract Cloudinary public ID' };
+            }
+
+            const resourceType = options.resource_type || info.resourceType || 'image';
+
+            let result = await cloudinary.uploader.destroy(info.publicId, {
+                resource_type: resourceType,
+                invalidate: true,
+                ...options,
+            });
+
+            // If not found with default resource type, try alternative types
+            if (result && result.result === 'not found' && !options.resource_type) {
+                const alternateTypes = ['video', 'raw', 'image'].filter(t => t !== resourceType);
+                for (const altType of alternateTypes) {
+                    try {
+                        const retryResult = await cloudinary.uploader.destroy(info.publicId, {
+                            resource_type: altType,
+                            invalidate: true,
+                        });
+                        if (retryResult && retryResult.result === 'ok') {
+                            result = retryResult;
+                            break;
+                        }
+                    } catch (_) {}
+                }
+            }
+
+            const isOk = result && result.result === 'ok';
+            if (isOk) {
+                logger.info(`Deleted from Cloudinary: ${info.publicId} (${resourceType})`);
+            } else {
+                logger.warn(`Cloudinary destroy returned: ${result?.result || 'error'} for ${info.publicId}`);
+            }
+
+            return { success: isOk, result, publicId: info.publicId };
         } catch (error) {
             logger.error('Cloudinary delete failed:', error);
-            throw ApiError.internal(`File delete failed: ${error.message}`);
+            return { success: false, error: error.message };
         }
     }
 
     // ============ DELETE MULTIPLE FILES ============
-    async deleteMultipleFiles(publicIds) {
+    async deleteMultipleFiles(urlOrPublicIds, options = {}) {
+        if (!Array.isArray(urlOrPublicIds) || urlOrPublicIds.length === 0) return [];
         const results = [];
-        for (const publicId of publicIds) {
-            try {
-                const result = await this.deleteFile(publicId);
-                results.push({ publicId, ...result });
-            } catch (error) {
-                results.push({ publicId, success: false, error: error.message });
-            }
+        for (const item of urlOrPublicIds) {
+            const res = await this.deleteFile(item, options);
+            results.push(res);
         }
         return results;
     }

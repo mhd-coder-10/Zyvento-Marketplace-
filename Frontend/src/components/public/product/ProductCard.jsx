@@ -24,9 +24,9 @@ const ProductCard = ({ product, viewMode = 'grid', onUpdate }) => {
     const price = product?.final_price ?? product?.finalPrice ?? product?.price ?? 0;
     const mrp = product?.price ?? product?.mrp ?? price;
     const discount = product?.discount_percent ?? product?.discount ?? (mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0);
-    const stock = product?.stock ?? product?.quantity ?? 10;
-    const rating = product?.rating ?? product?.average_rating ?? 4.5;
-    const totalReviews = product?.total_reviews ?? product?.totalReviews ?? product?.reviews_count ?? 12;
+    const stock = Number(product?.stock_quantity ?? product?.stock ?? product?.quantity ?? 0);
+    const rating = Number(product?.ratings ?? product?.rating ?? product?.average_rating ?? 0);
+    const totalReviews = Number(product?.num_reviews ?? product?.total_reviews ?? product?.totalReviews ?? product?.reviews_count ?? 0);
 
     const rawImages = product?.images || (product?.image ? [product?.image] : []);
     const imageUrl = (rawImages[0]?.url || rawImages[0] || '').trim();

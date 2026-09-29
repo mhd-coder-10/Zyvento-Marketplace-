@@ -4,8 +4,6 @@ import { toast } from 'react-toastify';
 import {
     FiArrowLeft,
     FiSave,
-    FiUploadCloud,
-    FiX,
     FiPackage,
     FiDollarSign,
     FiTag,
@@ -14,13 +12,16 @@ import {
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
 import AddCategoryModal from '../../../components/seller/AddCategoryModal';
+import ProductImageUpload from '../../../components/seller/ProductImageUpload';
 
 const SellerCreateProduct = () => {
     const navigate = useNavigate();
     const [submitting, setSubmitting] = useState(false);
     const [categories, setCategories] = useState([]);
     const [subCategories, setSubCategories] = useState([]);
+    const [loadingSubCategories, setLoadingSubCategories] = useState(false);
     const [showCategoryModal, setShowCategoryModal] = useState(false);
+    const [categoryModalMode, setCategoryModalMode] = useState('category'); // 'category' | 'sub_category'
 
     const [form, setForm] = useState({
         product_name: '',
@@ -33,13 +34,32 @@ const SellerCreateProduct = () => {
         cost_per_item: '',
         sku: `SKU-${Date.now().toString().slice(-6)}`,
         stock: 10,
-        status: 'active',
-        images: [''],
+        status: 'pending',
+        images: [],
     });
 
     useEffect(() => {
         fetchCategories();
+        fetchSellerBrand();
     }, []);
+
+    const fetchSellerBrand = async () => {
+        try {
+            const res = await ApiService.getSellerProfile();
+            if (res?.data?.success && res.data.data) {
+                const s = res.data.data;
+                const defaultBrand = s.brand_name || s.store_name || s.business_name || '';
+                if (defaultBrand) {
+                    setForm((prev) => ({
+                        ...prev,
+                        brand: prev.brand || defaultBrand,
+                    }));
+                }
+            }
+        } catch (_) {
+            // Non-blocking
+        }
+    };
 
     useEffect(() => {
         if (form.category_id) {
@@ -62,14 +82,24 @@ const SellerCreateProduct = () => {
     };
 
     const fetchSubCategories = async (catId) => {
+        if (!catId) {
+            setSubCategories([]);
+            return;
+        }
+        setLoadingSubCategories(true);
         try {
             const res = await ApiService.getPublicSubCategories(catId);
             if (res?.data?.data) {
                 const list = Array.isArray(res.data.data) ? res.data.data : res.data.data.subCategories || [];
                 setSubCategories(list);
+            } else {
+                setSubCategories([]);
             }
         } catch (err) {
             console.error('Failed to load subcategories:', err);
+            setSubCategories([]);
+        } finally {
+            setLoadingSubCategories(false);
         }
     };
 
@@ -80,17 +110,40 @@ const SellerCreateProduct = () => {
             const exists = prev.some((c) => (c._id || c.id) === newCatId);
             return exists ? prev : [newCategory, ...prev];
         });
+        const newSubId = newSubCategory ? (newSubCategory._id || newSubCategory.id) : '';
         setForm((prev) => ({
             ...prev,
             category_id: newCatId,
-            sub_category_id: newSubCategory ? (newSubCategory._id || newSubCategory.id) : prev.sub_category_id,
+            sub_category_id: newSubId,
         }));
         if (newSubCategory) {
-            const newSubId = newSubCategory._id || newSubCategory.id;
+            setSubCategories([newSubCategory]);
+        } else {
+            fetchSubCategories(newCatId);
+        }
+    };
+
+    const handleSubCategoryCreated = (newSubCategory, parentCategory) => {
+        if (!newSubCategory) return;
+        const newSubId = newSubCategory._id || newSubCategory.id;
+        const parentCatId = parentCategory?._id || parentCategory?.id || form.category_id;
+
+        if (parentCatId && form.category_id !== parentCatId) {
+            setForm((prev) => ({
+                ...prev,
+                category_id: parentCatId,
+                sub_category_id: newSubId,
+            }));
+            fetchSubCategories(parentCatId);
+        } else {
             setSubCategories((prev) => {
                 const exists = prev.some((sc) => (sc._id || sc.id) === newSubId);
-                return exists ? prev : [newSubCategory, ...prev];
+                return exists ? prev : [...prev, newSubCategory];
             });
+            setForm((prev) => ({
+                ...prev,
+                sub_category_id: newSubId,
+            }));
         }
     };
 
@@ -99,23 +152,6 @@ const SellerCreateProduct = () => {
         setForm((prev) => ({
             ...prev,
             [name]: type === 'checkbox' ? checked : value,
-        }));
-    };
-
-    const handleImageUrlChange = (index, value) => {
-        const updated = [...form.images];
-        updated[index] = value;
-        setForm((prev) => ({ ...prev, images: updated }));
-    };
-
-    const addImageField = () => {
-        setForm((prev) => ({ ...prev, images: [...prev.images, ''] }));
-    };
-
-    const removeImageField = (index) => {
-        setForm((prev) => ({
-            ...prev,
-            images: prev.images.filter((_, i) => i !== index),
         }));
     };
 
@@ -139,7 +175,29 @@ const SellerCreateProduct = () => {
             return;
         }
 
-        const validImages = form.images.filter((img) => img.trim().length > 0);
+        const validImages = (form.images || [])
+            .map((img, idx) => {
+                const url = typeof img === 'string' ? img.trim() : (img.url || '').trim();
+                const is_primary = typeof img === 'object' && img.is_primary !== undefined ? img.is_primary : idx === 0;
+                return { url, is_primary };
+            })
+            .filter((img) => img.url.length > 0);
+
+        if (validImages.length === 0) {
+            toast.error('Please attach at least one product photo');
+            return;
+        }
+
+        if (validImages.length > 10) {
+            toast.error('You can only attach up to 10 product photos');
+            return;
+        }
+
+        // Put cover / primary image at the front
+        const sortedImages = [
+            ...validImages.filter((img) => img.is_primary),
+            ...validImages.filter((img) => !img.is_primary),
+        ];
 
         const payload = {
             product_name: form.product_name.trim(),
@@ -153,21 +211,25 @@ const SellerCreateProduct = () => {
             sku: form.sku.trim(),
             stock: Number(form.stock || 0),
             status: form.status,
-            images: validImages.map((url) => ({ url, is_primary: false })),
+            images: sortedImages,
         };
 
         setSubmitting(true);
         try {
             const res = await ApiService.createProductBySeller(payload);
             if (res?.data?.success) {
-                toast.success('Product created successfully!');
+                toast.success('Product submitted for Super Admin approval!');
                 navigate('/seller/products');
             } else {
                 toast.error(res?.data?.message || 'Failed to create product');
             }
         } catch (err) {
             console.error('Create product error:', err);
-            toast.error(err?.response?.data?.message || 'Failed to create product');
+            const errDetails = err?.response?.data?.errors;
+            const errorMsg = Array.isArray(errDetails) && errDetails.length > 0
+                ? errDetails.map((e) => e.message).join(', ')
+                : (err?.response?.data?.message || 'Failed to create product');
+            toast.error(errorMsg);
         } finally {
             setSubmitting(false);
         }
@@ -334,43 +396,12 @@ const SellerCreateProduct = () => {
                     </div>
 
                     {/* Product Media / Images */}
-                    <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                                <FiUploadCloud className="text-indigo-600" />
-                                Product Images (URLs)
-                            </h3>
-                            <button
-                                type="button"
-                                onClick={addImageField}
-                                className="text-xs font-bold text-sky-600 hover:text-blue-700"
-                            >
-                                + Add Another Image URL
-                            </button>
-                        </div>
-
-                        <div className="space-y-3">
-                            {form.images.map((imgUrl, index) => (
-                                <div key={index} className="flex items-center gap-2">
-                                    <input
-                                        type="url"
-                                        value={imgUrl}
-                                        onChange={(e) => handleImageUrlChange(index, e.target.value)}
-                                        placeholder="https://images.unsplash.com/... or hosted image URL"
-                                        className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm focus:border-sky-500 focus:outline-none"
-                                    />
-                                    {form.images.length > 1 && (
-                                        <button
-                                            type="button"
-                                            onClick={() => removeImageField(index)}
-                                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition"
-                                        >
-                                            <FiX className="h-4 w-4" />
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
+                    <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm">
+                        <ProductImageUpload
+                            images={form.images}
+                            onChange={(updatedImages) => setForm((prev) => ({ ...prev, images: updatedImages }))}
+                            maxImages={10}
+                        />
                     </div>
                 </div>
 
@@ -385,11 +416,14 @@ const SellerCreateProduct = () => {
                             </h3>
                             <button
                                 type="button"
-                                onClick={() => setShowCategoryModal(true)}
-                                className="inline-flex items-center gap-1 text-xs font-semibold text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition"
+                                onClick={() => {
+                                    setCategoryModalMode('category');
+                                    setShowCategoryModal(true);
+                                }}
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-lg transition"
                             >
                                 <FiPlus className="h-3.5 w-3.5" />
-                                + Add Custom
+                                Add Custom
                             </button>
                         </div>
 
@@ -398,13 +432,34 @@ const SellerCreateProduct = () => {
                                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
                                     Primary Category <span className="text-rose-500">*</span>
                                 </label>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setCategoryModalMode('category');
+                                        setShowCategoryModal(true);
+                                    }}
+                                    className="text-[11px] font-semibold text-sky-600 hover:text-sky-700 hover:underline"
+                                >
+                                    + Add New
+                                </button>
                             </div>
                             <select
                                 name="category_id"
                                 value={form.category_id}
-                                onChange={handleChange}
+                                onChange={(e) => {
+                                    if (e.target.value === '__add_new_category__') {
+                                        setCategoryModalMode('category');
+                                        setShowCategoryModal(true);
+                                    } else {
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            category_id: e.target.value,
+                                            sub_category_id: '',
+                                        }));
+                                    }
+                                }}
                                 required
-                                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 bg-white"
                             >
                                 <option value="">Select Category</option>
                                 {categories.map((c) => (
@@ -412,51 +467,90 @@ const SellerCreateProduct = () => {
                                         {c.category_name || c.name}
                                     </option>
                                 ))}
+                                <option value="__add_new_category__" className="text-sky-600 font-bold bg-sky-50">
+                                    ➕ + Add New Primary Category...
+                                </option>
                             </select>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                                Sub Category
-                            </label>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    Sub Category
+                                </label>
+                                {form.category_id && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setCategoryModalMode('sub_category');
+                                            setShowCategoryModal(true);
+                                        }}
+                                        className="text-[11px] font-semibold text-sky-600 hover:text-sky-700 hover:underline"
+                                    >
+                                        + Add Sub-Category
+                                    </button>
+                                )}
+                            </div>
                             <select
                                 name="sub_category_id"
                                 value={form.sub_category_id}
-                                onChange={handleChange}
-                                disabled={!subCategories.length}
-                                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-50"
+                                onChange={(e) => {
+                                    if (e.target.value === '__add_new_sub__') {
+                                        setCategoryModalMode('sub_category');
+                                        setShowCategoryModal(true);
+                                    } else {
+                                        handleChange(e);
+                                    }
+                                }}
+                                disabled={!form.category_id || loadingSubCategories}
+                                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-50 disabled:bg-slate-50 bg-white"
                             >
-                                <option value="">Select Sub Category</option>
-                                {subCategories.map((sc) => (
-                                    <option key={sc._id || sc.id} value={sc._id || sc.id}>
-                                        {sc.sub_category_name || sc.name}
-                                    </option>
-                                ))}
+                                {!form.category_id ? (
+                                    <option value="">Select Primary Category First</option>
+                                ) : loadingSubCategories ? (
+                                    <option value="">Loading sub-categories...</option>
+                                ) : (
+                                    <>
+                                        <option value="">
+                                            {subCategories.length === 0
+                                                ? 'No sub-categories yet (Click below to add)'
+                                                : 'Select Sub Category'}
+                                        </option>
+                                        {subCategories.map((sc) => (
+                                            <option key={sc._id || sc.id} value={sc._id || sc.id}>
+                                                {sc.sub_category_name || sc.name}
+                                            </option>
+                                        ))}
+                                        <option value="__add_new_sub__" className="text-sky-600 font-bold bg-sky-50">
+                                            ➕ + Add New Sub-Category...
+                                        </option>
+                                    </>
+                                )}
                             </select>
+                            {form.category_id && !loadingSubCategories && subCategories.length === 0 && (
+                                <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1">
+                                    <span>No sub-categories found. Click the dropdown or button above to add one.</span>
+                                </p>
+                            )}
                         </div>
                     </div>
 
-                    {/* Listing Status & Save Action */}
+                    {/* Listing Status & Approval Workflow */}
                     <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm space-y-4">
                         <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
                             <FiTag className="text-slate-600" />
                             Listing Status
                         </h3>
 
-                        <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                                Status
-                            </label>
-                            <select
-                                name="status"
-                                value={form.status}
-                                onChange={handleChange}
-                                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                            >
-                                <option value="active">Active (Publish immediately)</option>
-                                <option value="draft">Draft (Save as draft)</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
+                        <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                    Pending Approval
+                                </span>
+                            </div>
+                            <p className="text-xs text-amber-800 leading-relaxed">
+                                Newly created products are reviewed by Zyvento Super Admin before becoming live on the marketplace.
+                            </p>
                         </div>
 
                         <div className="pt-4 border-t border-slate-100">
@@ -466,7 +560,7 @@ const SellerCreateProduct = () => {
                                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 py-3 text-sm font-semibold text-white shadow-md shadow-blue-200 hover:from-sky-600 hover:to-blue-700 transition disabled:opacity-50"
                             >
                                 <FiSave className="h-4 w-4" />
-                                <span>{submitting ? 'Saving Product...' : 'Publish Product'}</span>
+                                <span>{submitting ? 'Submitting Product...' : 'Submit for Approval'}</span>
                             </button>
                         </div>
                     </div>
@@ -476,7 +570,11 @@ const SellerCreateProduct = () => {
             <AddCategoryModal
                 isOpen={showCategoryModal}
                 onClose={() => setShowCategoryModal(false)}
+                initialMode={categoryModalMode}
+                selectedCategoryId={form.category_id}
+                categories={categories}
                 onCategoryCreated={handleCategoryCreated}
+                onSubCategoryCreated={handleSubCategoryCreated}
             />
         </div>
     );

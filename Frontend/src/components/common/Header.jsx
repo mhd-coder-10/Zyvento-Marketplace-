@@ -174,7 +174,7 @@ const Header = () => {
 
     const userType = user?.user_type || user?.role?.role_type || 'customer';
     const isSuperOrSubAdmin = ['super_admin', 'sub_admin'].includes(userType);
-    const isSeller = ['seller', 'seller_employee'].includes(userType);
+    const isSeller = userType === 'seller';
 
     const formatCurrency = (v) =>
         new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v || 0);

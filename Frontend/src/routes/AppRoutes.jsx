@@ -64,6 +64,7 @@ import SellerProfile from '../pages/seller/profile/SellerProfile';
 import SellerProducts from '../pages/seller/products/SellerProducts';
 import SellerCreateProduct from '../pages/seller/products/SellerCreateProduct';
 import SellerEditProduct from '../pages/seller/products/SellerEditProduct';
+import SellerProductDetails from '../pages/seller/products/SellerProductDetails';
 import SellerOrders from '../pages/seller/orders/SellerOrders';
 import SellerOrderDetails from '../pages/seller/orders/SellerOrderDetails';
 import SellerEarnings from '../pages/seller/earnings/SellerEarnings';
@@ -71,6 +72,7 @@ import SellerSettings from '../pages/seller/settings/SellerSettings';
 import SellerInventory from '../pages/seller/inventory/SellerInventory';
 import SellerReports from '../pages/seller/reports/SellerReports';
 import SellerReviews from '../pages/seller/reviews/SellerReviews';
+import SellerRequests from '../pages/seller/requests/SellerRequests';
 
 
 // ====== Admin + Sub-Admin  ======
@@ -95,16 +97,13 @@ import UserManagement from '../pages/admin/users/UserManagement';
 import Sellers from '../pages/admin/sellers/Sellers';
 import SellerDetails from '../pages/admin/sellers/SellerDetails';
 import SellerEdit from '../pages/admin/sellers/SellerEdit';
+import AdminSellerRequests from '../pages/admin/sellers/AdminSellerRequests';
 
 import SubAdminList from '../pages/admin/sub-admins/SubAdminList';
 import SubAdminDetails from '../pages/admin/sub-admins/SubAdminDetails';
 import SubAdminManagement from '../pages/admin/sub-admins/SubAdminManagement';
 
 
-// Admin - Employees
-import EmployeeList from '../pages/admin/employees/EmployeeList';
-import EmployeeDetails from '../pages/admin/employees/EmployeeDetails';
-import EmployeeManagement from '../pages/admin/employees/EmployeeManagement';
 
 // Admin - Products
 import AdminProducts from '../pages/admin/products/Products';
@@ -253,6 +252,8 @@ const AppRoutes = () => {
                 <Route path="users/edit/:userId" element={<UserManagement />} />
 
                 {/* Sellers - Order matters — most specific first */}
+                <Route path="sellers/requests" element={<AdminSellerRequests />} />
+                <Route path="seller-requests" element={<AdminSellerRequests />} />
                 <Route path="sellers/edit/:sellerCode" element={<SellerEdit />} />
                 <Route path="sellers/:sellerCode" element={<SellerDetails />} />
                 <Route path="sellers" element={<Sellers />} />
@@ -263,11 +264,6 @@ const AppRoutes = () => {
                 <Route path="/admin/sub-admins/:subAdminCode" element={<SubAdminDetails />} />
                 <Route path="/admin/sub-admins/:subAdminCode/edit" element={<SubAdminManagement />} />
 
-                {/* Employees */}
-                <Route path="/admin/employees" element={<EmployeeList />} />
-                <Route path="/admin/employees/create" element={<EmployeeManagement />} />
-                <Route path="/admin/employees/:employeeCode" element={<EmployeeDetails />} />
-                <Route path="/admin/employees/:employeeCode/edit" element={<EmployeeManagement />} />
 
                 {/* Products */}
                 <Route path="products" element={<AdminProducts />} />
@@ -312,7 +308,7 @@ const AppRoutes = () => {
 
                 {/* Reviews */}
                 <Route path="reviews" element={<AdminReviews />} />
-                <Route path="reviews/:reviewCode" element={<AdminReviewDetails />} />
+                <Route path="reviews/:reviewId" element={<AdminReviewDetails />} />
 
                 {/* Coupons */}
                 <Route path="coupons" element={<AdminCoupons />} />
@@ -349,6 +345,8 @@ const AppRoutes = () => {
                 <Route path="products" element={<SellerProducts />} />
                 <Route path="products/create" element={<SellerCreateProduct />} />
                 <Route path="products/edit/:id" element={<SellerEditProduct />} />
+                <Route path="products/:id" element={<SellerProductDetails />} />
+                <Route path="requests" element={<SellerRequests />} />
                 <Route path="orders" element={<SellerOrders />} />
                 <Route path="orders/:orderId" element={<SellerOrderDetails />} />
                 <Route path="inventory" element={<SellerInventory />} />

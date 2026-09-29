@@ -47,7 +47,7 @@ router.use(auth);
  *         name: type
  *         schema:
  *           type: string
- *           enum: [order, payment, product, inventory, profile, seller, employee, offer, return, refund, system, promotion, security, role_change, permission_change]
+ *           enum: [order, payment, product, inventory, profile, seller, offer, return, refund, system, promotion, security, role_change, permission_change]
  *         description: Filter by notification type
  *       - in: query
  *         name: is_read
@@ -343,10 +343,10 @@ router.get(
  *                 example: "Our system will be down for maintenance tonight."
  *               receiver_type:
  *                 type: string
- *                 enum: [all, customer, seller, seller_employee, admin, sub_admin]
+ *                 enum: [all, customer, seller, admin, sub_admin]
  *               notification_type:
  *                 type: string
- *                 enum: [order, payment, product, inventory, profile, seller, employee, offer, return, refund, system, promotion, security, role_change, permission_change]
+ *                 enum: [order, payment, product, inventory, profile, seller, offer, return, refund, system, promotion, security, role_change, permission_change]
  *               channel:
  *                 type: string
  *                 enum: [email, sms, push_notification, in_app]
@@ -397,7 +397,7 @@ router.post(
  *         name: receiver_type
  *         schema:
  *           type: string
- *           enum: [customer, seller, seller_employee, admin, sub_admin]
+ *           enum: [customer, seller, admin, sub_admin]
  *       - in: query
  *         name: notification_type
  *         schema:

@@ -8,14 +8,8 @@ const config = require('./config/environment');
 const PORT = config.PORT || 5000;
 
 const server = app.listen(PORT, () => {
-
     console.log(`\n🔗 API URL (SERVER) : http://localhost:${PORT}/api`);
 
-    // console.log('\n🚀 SUCCESSFULLY RUN E-COMMERCE MARKETPLACE SERVER');
-    // console.log(`\n📡 Port: ${PORT}`);
-    // console.log(`\n🌍 Environment: ${config.NODE_ENV}`);
-    // console.log(`\n🕐 Started: ${new Date().toISOString()}`);
-    
 });
 
 // GRACEFUL SHUTDOWN 

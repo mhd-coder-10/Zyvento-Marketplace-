@@ -107,13 +107,11 @@ const UserDetails = () => {
             super_admin: { bg: 'bg-indigo-100 text-indigo-700 border-indigo-200', icon: <FaUsersCog size={14} />, label: 'Super Admin' },
             sub_admin: { bg: 'bg-blue-100 text-blue-700 border-blue-200', icon: <FiShield size={14} />, label: 'Sub Admin' },
             seller: { bg: 'bg-sky-100 text-sky-700 border-sky-200', icon: <FaStore size={14} />, label: 'Seller' },
-            seller_employee: { bg: 'bg-teal-100 text-teal-700 border-teal-200', icon: <FaUserTag size={14} />, label: 'Seller Employee' },
             customer: { bg: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <FiUser size={14} />, label: 'Customer' },
         };
         const c = map[roleKey] || { bg: 'bg-slate-100 text-slate-700 border-slate-200', icon: <FiUser size={14} />, label: 'User' };
         const subLabel = user?.sub_admin_type ? ` • ${user.sub_admin_type.replace(/_/g, ' ')}` : '';
-        const empLabel = user?.employee_type ? ` • ${user.employee_type.replace(/_/g, ' ')}` : '';
-        return <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border capitalize ${c.bg}`}>{c.icon}{c.label}{subLabel || empLabel}</span>;
+        return <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border capitalize ${c.bg}`}>{c.icon}{c.label}{subLabel}</span>;
     };
 
     const statusBadge = () => {
@@ -500,7 +498,6 @@ const UserDetails = () => {
                                     </h3>
                                     <InfoRow icon={<FiMapPin size={16} />} label="Address" value={addrLine || null} />
                                     <InfoRow icon={<FiShield size={16} />} label="Sub-Admin Type" value={user.sub_admin_type ? user.sub_admin_type.replace(/_/g, ' ') : null} />
-                                    <InfoRow icon={<FaUserTag size={16} />} label="Employee Type" value={user.employee_type ? user.employee_type.replace(/_/g, ' ') : null} />
                                     <InfoRow icon={<FiActivity size={16} />} label="Account Status" value={user.account_status} />
                                     <InfoRow icon={<FiCalendar size={16} />} label="Joined On" value={user.created_at ? new Date(user.created_at).toLocaleString() : null} />
                                     <InfoRow icon={<FiClock size={16} />} label="Last Updated" value={user.updated_at ? new Date(user.updated_at).toLocaleString() : null} />

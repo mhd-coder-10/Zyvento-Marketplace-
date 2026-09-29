@@ -146,7 +146,6 @@ const SendNotification = () => {
                                     <option value="super_admin">Super Admin</option>
                                     <option value="customer">Customer</option>
                                     <option value="seller">Seller</option>
-                                    <option value="seller_employee">Seller Employee</option>
                                 </select>
                             </div>
                         </div>

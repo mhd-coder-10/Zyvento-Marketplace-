@@ -87,9 +87,7 @@ const ReviewsList = () => {
     const getStatusBadge = (status) => {
         const map = {
             published: 'bg-emerald-50 text-emerald-700',
-            pending: 'bg-amber-50 text-amber-700',
             flagged: 'bg-orange-50 text-orange-700',
-            reported: 'bg-red-50 text-red-700',
             hidden: 'bg-gray-100 text-gray-600',
             rejected: 'bg-rose-50 text-rose-700'
         };
@@ -117,11 +115,9 @@ const ReviewsList = () => {
                 </div>
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2.5 border border-gray-300 rounded-xl !text-black bg-white">
                     <option value="all">All Status</option>
-                    <option value="pending">Pending</option>
                     <option value="published">Published</option>
-                    <option value="flagged">Flagged</option>
-                    <option value="reported">Reported</option>
                     <option value="hidden">Hidden</option>
+                    <option value="flagged">Flagged</option>
                     <option value="rejected">Rejected</option>
                 </select>
                 <select value={ratingFilter} onChange={(e) => setRatingFilter(e.target.value)} className="px-4 py-2.5 border border-gray-300 rounded-xl !text-black bg-white">

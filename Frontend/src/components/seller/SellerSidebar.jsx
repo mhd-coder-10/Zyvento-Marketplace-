@@ -13,11 +13,13 @@ import {
     FiSettings,
     FiExternalLink,
     FiChevronLeft,
+    FiMessageSquare,
 } from 'react-icons/fi';
 
 const SELLER_NAV_ITEMS = [
     { name: 'Dashboard', icon: FiHome, path: '/seller/dashboard' },
     { name: 'My Products', icon: FiPackage, path: '/seller/products' },
+    { name: 'Seller Requests', icon: FiMessageSquare, path: '/seller/requests' },
     { name: 'My Orders', icon: FiShoppingCart, path: '/seller/orders' },
     { name: 'Inventory', icon: FiBox, path: '/seller/inventory' },
     { name: 'My Earnings', icon: FiDollarSign, path: '/seller/earnings' },
@@ -28,23 +30,38 @@ const SELLER_NAV_ITEMS = [
     { name: 'Visit Store', icon: FiExternalLink, path: '/', external: true },
 ];
 
-const SellerSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
+const SellerSidebar = ({
+    isOpen,
+    setIsOpen,
+    isExpanded = isOpen,
+    isMobile,
+    user,
+    onNavigate,
+    onClose,
+    onMouseEnter,
+    onMouseLeave,
+}) => {
     const fullName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.name || user?.business_name || 'Seller';
     const initial = (user?.first_name?.[0] || user?.business_name?.[0] || 'S').toUpperCase();
 
     return (
         <>
-            {isMobile && isOpen && (
+            {isMobile && isExpanded && (
                 <div
                     className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden"
-                    onClick={() => setIsOpen(false)}
+                    onClick={() => {
+                        if (onClose) onClose();
+                        else setIsOpen(false);
+                    }}
                 />
             )}
 
             <aside
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
                 className={`fixed top-0 left-0 h-full z-50 bg-white border-r border-sky-100 shadow-[4px_0_24px_-12px_rgba(2,132,199,0.25)] transition-transform duration-300 ease-in-out ${
-                    isOpen ? 'translate-x-0' : '-translate-x-full'
-                } ${isMobile ? 'w-[17rem]' : 'w-64'} lg:translate-x-0 flex flex-col`}
+                    isExpanded ? 'translate-x-0' : '-translate-x-full'
+                } ${isMobile ? 'w-[17rem]' : 'w-64'} flex flex-col`}
                 style={{ overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
                 <style>{`
@@ -63,14 +80,16 @@ const SellerSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
                             <span className="block text-[11px] font-medium text-sky-600">Vendor Dashboard</span>
                         </div>
                     </div>
-                    {isMobile && (
-                        <button
-                            onClick={() => setIsOpen(false)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:bg-sky-50 hover:text-sky-600 transition-colors lg:hidden"
-                        >
-                            <FiChevronLeft className="w-5 h-5" />
-                        </button>
-                    )}
+                    <button
+                        onClick={() => {
+                            if (onClose) onClose();
+                            else setIsOpen(false);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:bg-sky-50 hover:text-sky-600 transition-colors"
+                        title="Collapse Sidebar"
+                    >
+                        <FiChevronLeft className="w-5 h-5" />
+                    </button>
                 </div>
 
                 {/* Navigation Menu */}
@@ -84,6 +103,10 @@ const SellerSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
                                             href={item.path}
                                             target="_blank"
                                             rel="noopener noreferrer"
+                                            onClick={() => {
+                                                if (onNavigate) onNavigate();
+                                                else setIsOpen(false);
+                                            }}
                                             className="group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-sky-50/70 hover:text-blue-700 transition-all duration-200"
                                         >
                                             <item.icon className="w-[18px] h-[18px] flex-shrink-0 text-slate-500 group-hover:text-blue-600" />
@@ -98,7 +121,8 @@ const SellerSidebar = ({ isOpen, setIsOpen, isMobile, user }) => {
                                     <NavLink
                                         to={item.path}
                                         onClick={() => {
-                                            if (isMobile) setIsOpen(false);
+                                            if (onNavigate) onNavigate();
+                                            else setIsOpen(false);
                                         }}
                                         className={({ isActive }) =>
                                             `group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all duration-200 ${

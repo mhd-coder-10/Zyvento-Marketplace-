@@ -44,6 +44,12 @@ const seller_schema = new mongoose.Schema(
         default: null
     },
 
+    brand_name: {
+        type: String,
+        trim: true,
+        default: null
+    },
+
     tagline: {
         type: String,
         trim: true,

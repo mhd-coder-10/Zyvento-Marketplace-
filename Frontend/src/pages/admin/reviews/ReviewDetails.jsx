@@ -33,16 +33,15 @@ const formatDate = (d) =>
         : 'N/A';
 
 const STATUS_BADGE = {
-    pending: 'bg-amber-50 text-amber-700 border-amber-200',
     published: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    hidden: 'bg-slate-100 text-slate-700 border-slate-300',
     flagged: 'bg-orange-50 text-orange-700 border-orange-200',
-    reported: 'bg-rose-50 text-rose-700 border-rose-200',
-    hidden: 'bg-slate-50 text-slate-600 border-slate-200',
     rejected: 'bg-rose-50 text-rose-700 border-rose-200',
 };
 
 const ReviewDetails = () => {
-    const { reviewId } = useParams();
+    const { reviewId, reviewCode } = useParams();
+    const currentReviewId = reviewId || reviewCode;
     const navigate = useNavigate();
 
     const [review, setReview] = useState(null);
@@ -55,11 +54,15 @@ const ReviewDetails = () => {
     const [adminComment, setAdminComment] = useState('');
 
     const fetchReview = useCallback(async () => {
-        if (!reviewId) return;
+        if (!currentReviewId) {
+            setError('Review ID not found');
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         setError('');
         try {
-            const res = await ApiService.getReviewById(reviewId);
+            const res = await ApiService.getReviewById(currentReviewId);
             const data = res?.data?.data || res?.data || null;
             if (!data) {
                 setError('Review not found');
@@ -72,7 +75,7 @@ const ReviewDetails = () => {
         } finally {
             setLoading(false);
         }
-    }, [reviewId]);
+    }, [currentReviewId]);
 
     useEffect(() => {
         fetchReview();
@@ -86,11 +89,11 @@ const ReviewDetails = () => {
     };
 
     const handleModerate = async () => {
-        if (!pendingAction) return;
+        if (!pendingAction || !currentReviewId) return;
 
         setActionLoading(true);
         try {
-            await ApiService.moderateReview(reviewId, {
+            await ApiService.moderateReview(currentReviewId, {
                 action: pendingAction,
                 reason: reason || '',
                 admin_comment: adminComment || '',
@@ -185,7 +188,7 @@ const ReviewDetails = () => {
                             <p className="text-xs text-slate-500 mb-1">Current Status</p>
                             <span
                                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-semibold capitalize ${
-                                    STATUS_BADGE[review.status] || STATUS_BADGE.pending
+                                    STATUS_BADGE[review.status] || STATUS_BADGE.published
                                 }`}
                             >
                                 {review.status}
@@ -236,12 +239,20 @@ const ReviewDetails = () => {
                             {(review.user_id?.last_name?.[0] || '').toUpperCase()}
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-slate-800">
-                                {review.user_id?.first_name} {review.user_id?.last_name}
-                            </p>
+                            <div className="flex items-center gap-2">
+                                <p className="font-semibold text-slate-800">
+                                    {review.user_id?.first_name} {review.user_id?.last_name}
+                                </p>
+                                {review.is_edited && (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                        Edited
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-xs text-slate-500">{review.user_id?.email}</p>
                             <p className="text-xs text-slate-400 mt-1">
                                 {formatDate(review.created_at)}
+                                {review.is_edited && review.updated_at && ` (Updated: ${formatDate(review.updated_at)})`}
                             </p>
                         </div>
                         <div className="flex items-center gap-1">

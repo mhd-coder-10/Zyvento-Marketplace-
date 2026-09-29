@@ -242,7 +242,7 @@ const SubAdminList = () => {
         <div className="min-h-screen min-w-0 overflow-x-hidden bg-slate-50">
             <AdminTopbar
                 title="Sub-Admin Management"
-                subtitle="Manage Zyvento's internal platform employees"
+                subtitle="Manage Zyvento's internal platform administrators"
                 actions={
                     <>
                         <button

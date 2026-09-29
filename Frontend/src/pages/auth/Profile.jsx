@@ -54,7 +54,7 @@ const Profile = () => {
     // Dynamic role calculation
     const userRole = user?.user_type || user?.role || 'customer';
     const isAdmin = ['super_admin', 'sub_admin', 'admin'].includes(userRole);
-    const isSeller = ['seller', 'seller_employee'].includes(userRole);
+    const isSeller = userRole === 'seller';
     const isCustomer = !isAdmin && !isSeller;
 
     const [profileData, setProfileData] = useState({
@@ -109,7 +109,7 @@ const Profile = () => {
     const loadDashboardData = async () => {
         try {
             const role = user?.user_type || user?.role || 'customer';
-            const userIsSeller = ['seller', 'seller_employee'].includes(role);
+            const userIsSeller = role === 'seller';
             const userIsAdmin = ['super_admin', 'sub_admin', 'admin'].includes(role);
 
             if (userIsSeller) {
@@ -451,7 +451,7 @@ const Profile = () => {
                                             ? 'bg-sky-100 text-sky-700 border border-sky-200'
                                             : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                                     }`}>
-                                        {isSeller ? (userRole === 'seller_employee' ? 'Staff Member' : 'Store Owner') : userRole.replace(/_/g, ' ')}
+                                        {isSeller ? 'Store Owner' : userRole.replace(/_/g, ' ')}
                                     </span>
                                 </div>
 

@@ -509,8 +509,6 @@ router.post(
  *                       type: object
  *                     seller:
  *                       type: object
- *                     employee:
- *                       type: object
  *                     subAdmin:
  *                       type: object
  *       401:

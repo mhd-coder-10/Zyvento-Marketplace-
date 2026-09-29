@@ -27,18 +27,20 @@ const productValidation = {
 
         sub_category_id: Joi.string()
             .pattern(/^[0-9a-fA-F]{24}$/)
-            .required()
+            .allow('', null)
+            .optional()
             .messages({
                 'string.pattern.base': 'Invalid sub-category ID',
-                'string.empty': 'Sub-category is required',
             }),
 
         brand: Joi.string()
             .max(100)
+            .allow('', null)
             .optional(),
 
         description: Joi.string()
             .max(5000)
+            .allow('', null)
             .optional(),
 
         price: Joi.number()
@@ -51,25 +53,27 @@ const productValidation = {
 
         compare_at_price: Joi.number()
             .min(0)
+            .allow(null, '')
             .optional(),
 
         cost_per_item: Joi.number()
             .min(0)
+            .allow(null, '')
             .optional(),
 
         discount: Joi.number()
             .min(0)
             .max(100)
+            .allow(null, '')
             .default(0),
 
         sku: Joi.string()
-            .required()
-            .messages({
-                'string.empty': 'SKU is required',
-            }),
+            .allow('', null)
+            .optional(),
 
         weight: Joi.number()
             .min(0)
+            .allow(null, '')
             .default(0),
 
         dimensions: Joi.object({
@@ -111,33 +115,45 @@ const productValidation = {
             .optional(),
 
         seo: Joi.object({
-            title: Joi.string().max(60).optional(),
-            description: Joi.string().max(160).optional(),
+            title: Joi.string().max(60).allow('', null).optional(),
+            description: Joi.string().max(160).allow('', null).optional(),
             keywords: Joi.array().items(Joi.string()).optional(),
         }).optional(),
 
         return_policy: Joi.string()
+            .allow('', null)
             .optional(),
 
-        stock: Joi.number().min(0).optional(),
-        stock_quantity: Joi.number().min(0).optional(),
-        images: Joi.array().items(Joi.alternatives().try(
-            Joi.string(),
-            Joi.object({
-                url: Joi.string().required(),
-                is_primary: Joi.boolean().optional(),
-                _id: Joi.any().optional(),
-            })
-        )).optional(),
-        product_code: Joi.string().optional(),
+        stock: Joi.number().min(0).allow(null, '').optional(),
+        stock_quantity: Joi.number().min(0).allow(null, '').optional(),
+        images: Joi.array()
+            .max(10)
+            .items(Joi.alternatives().try(
+                Joi.string(),
+                Joi.object({
+                    url: Joi.string().required(),
+                    is_primary: Joi.boolean().optional(),
+                    _id: Joi.any().optional(),
+                }).unknown(true)
+            ))
+            .optional()
+            .messages({
+                'array.max': 'A maximum of 10 photos are allowed per product',
+            }),
+        product_code: Joi.string().allow('', null).optional(),
 
         status: Joi.string()
-            .valid('active', 'inactive', 'draft')
-            .default('draft'),
-    }),
+            .valid('active', 'inactive', 'draft', 'pending')
+            .default('active'),
+    }).unknown(true),
 
     // ============ UPDATE PRODUCT ============
     updateProduct: Joi.object({
+        productId: Joi.string()
+            .pattern(/^[0-9a-fA-F]{24}$/)
+            .allow('', null)
+            .optional(),
+
         product_name: Joi.string()
             .min(2)
             .max(200)
@@ -145,18 +161,22 @@ const productValidation = {
 
         category_id: Joi.string()
             .pattern(/^[0-9a-fA-F]{24}$/)
+            .allow('', null)
             .optional(),
 
         sub_category_id: Joi.string()
             .pattern(/^[0-9a-fA-F]{24}$/)
+            .allow('', null)
             .optional(),
 
         brand: Joi.string()
             .max(100)
+            .allow('', null)
             .optional(),
 
         description: Joi.string()
             .max(5000)
+            .allow('', null)
             .optional(),
 
         price: Joi.number()
@@ -165,22 +185,27 @@ const productValidation = {
 
         compare_at_price: Joi.number()
             .min(0)
+            .allow(null, '')
             .optional(),
 
         cost_per_item: Joi.number()
             .min(0)
+            .allow(null, '')
             .optional(),
 
         discount: Joi.number()
             .min(0)
             .max(100)
+            .allow(null, '')
             .optional(),
 
         sku: Joi.string()
+            .allow('', null)
             .optional(),
 
         weight: Joi.number()
             .min(0)
+            .allow(null, '')
             .optional(),
 
         dimensions: Joi.object({
@@ -222,30 +247,37 @@ const productValidation = {
             .optional(),
 
         seo: Joi.object({
-            title: Joi.string().max(60).optional(),
-            description: Joi.string().max(160).optional(),
+            title: Joi.string().max(60).allow('', null).optional(),
+            description: Joi.string().max(160).allow('', null).optional(),
             keywords: Joi.array().items(Joi.string()).optional(),
         }).optional(),
 
         return_policy: Joi.string()
+            .allow('', null)
             .optional(),
 
-        stock: Joi.number().min(0).optional(),
-        stock_quantity: Joi.number().min(0).optional(),
-        images: Joi.array().items(Joi.alternatives().try(
-            Joi.string(),
-            Joi.object({
-                url: Joi.string().required(),
-                is_primary: Joi.boolean().optional(),
-                _id: Joi.any().optional(),
-            })
-        )).optional(),
-        product_code: Joi.string().optional(),
+        stock: Joi.number().min(0).allow(null, '').optional(),
+        stock_quantity: Joi.number().min(0).allow(null, '').optional(),
+        images: Joi.array()
+            .max(10)
+            .items(Joi.alternatives().try(
+                Joi.string(),
+                Joi.object({
+                    url: Joi.string().required(),
+                    is_primary: Joi.boolean().optional(),
+                    _id: Joi.any().optional(),
+                }).unknown(true)
+            ))
+            .optional()
+            .messages({
+                'array.max': 'A maximum of 10 photos are allowed per product',
+            }),
+        product_code: Joi.string().allow('', null).optional(),
 
         status: Joi.string()
-            .valid('active', 'inactive', 'draft', 'blocked')
+            .valid('active', 'inactive', 'draft', 'pending', 'blocked')
             .optional(),
-    }),
+    }).unknown(true),
 
     // ============ GET PRODUCTS (With Filters) ============
     getProducts: Joi.object({

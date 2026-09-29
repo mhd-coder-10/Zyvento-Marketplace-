@@ -40,6 +40,8 @@ const Products = () => {
         minPrice: searchParams.get('minPrice') || '',
         maxPrice: searchParams.get('maxPrice') || '',
         rating: searchParams.get('rating') || '',
+        seller: searchParams.get('seller') || searchParams.get('sellerId') || '',
+        store: searchParams.get('store') || '',
         sortBy: searchParams.get('sortBy') || 'newest',
     });
 
@@ -51,6 +53,8 @@ const Products = () => {
             minPrice: searchParams.get('minPrice') || '',
             maxPrice: searchParams.get('maxPrice') || '',
             rating: searchParams.get('rating') || '',
+            seller: searchParams.get('seller') || searchParams.get('sellerId') || '',
+            store: searchParams.get('store') || '',
             sortBy: searchParams.get('sortBy') || 'newest',
         });
     }, [searchParams]);
@@ -71,6 +75,7 @@ const Products = () => {
                 minPrice: filters.minPrice || undefined,
                 maxPrice: filters.maxPrice || undefined,
                 rating: filters.rating || undefined,
+                seller: filters.seller || undefined,
                 sortBy: filters.sortBy || 'newest',
             };
 
@@ -126,6 +131,8 @@ const Products = () => {
             minPrice: '',
             maxPrice: '',
             rating: '',
+            seller: '',
+            store: '',
             sortBy: 'newest',
         });
         setSearchParams({});
@@ -145,7 +152,8 @@ const Products = () => {
         filters.search ||
         filters.minPrice ||
         filters.maxPrice ||
-        filters.rating
+        filters.rating ||
+        filters.seller
     );
 
     return (
@@ -253,6 +261,18 @@ const Products = () => {
                                 <button onClick={() => handleFilterChange('rating', '')}><FiX className="w-3 h-3 hover:text-amber-900" /></button>
                             </span>
                         )}
+                        {filters.seller && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-sky-50 text-blue-700 border border-sky-200 font-semibold rounded-xl">
+                                Store: {filters.store || 'Selected Merchant'}
+                                <button onClick={() => {
+                                    const next = new URLSearchParams(searchParams);
+                                    next.delete('seller');
+                                    next.delete('sellerId');
+                                    next.delete('store');
+                                    setSearchParams(next);
+                                }}><FiX className="w-3 h-3 hover:text-blue-900" /></button>
+                            </span>
+                        )}
                         <button
                             onClick={clearFilters}
                             className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 ml-auto px-2 py-1"
@@ -300,6 +320,43 @@ const Products = () => {
 
                     {/* Products Grid & Sort */}
                     <div className="flex-1 space-y-6">
+                        {/* Store / Merchant Banner if filtered by seller */}
+                        {filters.seller && (
+                            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-50 border border-blue-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="flex items-center gap-3.5">
+                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-md shadow-blue-500/20">
+                                        🏪
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                                Exclusive Merchant Store
+                                            </span>
+                                            <span className="text-[11px] text-slate-500 font-medium">
+                                                Showing catalog from this seller only
+                                            </span>
+                                        </div>
+                                        <h2 className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+                                            {filters.store || 'Seller Store Products'}
+                                        </h2>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        const next = new URLSearchParams(searchParams);
+                                        next.delete('seller');
+                                        next.delete('sellerId');
+                                        next.delete('store');
+                                        setSearchParams(next);
+                                    }}
+                                    className="flex items-center gap-1.5 self-start sm:self-center px-4 py-2 rounded-xl bg-white border border-slate-200 hover:border-rose-300 hover:bg-rose-50 text-xs font-bold text-slate-700 hover:text-rose-600 transition-all shadow-xs"
+                                >
+                                    <FiX className="w-3.5 h-3.5 text-rose-500" />
+                                    <span>View All Stores</span>
+                                </button>
+                            </div>
+                        )}
+
                         {/* Top Sort & Count Bar */}
                         <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
                             <span className="text-xs font-bold text-slate-600">

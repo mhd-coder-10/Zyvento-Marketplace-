@@ -1,9 +1,8 @@
 // Handles all sub-admin related business logic
-// Manages sub-admin dashboard, profile, seller management, employee management
+// Manages sub-admin dashboard, profile, seller management
 // Also handles order management, reports, notifications, and activity logs
 
 const Seller = require('../../models/seller.model');
-const Employee = require('../../models/employee.model');
 const Order = require('../../models/order.model');
 const User = require('../../models/user.model');
 const SubAdmin = require('../../models/sub_admin.model');
@@ -396,71 +395,6 @@ class SubAdminService {
         return seller;
     }
 
-    // ============ EMPLOYEE MANAGEMENT ============
-    async getEmployees({
-        page = 1,
-        limit = 10,
-        search = null,
-        sellerId = null,
-        status = null
-    }) {
-        const query = {};
-
-        if (sellerId) {
-            query.seller_id = sellerId;
-        }
-
-        if (status) {
-            query.status = status;
-        }
-
-        if (search) {
-            const userIds = await User.find({
-                $or: [
-                    { first_name: { $regex: search, $options: 'i' } },
-                    { last_name: { $regex: search, $options: 'i' } },
-                    { email: { $regex: search, $options: 'i' } }
-                ]
-            }).distinct('_id');
-
-            query.user_id = { $in: userIds };
-        }
-
-        const [employees, total] = await Promise.all([
-            Employee.find(query)
-                .populate('user_id', 'first_name last_name email mobile_number profile_image')
-                .populate('role_ids')
-                .populate('seller_id', 'business_name')
-                .sort({ created_at: -1 })
-                .skip((page - 1) * limit)
-                .limit(parseInt(limit)),
-            Employee.countDocuments(query)
-        ]);
-
-        return {
-            employees,
-            pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
-                total,
-                totalPages: Math.ceil(total / limit)
-            }
-        };
-    }
-
-    async getEmployeeDetails(employeeId) {
-        const employee = await Employee.findById(employeeId)
-            .populate('user_id', 'first_name last_name email mobile_number profile_image')
-            .populate('role_ids')
-            .populate('seller_id', 'business_name business_type')
-            .populate('created_by', 'first_name last_name email');
-
-        if (!employee) {
-            throw ApiError.notFound('Employee not found');
-        }
-
-        return employee;
-    }
 
     // ============ ORDER MANAGEMENT ============
     async getOrders({

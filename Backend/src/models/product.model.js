@@ -110,10 +110,38 @@ const product_schema = new mongoose.Schema(
             type: String
         }],
 
+        // ============ RATINGS & METRICS ============
+        rating: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 5
+        },
+        ratings: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 5
+        },
+        total_reviews: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
+        num_reviews: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
+        views: {
+            type: Number,
+            default: 0
+        },
+
         // ============ STATUS ============
         status: {
             type: String,
-            enum: ["pending", "active", "rejected", "suspended", "inactive", "draft"],
+            enum: ["pending", "approved", "active", "inactive", "suspended", "rejected", "deleted", "draft"],
             default: "pending"
         },
 

@@ -72,7 +72,7 @@ const notificationValidation = {
             }),
 
         receiver_type: Joi.string()
-            .valid('all', 'customer', 'seller', 'seller_employee', 'admin', 'sub_admin')
+            .valid('all', 'customer', 'seller', 'admin', 'sub_admin')
             .required()
             .messages({
                 'any.only': 'Invalid receiver type',
@@ -82,7 +82,7 @@ const notificationValidation = {
         notification_type: Joi.string()
             .valid(
                 'order', 'payment', 'product', 'inventory',
-                'profile', 'seller', 'employee', 'offer',
+                'profile', 'seller', 'offer',
                 'return', 'refund', 'system', 'promotion',
                 'security', 'role_change', 'permission_change'
             )

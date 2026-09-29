@@ -13,7 +13,6 @@ const constants = {
         SUPER_ADMIN: 'super_admin',
         SUB_ADMIN: 'sub_admin',
         SELLER: 'seller',
-        SELLER_EMPLOYEE: 'seller_employee',
         CUSTOMER: 'customer',
     },
 
@@ -35,15 +34,6 @@ const constants = {
         SELLER_MANAGER: 'seller_manager',
     },
 
-    // ============ EMPLOYEE TYPES ============
-    EMPLOYEE_TYPES: {
-        MANAGER: 'manager',
-        PRODUCT_MANAGER: 'product_manager',
-        ORDER_MANAGER: 'order_manager',
-        INVENTORY_MANAGER: 'inventory_manager',
-        SUPPORT_STAFF: 'support_staff',
-        ACCOUNT_MANAGER: 'account_manager',
-    },
 
     // ============ ORDER STATUS ============
     ORDER_STATUS: {
@@ -83,7 +73,6 @@ const constants = {
         INVENTORY: 'inventory',
         PROFILE: 'profile',
         SELLER: 'seller',
-        EMPLOYEE: 'employee',
         OFFER: 'offer',
         RETURN: 'return',
         REFUND: 'refund',
@@ -117,7 +106,6 @@ const constants = {
         ADMIN: 'admin',
         SUB_ADMIN: 'sub_admin',
         SELLER: 'seller',
-        EMPLOYEE: 'employee',
         PRODUCT: 'product',
         CATEGORY: 'category',
         INVENTORY: 'inventory',
@@ -141,7 +129,6 @@ const constants = {
         ADMIN: 'admin',
         SUB_ADMIN: 'sub_admin',
         SELLER: 'seller',
-        EMPLOYEE: 'employee',
         CUSTOMER: 'customer',
     },
 

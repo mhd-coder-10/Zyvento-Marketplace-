@@ -4,17 +4,17 @@ import { toast } from 'react-toastify';
 import {
     FiArrowLeft,
     FiSave,
-    FiUploadCloud,
-    FiX,
     FiPackage,
     FiDollarSign,
     FiTag,
     FiLayers,
     FiLoader,
     FiPlus,
+    FiEdit2,
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
 import AddCategoryModal from '../../../components/seller/AddCategoryModal';
+import ProductImageUpload from '../../../components/seller/ProductImageUpload';
 
 const SellerEditProduct = () => {
     const { id } = useParams();
@@ -23,8 +23,11 @@ const SellerEditProduct = () => {
     const [submitting, setSubmitting] = useState(false);
     const [categories, setCategories] = useState([]);
     const [subCategories, setSubCategories] = useState([]);
+    const [loadingSubCategories, setLoadingSubCategories] = useState(false);
     const [showCategoryModal, setShowCategoryModal] = useState(false);
+    const [categoryModalMode, setCategoryModalMode] = useState('category'); // 'category' | 'sub_category'
 
+    const [existingImages, setExistingImages] = useState([]);
     const [form, setForm] = useState({
         product_name: '',
         brand: '',
@@ -36,7 +39,7 @@ const SellerEditProduct = () => {
         sku: '',
         stock: 0,
         status: 'active',
-        images: [''],
+        images: [],
     });
 
     useEffect(() => {
@@ -55,35 +58,95 @@ const SellerEditProduct = () => {
     const fetchInitialData = async () => {
         setLoading(true);
         try {
-            const [catRes, prodRes] = await Promise.allSettled([
+            // First fetch seller profile and categories
+            const [catRes, profileRes] = await Promise.allSettled([
                 ApiService.getPublicCategories({ status: 'active' }),
-                ApiService.getProductById(id),
+                ApiService.getSellerProfile(),
             ]);
+
+            let defaultSellerBrand = '';
+            if (profileRes.status === 'fulfilled' && profileRes.value?.data?.data) {
+                const s = profileRes.value.data.data;
+                defaultSellerBrand = s.brand_name || s.store_name || s.business_name || '';
+            }
 
             if (catRes.status === 'fulfilled' && catRes.value?.data?.data) {
                 const list = Array.isArray(catRes.value.data.data) ? catRes.value.data.data : catRes.value.data.data.categories || [];
                 setCategories(list);
             }
 
-            if (prodRes.status === 'fulfilled' && prodRes.value?.data?.data) {
-                const p = prodRes.value.data.data;
-                const imgUrls = Array.isArray(p.images)
-                    ? p.images.map((img) => (typeof img === 'string' ? img : img.url || ''))
-                    : [];
+            // Fetch product: try seller-specific endpoint first, fallback to general getProductById
+            let p = null;
+            try {
+                const sellerProdRes = await ApiService.getSellerProductById(id);
+                if (sellerProdRes?.data?.data) {
+                    p = sellerProdRes.data.data;
+                }
+            } catch (_) {
+                // Ignore and try fallback
+            }
+
+            if (!p) {
+                try {
+                    const pubProdRes = await ApiService.getProductById(id);
+                    if (pubProdRes?.data?.data) {
+                        p = pubProdRes.data.data;
+                    }
+                } catch (prodErr) {
+                    console.error('Failed to load product by id/code:', prodErr);
+                }
+            }
+
+            if (p) {
+                // Robust extraction of existing images (array of strings, object array, or single image)
+                let rawImgs = [];
+                if (Array.isArray(p.images) && p.images.length > 0) {
+                    rawImgs = p.images;
+                } else if (typeof p.images === 'string' && p.images.trim()) {
+                    rawImgs = [p.images.trim()];
+                } else if (Array.isArray(p.image) && p.image.length > 0) {
+                    rawImgs = p.image;
+                } else if (typeof p.image === 'string' && p.image.trim()) {
+                    rawImgs = [p.image.trim()];
+                } else if (p.thumbnail) {
+                    rawImgs = [p.thumbnail];
+                }
+
+                const imgList = rawImgs
+                    .map((img, idx) => {
+                        if (typeof img === 'string') {
+                            return { url: img.trim(), is_primary: idx === 0 };
+                        }
+                        return {
+                            url: (img.url || img.secure_url || '').trim(),
+                            is_primary: img.is_primary !== undefined ? img.is_primary : idx === 0,
+                            public_id: img.public_id,
+                        };
+                    })
+                    .filter((img) => Boolean(img.url));
+
+                setExistingImages(imgList);
+
+                const catId = p.category_id?._id || p.category_id || '';
+                const subCatId = p.sub_category_id?._id || p.sub_category_id || '';
 
                 setForm({
                     product_name: p.product_name || p.title || '',
-                    brand: p.brand || '',
+                    brand: p.brand || defaultSellerBrand || '',
                     description: p.description || '',
-                    category_id: p.category_id?._id || p.category_id || '',
-                    sub_category_id: p.sub_category_id?._id || p.sub_category_id || '',
+                    category_id: catId,
+                    sub_category_id: subCatId,
                     price: p.price || '',
                     compare_at_price: p.compare_at_price || '',
                     sku: p.sku || '',
-                    stock: p.stock ?? p.quantity ?? 0,
+                    stock: p.stock_quantity ?? p.stock ?? p.quantity ?? 0,
                     status: p.status || 'active',
-                    images: imgUrls.length ? imgUrls : [''],
+                    images: imgList,
                 });
+
+                if (catId) {
+                    fetchSubCategories(catId);
+                }
             } else {
                 toast.error('Could not find product details');
             }
@@ -96,14 +159,24 @@ const SellerEditProduct = () => {
     };
 
     const fetchSubCategories = async (catId) => {
+        if (!catId) {
+            setSubCategories([]);
+            return;
+        }
+        setLoadingSubCategories(true);
         try {
             const res = await ApiService.getPublicSubCategories(catId);
             if (res?.data?.data) {
                 const list = Array.isArray(res.data.data) ? res.data.data : res.data.data.subCategories || [];
                 setSubCategories(list);
+            } else {
+                setSubCategories([]);
             }
         } catch (err) {
             console.error('Failed to load subcategories:', err);
+            setSubCategories([]);
+        } finally {
+            setLoadingSubCategories(false);
         }
     };
 
@@ -114,17 +187,40 @@ const SellerEditProduct = () => {
             const exists = prev.some((c) => (c._id || c.id) === newCatId);
             return exists ? prev : [newCategory, ...prev];
         });
+        const newSubId = newSubCategory ? (newSubCategory._id || newSubCategory.id) : '';
         setForm((prev) => ({
             ...prev,
             category_id: newCatId,
-            sub_category_id: newSubCategory ? (newSubCategory._id || newSubCategory.id) : prev.sub_category_id,
+            sub_category_id: newSubId,
         }));
         if (newSubCategory) {
-            const newSubId = newSubCategory._id || newSubCategory.id;
+            setSubCategories([newSubCategory]);
+        } else {
+            fetchSubCategories(newCatId);
+        }
+    };
+
+    const handleSubCategoryCreated = (newSubCategory, parentCategory) => {
+        if (!newSubCategory) return;
+        const newSubId = newSubCategory._id || newSubCategory.id;
+        const parentCatId = parentCategory?._id || parentCategory?.id || form.category_id;
+
+        if (parentCatId && form.category_id !== parentCatId) {
+            setForm((prev) => ({
+                ...prev,
+                category_id: parentCatId,
+                sub_category_id: newSubId,
+            }));
+            fetchSubCategories(parentCatId);
+        } else {
             setSubCategories((prev) => {
                 const exists = prev.some((sc) => (sc._id || sc.id) === newSubId);
-                return exists ? prev : [newSubCategory, ...prev];
+                return exists ? prev : [...prev, newSubCategory];
             });
+            setForm((prev) => ({
+                ...prev,
+                sub_category_id: newSubId,
+            }));
         }
     };
 
@@ -133,23 +229,6 @@ const SellerEditProduct = () => {
         setForm((prev) => ({
             ...prev,
             [name]: type === 'checkbox' ? checked : value,
-        }));
-    };
-
-    const handleImageUrlChange = (index, value) => {
-        const updated = [...form.images];
-        updated[index] = value;
-        setForm((prev) => ({ ...prev, images: updated }));
-    };
-
-    const addImageField = () => {
-        setForm((prev) => ({ ...prev, images: [...prev.images, ''] }));
-    };
-
-    const removeImageField = (index) => {
-        setForm((prev) => ({
-            ...prev,
-            images: prev.images.filter((_, i) => i !== index),
         }));
     };
 
@@ -165,7 +244,31 @@ const SellerEditProduct = () => {
             return;
         }
 
-        const validImages = form.images.filter((img) => img.trim().length > 0);
+        // Respect existing images: if seller hasn't touched or added new, preserve existing
+        const imagesToCheck = (form.images && form.images.length > 0) ? form.images : existingImages;
+        const validImages = (imagesToCheck || [])
+            .map((img, idx) => {
+                const url = typeof img === 'string' ? img.trim() : (img.url || '').trim();
+                const is_primary = typeof img === 'object' && img.is_primary !== undefined ? img.is_primary : idx === 0;
+                return { url, is_primary, public_id: img.public_id };
+            })
+            .filter((img) => img.url.length > 0);
+
+        if (validImages.length === 0) {
+            toast.error('Please attach at least one product photo');
+            return;
+        }
+
+        if (validImages.length > 10) {
+            toast.error('You can only attach up to 10 product photos');
+            return;
+        }
+
+        // Put cover / primary image at the front
+        const sortedImages = [
+            ...validImages.filter((img) => img.is_primary),
+            ...validImages.filter((img) => !img.is_primary),
+        ];
 
         const payload = {
             product_name: form.product_name.trim(),
@@ -177,8 +280,7 @@ const SellerEditProduct = () => {
             compare_at_price: form.compare_at_price ? Number(form.compare_at_price) : undefined,
             sku: form.sku.trim(),
             stock: Number(form.stock || 0),
-            status: form.status,
-            images: validImages.map((url) => ({ url, is_primary: false })),
+            images: sortedImages,
         };
 
         setSubmitting(true);
@@ -192,7 +294,11 @@ const SellerEditProduct = () => {
             }
         } catch (err) {
             console.error('Update product error:', err);
-            toast.error(err?.response?.data?.message || 'Failed to update product');
+            const errDetails = err?.response?.data?.errors;
+            const errorMsg = Array.isArray(errDetails) && errDetails.length > 0
+                ? errDetails.map((e) => e.message).join(', ')
+                : (err?.response?.data?.message || 'Failed to update product');
+            toast.error(errorMsg);
         } finally {
             setSubmitting(false);
         }
@@ -361,44 +467,13 @@ const SellerEditProduct = () => {
                         </div>
                     </div>
 
-                    {/* Media */}
-                    <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                                <FiUploadCloud className="text-indigo-600" />
-                                Product Images (URLs)
-                            </h3>
-                            <button
-                                type="button"
-                                onClick={addImageField}
-                                className="text-xs font-bold text-sky-600 hover:text-blue-700"
-                            >
-                                + Add Another Image URL
-                            </button>
-                        </div>
-
-                        <div className="space-y-3">
-                            {form.images.map((imgUrl, index) => (
-                                <div key={index} className="flex items-center gap-2">
-                                    <input
-                                        type="url"
-                                        value={imgUrl}
-                                        onChange={(e) => handleImageUrlChange(index, e.target.value)}
-                                        placeholder="Image URL"
-                                        className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm focus:border-sky-500 focus:outline-none"
-                                    />
-                                    {form.images.length > 1 && (
-                                        <button
-                                            type="button"
-                                            onClick={() => removeImageField(index)}
-                                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition"
-                                        >
-                                            <FiX className="h-4 w-4" />
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
+                    {/* Media / Images */}
+                    <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm">
+                        <ProductImageUpload
+                            images={form.images}
+                            onChange={(updatedImages) => setForm((prev) => ({ ...prev, images: updatedImages }))}
+                            maxImages={10}
+                        />
                     </div>
                 </div>
 
@@ -412,11 +487,14 @@ const SellerEditProduct = () => {
                             </h3>
                             <button
                                 type="button"
-                                onClick={() => setShowCategoryModal(true)}
-                                className="inline-flex items-center gap-1 text-xs font-semibold text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition"
+                                onClick={() => {
+                                    setCategoryModalMode('category');
+                                    setShowCategoryModal(true);
+                                }}
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-lg transition"
                             >
                                 <FiPlus className="h-3.5 w-3.5" />
-                                + Add Custom
+                                Add Custom
                             </button>
                         </div>
 
@@ -425,12 +503,33 @@ const SellerEditProduct = () => {
                                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
                                     Primary Category
                                 </label>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setCategoryModalMode('category');
+                                        setShowCategoryModal(true);
+                                    }}
+                                    className="text-[11px] font-semibold text-sky-600 hover:text-sky-700 hover:underline"
+                                >
+                                    + Add New
+                                </button>
                             </div>
                             <select
                                 name="category_id"
                                 value={form.category_id}
-                                onChange={handleChange}
-                                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-sky-500 focus:outline-none"
+                                onChange={(e) => {
+                                    if (e.target.value === '__add_new_category__') {
+                                        setCategoryModalMode('category');
+                                        setShowCategoryModal(true);
+                                    } else {
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            category_id: e.target.value,
+                                            sub_category_id: '',
+                                        }));
+                                    }
+                                }}
+                                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 bg-white"
                             >
                                 <option value="">Select Category</option>
                                 {categories.map((c) => (
@@ -438,50 +537,107 @@ const SellerEditProduct = () => {
                                         {c.category_name || c.name}
                                     </option>
                                 ))}
+                                <option value="__add_new_category__" className="text-sky-600 font-bold bg-sky-50">
+                                    ➕ + Add New Primary Category...
+                                </option>
                             </select>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                                Sub Category
-                            </label>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    Sub Category
+                                </label>
+                                {form.category_id && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setCategoryModalMode('sub_category');
+                                            setShowCategoryModal(true);
+                                        }}
+                                        className="text-[11px] font-semibold text-sky-600 hover:text-sky-700 hover:underline"
+                                    >
+                                        + Add Sub-Category
+                                    </button>
+                                )}
+                            </div>
                             <select
                                 name="sub_category_id"
                                 value={form.sub_category_id}
-                                onChange={handleChange}
-                                disabled={!subCategories.length}
-                                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-sky-500 focus:outline-none disabled:opacity-50"
+                                onChange={(e) => {
+                                    if (e.target.value === '__add_new_sub__') {
+                                        setCategoryModalMode('sub_category');
+                                        setShowCategoryModal(true);
+                                    } else {
+                                        handleChange(e);
+                                    }
+                                }}
+                                disabled={!form.category_id || loadingSubCategories}
+                                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-50 disabled:bg-slate-50 bg-white"
                             >
-                                <option value="">Select Sub Category</option>
-                                {subCategories.map((sc) => (
-                                    <option key={sc._id || sc.id} value={sc._id || sc.id}>
-                                        {sc.sub_category_name || sc.name}
-                                    </option>
-                                ))}
+                                {!form.category_id ? (
+                                    <option value="">Select Primary Category First</option>
+                                ) : loadingSubCategories ? (
+                                    <option value="">Loading sub-categories...</option>
+                                ) : (
+                                    <>
+                                        <option value="">
+                                            {subCategories.length === 0
+                                                ? 'No sub-categories yet (Click below to add)'
+                                                : 'Select Sub Category'}
+                                        </option>
+                                        {subCategories.map((sc) => (
+                                            <option key={sc._id || sc.id} value={sc._id || sc.id}>
+                                                {sc.sub_category_name || sc.name}
+                                            </option>
+                                        ))}
+                                        <option value="__add_new_sub__" className="text-sky-600 font-bold bg-sky-50">
+                                            ➕ + Add New Sub-Category...
+                                        </option>
+                                    </>
+                                )}
                             </select>
+                            {form.category_id && !loadingSubCategories && subCategories.length === 0 && (
+                                <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1">
+                                    <span>No sub-categories found. Click the dropdown or button above to add one.</span>
+                                </p>
+                            )}
                         </div>
                     </div>
 
                     <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm space-y-4">
                         <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
                             <FiTag className="text-slate-600" />
-                            Listing Status
+                            Marketplace Status
                         </h3>
 
-                        <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                                Status
-                            </label>
-                            <select
-                                name="status"
-                                value={form.status}
-                                onChange={handleChange}
-                                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-sky-500 focus:outline-none"
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Current Status</span>
+                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize border ${
+                                    form.status === 'active'
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : form.status === 'suspended'
+                                        ? 'bg-orange-50 text-orange-700 border-orange-200'
+                                        : form.status === 'pending'
+                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                        : 'bg-slate-100 text-slate-600 border-slate-200'
+                                }`}>
+                                    {form.status || 'Pending'}
+                                </span>
+                            </div>
+
+                            <p className="text-[11px] text-slate-500 leading-relaxed">
+                                Marketplace status is managed by Zyvento Admin. To request status changes (e.g. Activate or Unsuspend), please submit a request.
+                            </p>
+
+                            <button
+                                type="button"
+                                onClick={() => navigate('/seller/requests')}
+                                className="w-full text-center py-2 px-3 rounded-xl bg-sky-50 text-sky-700 hover:bg-sky-100 text-xs font-semibold transition border border-sky-200"
                             >
-                                <option value="active">Active</option>
-                                <option value="draft">Draft</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
+                                Request Status Change →
+                            </button>
                         </div>
 
                         <div className="pt-4 border-t border-slate-100">
@@ -501,7 +657,11 @@ const SellerEditProduct = () => {
             <AddCategoryModal
                 isOpen={showCategoryModal}
                 onClose={() => setShowCategoryModal(false)}
+                initialMode={categoryModalMode}
+                selectedCategoryId={form.category_id}
+                categories={categories}
                 onCategoryCreated={handleCategoryCreated}
+                onSubCategoryCreated={handleSubCategoryCreated}
             />
         </div>
     );

@@ -17,7 +17,6 @@ import UserAvatar from '../../../components/common/UserAvatar';
 const MAIN_USER_TYPES = [
     { value: 'customer', label: 'Customer' },
     { value: 'seller', label: 'Seller' },
-    { value: 'seller_employee', label: 'Seller Employee' },
     { value: 'sub_admin', label: 'Sub Admin (Platform Staff)' },
     { value: 'super_admin', label: 'Super Admin' },
 ];
@@ -29,14 +28,6 @@ const SUB_ADMIN_TYPES = [
     { value: 'seller_manager', label: 'Seller Manager' },
 ];
 
-const EMPLOYEE_TYPES = [
-    { value: 'manager', label: 'Manager (Full Seller Access)' },
-    { value: 'product_manager', label: 'Product Manager' },
-    { value: 'order_manager', label: 'Order Manager' },
-    { value: 'inventory_manager', label: 'Inventory Manager' },
-    { value: 'support_staff', label: 'Support Staff' },
-    { value: 'account_manager', label: 'Account Manager' },
-];
 
 const STATUS_OPTIONS = [
     { value: 'active', label: 'Active' },
@@ -50,7 +41,6 @@ const EMPTY_FORM = {
     password: '', password_confirmation: '',
     user_type: 'customer',
     sub_admin_type: '',
-    employee_type: '',
     seller_id: '',
     status: 'active',
     date_of_birth: '', gender: '', address: '', city: '', state: '',
@@ -63,7 +53,6 @@ const USER_TYPE_TO_ROLE_TYPE = {
     'super_admin': 'admin',
     'sub_admin': 'sub_admin',
     'seller': 'seller',
-    'seller_employee': 'employee',
     'customer': 'customer',
 };
 
@@ -173,7 +162,6 @@ const UserManagement = () => {
                 username: u.username || '',
                 user_type: u.user_type || 'customer',
                 sub_admin_type: u.sub_admin_type || '',
-                employee_type: u.employee_type || '',
                 seller_id: (typeof u.seller_id === 'object' ? u.seller_id?._id : u.seller_id) || '',
                 status: u.account_status || 'active',
                 date_of_birth: u.date_of_birth ? new Date(u.date_of_birth).toISOString().slice(0, 10) : '',
@@ -275,10 +263,7 @@ const UserManagement = () => {
             const next = { ...prev, [name]: value };
             if (name === 'user_type') {
                 if (value !== 'sub_admin') next.sub_admin_type = '';
-                if (value !== 'seller_employee') {
-                    next.employee_type = '';
-                    next.seller_id = '';
-                }
+                if (value !== 'seller') next.seller_id = '';
             }
             return next;
         });
@@ -320,9 +305,6 @@ const UserManagement = () => {
         if (formData.user_type === 'sub_admin' && !formData.sub_admin_type) {
             e.sub_admin_type = 'Sub-admin type is required';
         }
-        if (formData.user_type === 'seller_employee' && !formData.employee_type) {
-            e.employee_type = 'Employee type is required';
-        }
 
         if (!isEditMode) {
             if (!formData.password) e.password = 'Password is required';
@@ -342,7 +324,7 @@ const UserManagement = () => {
         if (!originalData) return true;
         const fields = [
             'first_name', 'last_name', 'email', 'phone', 'username',
-            'user_type', 'sub_admin_type', 'employee_type', 'seller_id',
+            'user_type', 'sub_admin_type', 'seller_id',
             'status', 'date_of_birth', 'gender', 'address', 'city',
             'state', 'country', 'postal_code'
         ];
@@ -389,9 +371,6 @@ const UserManagement = () => {
 
             if (formData.user_type === 'sub_admin') {
                 payload.sub_admin_type = formData.sub_admin_type;
-            }
-            if (formData.user_type === 'seller_employee') {
-                payload.employee_type = formData.employee_type;
             }
 
             if (formData.password) payload.password = formData.password;
@@ -479,7 +458,6 @@ const UserManagement = () => {
 
     const initials = `${formData.first_name?.[0] || ''}${formData.last_name?.[0] || ''}`.toUpperCase() || 'U';
     const showSubAdmin = formData.user_type === 'sub_admin';
-    const showEmployee = formData.user_type === 'seller_employee';
 
     if (fetchLoading) {
         return (
@@ -579,18 +557,6 @@ const UserManagement = () => {
                             />
                         )}
 
-                        {showEmployee && (
-                            <SelectField
-                                label="Employee Type"
-                                name="employee_type"
-                                icon={FaUserTag}
-                                required
-                                value={formData.employee_type}
-                                error={errors.employee_type}
-                                onChange={handleChange}
-                                options={[{ value: '', label: 'Select Employee Type' }, ...EMPLOYEE_TYPES]}
-                            />
-                        )}
 
                         {/* ASSIGNED ROLES - filtered by selected user_type and active status */}
                         <UserRoleMultiSelect

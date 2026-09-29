@@ -10,10 +10,6 @@ const Helpers = require('../../utils/helpers');
 const User = require('../../models/user.model');
 const Seller = require('../../models/seller.model');
 const SubAdmin = require('../../models/sub_admin.model')
-const Employee = require('../../models/employee.model');
-const EmployeeActivityLog = require('../../models/employee_activity_log.model');
-const EmployeePermission = require('../../models/employee_permission.model');
-const EmployeeRoleHistory = require('../../models/employee_role_history.model');
 const Transaction = require('../../models/transaction.model');
 const Category = require('../../models/category.model');
 const SubCategory = require('../../models/sub_category.model');
@@ -36,6 +32,7 @@ const logger = require('../../utils/logger');
 const constants = require('../../config/constants');
 const permissionService = require('./permission.service');
 const auditService = require('../audit.service');
+const cloudinaryHelper = require('../../utils/cloudinary.helper');
 
 
 
@@ -430,7 +427,6 @@ class AdminService {
         search = null,
         userType = null,
         subAdminType = null,
-        employeeType = null,
         accountStatus = null,
         sortBy = 'created_at',
         sortOrder = 'desc',
@@ -439,7 +435,7 @@ class AdminService {
     }) {
         const query = {};
 
-        // 🔥 ALWAYS hide deleted users (unless admin explicitly asks for "deleted")
+        // ALWAYS hide deleted users (unless admin explicitly asks for "deleted")
         if (accountStatus && accountStatus !== 'all') {
             query.account_status = accountStatus;
         } else {
@@ -457,10 +453,6 @@ class AdminService {
             query.sub_admin_type = subAdminType;
         }
 
-        // Filter: employee_type
-        if (employeeType && employeeType !== 'all') {
-            query.employee_type = employeeType;
-        }
 
         // Filter: search
         if (search) {
@@ -492,7 +484,6 @@ class AdminService {
             User.find(query)
                 .select('-password -refresh_token -password_reset_token')
                 .populate('seller_id', 'business_name account_status')
-                .populate('employee_id', 'employee_type designation')
                 .populate('role_ids', 'role_name role_key')
                 .sort(sortOptions)
                 .skip((page - 1) * limit)
@@ -526,7 +517,6 @@ class AdminService {
                     superAdmins: { $sum: { $cond: [{ $eq: ['$user_type', 'super_admin'] }, 1, 0] } },
                     subAdmins: { $sum: { $cond: [{ $eq: ['$user_type', 'sub_admin'] }, 1, 0] } },
                     sellers: { $sum: { $cond: [{ $eq: ['$user_type', 'seller'] }, 1, 0] } },
-                    sellerEmployees: { $sum: { $cond: [{ $eq: ['$user_type', 'seller_employee'] }, 1, 0] } },
                     customers: { $sum: { $cond: [{ $eq: ['$user_type', 'customer'] }, 1, 0] } }
                 }
             }
@@ -534,7 +524,7 @@ class AdminService {
 
         return result[0] || {
             totalUsers: 0, activeUsers: 0, inactiveUsers: 0, blockedUsers: 0, pendingUsers: 0,
-            superAdmins: 0, subAdmins: 0, sellers: 0, sellerEmployees: 0, customers: 0
+            superAdmins: 0, subAdmins: 0, sellers: 0, customers: 0
         };
     }
 
@@ -554,7 +544,6 @@ class AdminService {
             .populate('role_ids')
             .populate('direct_permissions')
             .populate('seller_id')
-            .populate('employee_id')
             .lean();
 
         if (!user) {
@@ -564,8 +553,7 @@ class AdminService {
         let additionalData = {};
 
         if (
-            (user.user_type === constants.USER_TYPES.SELLER ||
-                user.user_type === constants.USER_TYPES.SELLER_EMPLOYEE) &&
+            user.user_type === constants.USER_TYPES.SELLER &&
             user.seller_id
         ) {
             const seller = await Seller.findById(user.seller_id)
@@ -591,7 +579,7 @@ class AdminService {
     async createUser(createData, adminUserId) {
         const {
             first_name, last_name, email, mobile_number, password,
-            user_type, sub_admin_type, employee_type, seller_id,
+            user_type, sub_admin_type, seller_id,
             account_status, username
         } = createData;
 
@@ -623,14 +611,9 @@ class AdminService {
 
         // Conditional validation
         const finalSubAdminType = user_type === 'sub_admin' ? (sub_admin_type || null) : null;
-        const finalEmployeeType = user_type === 'seller_employee' ? (employee_type || null) : null;
 
         if (user_type === 'sub_admin' && !finalSubAdminType) {
             throw ApiError.badRequest('Sub-admin type is required for sub-admin');
-        }
-
-        if (user_type === 'seller_employee' && !finalEmployeeType) {
-            throw ApiError.badRequest('Employee type is required for seller employee');
         }
 
         const newUser = new User({
@@ -642,7 +625,6 @@ class AdminService {
             username: username ? username.toLowerCase() : null,
             user_type,
             sub_admin_type: finalSubAdminType,
-            employee_type: finalEmployeeType,
             seller_id: seller_id || null,
             account_status: account_status || 'pending',
             is_email_verified: false,
@@ -675,7 +657,7 @@ class AdminService {
 
         const allowedFields = [
             'first_name', 'last_name', 'email', 'mobile_number', 'username',
-            'user_type', 'sub_admin_type', 'employee_type', 'seller_id',
+            'user_type', 'sub_admin_type', 'seller_id',
             'account_status', 'date_of_birth', 'gender',
             'address', 'city', 'state', 'country', 'postal_code',
             'preferences'
@@ -687,8 +669,7 @@ class AdminService {
         if (newUserType !== 'sub_admin') {
             updateData.sub_admin_type = null;
         }
-        if (newUserType !== 'seller_employee') {
-            updateData.employee_type = null;
+        if (newUserType !== 'seller') {
             updateData.seller_id = null;
         }
 
@@ -738,15 +719,6 @@ class AdminService {
                 });
 
                 await SubAdmin.updateMany({ user_id: user._id }, {
-                    $set: {
-                        ...(updateData.first_name !== undefined || updateData.last_name !== undefined) && { full_name: newFullName },
-                        ...(updateData.email !== undefined) && { email: user.email },
-                        ...(updateData.mobile_number !== undefined) && { mobile_number: user.mobile_number },
-                        ...baseSync
-                    }
-                });
-
-                await Employee.updateMany({ user_id: user._id }, {
                     $set: {
                         ...(updateData.first_name !== undefined || updateData.last_name !== undefined) && { full_name: newFullName },
                         ...(updateData.email !== undefined) && { email: user.email },
@@ -819,8 +791,15 @@ class AdminService {
         if (user.user_type === 'sub_admin') {
             await SubAdmin.deleteMany({ user_id: user._id });
         }
-        if (user.user_type === 'seller_employee') {
-            await Employee.deleteMany({ user_id: user._id });
+
+        // Delete user profile image from Cloudinary or local storage
+        const imgToDelete = user.profile_image_public_id || user.profile_image;
+        if (imgToDelete) {
+            try {
+                await cloudinaryHelper.deleteFile(imgToDelete);
+            } catch (err) {
+                logger.warn('Failed to delete user profile image on admin deleteUser:', err?.message);
+            }
         }
 
         // Permanently remove from database
@@ -948,7 +927,6 @@ class AdminService {
 
         // Fetch related data in parallel
         const [
-            employees,
             totalProducts,
             activeProducts,
             totalOrders,
@@ -957,12 +935,6 @@ class AdminService {
             reviewsData,
             complaintStats,
         ] = await Promise.all([
-            // Employees under this seller
-            Employee.find({ $or: [{ seller_id: sellerId }, { seller_ids: sellerId }] })
-                .populate('user_id', 'first_name last_name email mobile_number user_code profile_image account_status')
-                .populate('role_ids', 'role_name role_key')
-                .lean(),
-
             // Product counts
             Product.countDocuments({ seller_id: sellerId, deleted_at: null }),
             Product.countDocuments({ seller_id: sellerId, status: 'active', deleted_at: null }),
@@ -1044,12 +1016,61 @@ class AdminService {
         });
         const totalComplaints = Object.values(complaintsByStatus).reduce((a, b) => a + b, 0);
 
+        // Fetch products with populated categories
+        const productsList = await Product.find({ seller_id: sellerId, deleted_at: null })
+            .populate('category_id', 'category_name')
+            .populate('sub_category_id', 'sub_category_name')
+            .sort({ created_at: -1 })
+            .lean();
+
+        const prodIds = productsList.map((p) => p._id);
+        const inventories = await Inventory.find({ product_id: { $in: prodIds } }).lean();
+        const invMap = {};
+        inventories.forEach((inv) => {
+            invMap[inv.product_id.toString()] = inv;
+        });
+
+        const products = productsList.map((p) => ({
+            ...p,
+            inventory: invMap[p._id.toString()] || {
+                stock_quantity: p.stock_quantity || 0,
+                available_quantity: p.stock_quantity || 0,
+                stock_status: (p.stock_quantity || 0) > 0 ? 'in_stock' : 'out_of_stock',
+            },
+        }));
+
+        // Fetch seller activity logs (profile updates, product operations, orders, etc.)
+        const sellerUserIds = [seller.user_id?._id || seller.user_id].filter(Boolean);
+
+        const activities = await AuditLog.find({
+            $or: [
+                { user_id: { $in: sellerUserIds } },
+                { module_id: sellerId },
+                { module: 'seller', module_id: sellerId },
+                { module: 'product', module_id: { $in: prodIds } },
+            ],
+        })
+            .populate('user_id', 'first_name last_name email user_type profile_image')
+            .sort({ created_at: -1 })
+            .limit(100)
+            .lean();
+
+        // Fetch complaints list
+        const complaintsList = await CustomerComplaint.find({ seller_id: sellerId, deleted_at: null })
+            .populate('user_id', 'first_name last_name email')
+            .populate('order_id', 'order_code order_number')
+            .sort({ created_at: -1 })
+            .limit(50)
+            .lean();
+
         return {
             seller,
-            employees,
+            products,
+            activities,
+            complaintsList,
             statistics: {
-                totalProducts,
-                activeProducts,
+                totalProducts: products.length,
+                activeProducts: products.filter((p) => p.status === 'active').length,
                 totalOrders,
                 reviews: reviewStats,
                 complaints: {
@@ -1068,6 +1089,8 @@ class AdminService {
 
         const allowedFields = [
             'business_name',
+            'store_name',
+            'brand_name',
             'owner_name',
             'email',
             'mobile_number',
@@ -1247,10 +1270,42 @@ class AdminService {
 
         // ============ CASCADE DELETE ALL RELATED DATA ============
 
-        // 1. Delete all products of this seller
+        // 1. Delete all product images from Cloudinary and products from DB
+        try {
+            const sellerProducts = await Product.find({ seller_id: sellerId }).select('images');
+            for (const prod of sellerProducts) {
+                if (Array.isArray(prod.images)) {
+                    for (const img of prod.images) {
+                        const imgUrl = typeof img === 'string' ? img : (img.url || img.secure_url);
+                        if (imgUrl) await cloudinaryHelper.deleteFile(imgUrl).catch(() => {});
+                    }
+                }
+            }
+        } catch (e) {
+            logger.warn('Failed cleaning seller product images during cascade delete:', e?.message);
+        }
         const deletedProducts = await Product.deleteMany({ seller_id: sellerId });
 
-        // 2. Delete all reviews for this seller
+        // 2. Delete all review images/videos from Cloudinary and reviews from DB
+        try {
+            const sellerReviews = await Review.find({ seller_id: sellerId }).select('images videos');
+            for (const rev of sellerReviews) {
+                if (Array.isArray(rev.images)) {
+                    for (const img of rev.images) {
+                        const imgUrl = typeof img === 'string' ? img : (img.url || img.secure_url);
+                        if (imgUrl) await cloudinaryHelper.deleteFile(imgUrl).catch(() => {});
+                    }
+                }
+                if (Array.isArray(rev.videos)) {
+                    for (const vid of rev.videos) {
+                        const vidUrl = typeof vid === 'string' ? vid : (vid.url || vid.secure_url);
+                        if (vidUrl) await cloudinaryHelper.deleteFile(vidUrl, { resource_type: 'video' }).catch(() => {});
+                    }
+                }
+            }
+        } catch (e) {
+            logger.warn('Failed cleaning seller review media during cascade delete:', e?.message);
+        }
         const deletedReviews = await Review.deleteMany({ seller_id: sellerId });
 
         // 3. Delete all complaints for this seller
@@ -1259,28 +1314,32 @@ class AdminService {
         // 4. Delete all order items for this seller (order records stay for history)
         const deletedOrderItems = await OrderItem.deleteMany({ seller_id: sellerId });
 
-        // 5. Find and delete all employees of this seller
-        const employees = await Employee.find({
-            $or: [{ seller_id: sellerId }, { seller_ids: sellerId }],
-        }).select('user_id');
-
-        const employeeUserIds = employees.map((e) => e.user_id).filter(Boolean);
-
-        await Employee.deleteMany({
-            $or: [{ seller_id: sellerId }, { seller_ids: sellerId }],
-        });
-
-        // 6. Delete employee user accounts
-        if (employeeUserIds.length > 0) {
-            await User.deleteMany({ _id: { $in: employeeUserIds } });
+        // 5. Clean up seller logo, banner, and documents from Cloudinary
+        try {
+            if (seller.logo) await cloudinaryHelper.deleteFile(seller.logo).catch(() => {});
+            if (seller.banner) await cloudinaryHelper.deleteFile(seller.banner).catch(() => {});
+            if (Array.isArray(seller.documents)) {
+                for (const doc of seller.documents) {
+                    if (doc.document_url) await cloudinaryHelper.deleteFile(doc.document_url).catch(() => {});
+                }
+            }
+        } catch (e) {
+            logger.warn('Failed cleaning seller documents/branding during cascade delete:', e?.message);
         }
 
-        // 7. Delete the linked user account (the seller's own user account)
+        // 6. Delete the linked user account and profile image
         if (sellerUserId) {
+            try {
+                const sUser = await User.findById(sellerUserId);
+                const sImg = sUser?.profile_image_public_id || sUser?.profile_image;
+                if (sImg) await cloudinaryHelper.deleteFile(sImg).catch(() => {});
+            } catch (e) {
+                logger.warn('Failed cleaning seller user profile image:', e?.message);
+            }
             await User.deleteOne({ _id: sellerUserId });
         }
 
-        // 8. Finally delete the seller document
+        // 7. Finally delete the seller document
         await Seller.deleteOne({ _id: sellerId });
 
         return {
@@ -1294,7 +1353,6 @@ class AdminService {
                 reviews_deleted: deletedReviews.deletedCount,
                 complaints_deleted: deletedComplaints.deletedCount,
                 order_items_deleted: deletedOrderItems.deletedCount,
-                employees_deleted: employees.length,
             },
         };
     }
@@ -1492,7 +1550,7 @@ class AdminService {
                 ]
             },
             {
-                user_type: { $nin: ['super_admin', 'sub_admin', 'seller', 'seller_employee'] }
+                user_type: { $nin: ['super_admin', 'sub_admin', 'seller'] }
             }
         ];
 
@@ -1534,7 +1592,7 @@ class AdminService {
         if (!user) throw ApiError.notFound('User not found');
 
         // Prevent privileged users
-        if (['super_admin', 'seller', 'seller_employee'].includes(user.user_type)) {
+        if (['super_admin', 'seller'].includes(user.user_type)) {
             throw ApiError.badRequest(`User of type "${user.user_type}" cannot become Sub-Admin`);
         }
 
@@ -1852,433 +1910,6 @@ class AdminService {
         return subAdmin;
     }
 
-    // =================== EMPLOYEE SERVICE =================
-
-    // Helper: Generate Employee Code 
-    _generateEmployeeCode() {
-        const ts = Date.now().toString(36).toUpperCase();
-        const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
-        return `EMP-${ts}${rand}`;
-    }
-
-    // Get Employee Stats 
-    async getEmployeeStats() {
-        const base = { is_deleted: { $ne: true } };
-        const [total, active, inactive, blocked, pending, deletedCount] = await Promise.all([
-            Employee.countDocuments(base),
-            Employee.countDocuments({ ...base, status: 'active' }),
-            Employee.countDocuments({ ...base, status: 'inactive' }),
-            Employee.countDocuments({ ...base, status: 'blocked' }),
-            Employee.countDocuments({ ...base, status: 'pending' }),
-            Employee.countDocuments({ is_deleted: true })
-        ]);
-
-        const byType = await Employee.aggregate([
-            { $match: { is_deleted: { $ne: true } } },
-            { $group: { _id: '$employee_type', count: { $sum: 1 } } }
-        ]);
-
-        return {
-            total, active, inactive, blocked, pending,
-            deleted: deletedCount,
-            by_type: byType.reduce((acc, t) => { acc[t._id] = t.count; return acc; }, {})
-        };
-    }
-
-    // Get All Employees
-    async getAllEmployees(query = {}) {
-        const {
-            page = 1, limit = 10,
-            search = '', status = 'all', employee_type = 'all',
-            seller_id = 'all', view = 'active',
-            sort_by = 'created_at', sort_order = 'desc',
-            start_date, end_date
-        } = query;
-
-        const filter = view === 'deleted'
-            ? { is_deleted: true }
-            : { is_deleted: { $ne: true } };
-
-        if (status !== 'all') filter.status = status;
-        if (employee_type !== 'all') filter.employee_type = employee_type;
-        if (seller_id !== 'all') filter.seller_id = seller_id;
-
-        if (search) {
-            filter.$or = [
-                { employee_code: { $regex: search, $options: 'i' } },
-                { full_name: { $regex: search, $options: 'i' } },
-                { email: { $regex: search, $options: 'i' } }
-            ];
-        }
-
-        if (start_date || end_date) {
-            filter.created_at = {};
-            if (start_date) filter.created_at.$gte = new Date(start_date);
-            if (end_date) filter.created_at.$lte = new Date(end_date);
-        }
-
-        const skip = (page - 1) * limit;
-        const sort = { [sort_by]: sort_order === 'asc' ? 1 : -1 };
-
-        const [employees, total] = await Promise.all([
-            Employee.find(filter)
-                .populate('seller_id', 'business_name seller_code')
-                .populate('role_ids', 'name display_name')
-                .sort(sort).skip(skip).limit(Number(limit)).lean(),
-            Employee.countDocuments(filter)
-        ]);
-
-        return {
-            employees,
-            pagination: {
-                total, page: Number(page), limit: Number(limit),
-                total_pages: Math.ceil(total / limit)
-            }
-        };
-    }
-
-    // Get available users for employee creation (searchable email dropdown)
-    async getAvailableUsersForEmployee({ search = '', limit = 50 } = {}) {
-        const and = [
-            {
-                $or: [
-                    { employee_id: null },
-                    { employee_id: { $exists: false } }
-                ]
-            },
-            {
-                user_type: { $nin: ['super_admin', 'sub_admin', 'seller'] }
-            }
-        ];
-
-        if (search && search.trim()) {
-            const regex = new RegExp(search.trim(), 'i');
-            and.push({
-                $or: [
-                    { email: regex },
-                    { first_name: regex },
-                    { last_name: regex },
-                    { mobile_number: regex }
-                ]
-            });
-        }
-
-        const users = await User.find({ $and: and })
-            .select('_id first_name last_name email mobile_number user_type account_status')
-            .sort({ created_at: -1 })
-            .limit(Number(limit))
-            .lean();
-
-        return { users, total: users.length };
-    }
-
-    // Get Deleted Employees
-    async getDeletedEmployees(query = {}) {
-        return this.getAllEmployees({ ...query, view: 'deleted', sort_by: 'deleted_at' });
-    }
-
-    // Get Employee By Code
-    async getEmployeeByCode(employeeCode) {
-        const emp = await Employee.findOne({
-            employee_code: employeeCode,
-            is_deleted: { $ne: true }
-        })
-            .populate('seller_id', 'business_name seller_code owner_name email')
-            .populate('role_ids', 'name display_name permissions')
-            .populate('created_by', 'email')
-            .populate('status_history.changed_by', 'email')
-            .lean();
-
-        if (!emp) throw ApiError.notFound('Employee not found');
-        return { employee: emp };
-    }
-
-    // Create Employee
-    async createEmployee(data, adminId) {
-        const {
-            user_id, seller_id, employee_type,
-            designation, department, joining_date, notes,
-            current_role_ids = [],
-            // If creating a new User:
-            first_name, last_name, email, mobile_number, password
-        } = data;
-
-        let user;
-        if (user_id) {
-            user = await User.findById(user_id);
-            if (!user) throw ApiError.notFound('User not found');
-
-            const existing = await Employee.findOne({
-                user_id,
-                is_deleted: { $ne: true }
-            });
-            if (existing) throw ApiError.badRequest('User is already an employee');
-        } else {
-            // Create new User
-            if (!first_name || !last_name || !email || !mobile_number || !password) {
-                throw ApiError.badRequest('Missing required user fields');
-            }
-            const existingUser = await User.findOne({ email: email.toLowerCase() });
-            if (existingUser) throw ApiError.badRequest('Email already registered');
-
-            user = await User.create({
-                first_name, last_name, email, mobile_number, password,
-                user_type: 'seller_employee',
-                account_status: 'active'
-            });
-        }
-
-        // Validate seller
-        const seller = await Seller.findById(seller_id);
-        if (!seller) throw ApiError.notFound('Seller not found');
-
-        // Validate roles
-        if (current_role_ids.length > 0) {
-            const roleCount = await Role.countDocuments({ _id: { $in: current_role_ids } });
-            if (roleCount !== current_role_ids.length) {
-                throw ApiError.badRequest('One or more roles are invalid');
-            }
-        }
-
-        const employee = await Employee.create({
-            employee_code: this._generateEmployeeCode(),
-            user_id: user._id,
-            seller_id,
-            created_by: adminId,
-            full_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email,
-            email: user.email,
-            mobile_number: user.mobile_number || null,
-            employee_type,
-            designation: designation || null,
-            department: department || null,
-            joining_date: joining_date || new Date(),
-            role_ids: current_role_ids,
-            role_history: current_role_ids.length > 0
-                ? [{ role_ids: current_role_ids, changed_by: adminId, reason: 'Initial assignment' }]
-                : [],
-            status: 'pending',
-            notes: notes || '',
-            status_history: [{
-                from: null, to: 'pending',
-                changed_by: adminId, reason: 'Employee created'
-            }]
-        });
-
-        // Update User link
-        await User.updateOne(
-            { _id: user._id },
-            { $set: { user_type: 'seller_employee', employee_id: employee._id, seller_id } }
-        );
-
-        return { employee };
-    }
-
-    // Update Employee
-    async updateEmployee(employeeCode, data, updatedByUserId) {
-        const employee = await Employee.findOne({
-            employee_code: employeeCode,
-            is_deleted: { $ne: true }
-        });
-        if (!employee) throw ApiError.notFound('Employee not found');
-
-        const allowed = ['employee_type', 'designation', 'department', 'joining_date', 'notes', 'mobile_number', 'full_name'];
-        allowed.forEach((key) => {
-            const val = data[key];
-            if (val !== undefined && val !== null && String(val).trim() !== '') {
-                employee[key] = typeof val === 'string' ? val.trim() : val;
-            }
-        });
-
-        // Seller change
-        if (data.seller_id && String(data.seller_id) !== String(employee.seller_id)) {
-            const seller = await Seller.findById(data.seller_id);
-            if (!seller) throw ApiError.notFound('Seller not found');
-            employee.seller_id = data.seller_id;
-        }
-
-        // Role update
-        if (Array.isArray(data.current_role_ids)) {
-            const roleCount = await Role.countDocuments({ _id: { $in: data.current_role_ids } });
-            if (roleCount !== data.current_role_ids.length) {
-                throw ApiError.badRequest('One or more roles are invalid');
-            }
-            employee.role_ids = data.current_role_ids;
-            employee.role_history.push({
-                role_ids: data.current_role_ids,
-                changed_by: updatedByUserId,
-                changed_at: new Date(),
-                reason: data.role_change_reason || 'Roles updated'
-            });
-        }
-
-        await employee.save();
-
-        // Sync User denormalized fields
-        if (data.full_name || data.mobile_number || data.seller_id) {
-            await User.updateOne(
-                { _id: employee.user_id },
-                {
-                    $set: {
-                        ...(data.full_name && {
-                            first_name: data.full_name.split(' ')[0] || '',
-                            last_name: data.full_name.split(' ').slice(1).join(' ') || ''
-                        }),
-                        ...(data.mobile_number && { mobile_number: data.mobile_number }),
-                        ...(data.seller_id && { seller_id: data.seller_id })
-                    }
-                }
-            );
-        }
-
-        return { employee };
-    }
-
-    // Update Employee Status
-    async updateEmployeeStatus(employeeCode, { status, reason, notes }, changedByUserId) {
-        const ALLOWED_TRANSITIONS = {
-            pending: ['active', 'inactive'],
-            active: ['inactive', 'blocked'],
-            inactive: ['active', 'blocked'],
-            blocked: ['active', 'inactive']
-        };
-
-        // 👇 findOne with employee_code — NOT findById
-        const employee = await Employee.findOne({
-            employee_code: employeeCode,
-            is_deleted: { $ne: true }
-        });
-        console.log("Employee : ", employee);
-
-        if (!employee) throw ApiError.notFound('Employee not found');
-
-        if (employee.status === status) {
-            throw ApiError.badRequest(`Employee is already ${status}`);
-        }
-
-        const allowed = ALLOWED_TRANSITIONS[employee.status] || [];
-        if (!allowed.includes(status)) {
-            throw ApiError.badRequest(
-                `Invalid transition: ${employee.status} → ${status}. Allowed: ${allowed.join(', ')}`
-            );
-        }
-
-        if (status === 'blocked' && (!reason || !reason.trim())) {
-            throw ApiError.badRequest('Block reason is required');
-        }
-
-        const previousStatus = employee.status;
-
-        const updatePayload = {
-            status,
-            $push: {
-                status_history: {
-                    from: previousStatus,
-                    to: status,
-                    changed_by: changedByUserId,
-                    reason: reason || '',
-                    notes: notes || '',
-                    changed_at: new Date()
-                }
-            }
-        };
-
-        const updated = await Employee.findOneAndUpdate(
-            { _id: employee._id },
-            updatePayload,
-            { new: true }
-        );
-
-        // Sync User account_status
-        const userStatusMap = {
-            active: 'active',
-            inactive: 'inactive',
-            blocked: 'blocked',
-            pending: 'pending'
-        };
-        await User.updateOne(
-            { _id: employee.user_id },
-            { $set: { account_status: userStatusMap[status] || 'pending' } }
-        );
-
-        return { employee: updated };
-    }
-
-    // Soft Delete
-    async deleteEmployee(employeeCode, deletedByUserId) {
-        const employee = await Employee.findOne({
-            employee_code: employeeCode,
-            is_deleted: { $ne: true }
-        });
-        if (!employee) throw ApiError.notFound('Employee not found');
-
-        employee.is_deleted = true;
-        employee.deleted_at = new Date();
-        employee.deleted_by = deletedByUserId;
-        employee.status_history.push({
-            from: employee.status, to: 'deleted',
-            changed_by: deletedByUserId, reason: 'Employee deleted by admin',
-            changed_at: new Date()
-        });
-
-        await employee.save();
-
-        await User.updateOne(
-            { _id: employee.user_id },
-            { $set: { account_status: 'deleted' } }
-        );
-
-        return { employee };
-    }
-
-    // Restore Employee
-    async restoreEmployee(employeeCode, restoredByUserId) {
-        const employee = await Employee.findOne({
-            employee_code: employeeCode,
-            is_deleted: true
-        });
-        if (!employee) throw ApiError.notFound('Deleted Employee not found');
-
-        const restoreStatus = employee.status === 'active' ? 'inactive' : employee.status;
-
-        employee.is_deleted = false;
-        employee.deleted_at = null;
-        employee.deleted_by = null;
-        employee.status = restoreStatus;
-        employee.status_history.push({
-            from: 'deleted', to: restoreStatus,
-            changed_by: restoredByUserId,
-            reason: 'Employee restored by admin',
-            notes: 'Restored as inactive — activate manually',
-            changed_at: new Date()
-        });
-
-        await employee.save();
-
-        await User.updateOne(
-            { _id: employee.user_id },
-            { $set: { account_status: 'inactive' } }
-        );
-
-        return { employee };
-    }
-
-    // Check Employee Access (Auth middleware use)
-    async checkEmployeeAccess(userId) {
-        const emp = await Employee.findOne({ user_id: userId }).lean();
-
-        if (!emp) return { valid: false, reason: 'Employee profile not found' };
-        if (emp.is_deleted === true) return { valid: false, reason: 'Your account has been deleted.' };
-        if (emp.status !== 'active') {
-            const reasons = {
-                pending: 'Your account is pending approval.',
-                inactive: 'Your account is inactive.',
-                blocked: 'Your account has been blocked.'
-            };
-            return { valid: false, reason: reasons[emp.status] || 'Account is not active.' };
-        }
-
-        return { valid: true, employee: emp };
-    }
 
 
     // ============ REVIEW MANAGEMENT SERVICE ============
@@ -2342,26 +1973,21 @@ class AdminService {
 
     // Get Review Stats
     async getReviewStats() {
-        const Review = require('../models/review.model');
         const [
             totalReviews,
             publishedReviews,
-            pendingReviews,
-            flaggedReviews,
-            reportedReviews,
             hiddenReviews,
+            flaggedReviews,
             rejectedReviews,
             avgRatingAgg,
         ] = await Promise.all([
             Review.countDocuments({ deleted_at: null }),
             Review.countDocuments({ status: 'published', deleted_at: null }),
-            Review.countDocuments({ status: 'pending', deleted_at: null }),
-            Review.countDocuments({ status: 'flagged', deleted_at: null }),
-            Review.countDocuments({ status: 'reported', deleted_at: null }),
             Review.countDocuments({ status: 'hidden', deleted_at: null }),
+            Review.countDocuments({ status: 'flagged', deleted_at: null }),
             Review.countDocuments({ status: 'rejected', deleted_at: null }),
             Review.aggregate([
-                { $match: { deleted_at: null, status: { $in: ['published', 'reported'] } } },
+                { $match: { deleted_at: null, status: 'published' } },
                 { $group: { _id: null, avg: { $avg: '$rating' } } },
             ]),
         ]);
@@ -2369,10 +1995,8 @@ class AdminService {
         return {
             totalReviews,
             publishedReviews,
-            pendingReviews,
-            flaggedReviews,
-            reportedReviews,
             hiddenReviews,
+            flaggedReviews,
             rejectedReviews,
             averageRating: avgRatingAgg[0]?.avg
                 ? parseFloat(avgRatingAgg[0].avg.toFixed(2))
@@ -2382,8 +2006,11 @@ class AdminService {
 
     // Get Review By ID
     async getReviewById(reviewId) {
-        const Review = require('../models/review.model');
-        const review = await Review.findById(reviewId)
+        const query = mongoose.Types.ObjectId.isValid(reviewId)
+            ? { _id: reviewId }
+            : { review_code: reviewId };
+
+        const review = await Review.findOne(query)
             .populate('user_id', 'first_name last_name email user_code profile_image')
             .populate('product_id', 'product_name product_code images price')
             .populate('seller_id', 'business_name email')
@@ -2400,7 +2027,10 @@ class AdminService {
 
     // Moderate Review (Publish/Hide/Reject/Flag)
     async moderateReview(reviewId, action, reason, adminComment, adminId) {
-        const review = await Review.findById(reviewId);
+        const query = mongoose.Types.ObjectId.isValid(reviewId)
+            ? { _id: reviewId }
+            : { review_code: reviewId };
+        const review = await Review.findOne(query);
         if (!review) {
             throw ApiError.notFound('Review not found');
         }
@@ -2412,20 +2042,24 @@ class AdminService {
             case 'publish':
                 newStatus = 'published';
                 review.published_at = new Date();
+                review.review_status = 'approved';
                 break;
             case 'hide':
                 newStatus = 'hidden';
                 review.hidden_at = new Date();
+                review.review_status = 'approved';
                 break;
             case 'reject':
                 newStatus = 'rejected';
                 review.rejected_at = new Date();
+                review.review_status = 'rejected';
                 break;
             case 'flag':
                 newStatus = 'flagged';
                 break;
             case 'unflag':
                 newStatus = 'published';
+                review.review_status = 'approved';
                 break;
             default:
                 throw ApiError.badRequest('Invalid moderation action');
@@ -2449,6 +2083,19 @@ class AdminService {
 
         await review.save();
 
+        // Recalculate product and seller ratings based on new status
+        try {
+            const reviewService = require('../review/review.service');
+            if (review.product_id) {
+                await reviewService.updateProductRating(review.product_id);
+            }
+            if (review.seller_id) {
+                await reviewService.updateSellerRating(review.seller_id);
+            }
+        } catch (ratingErr) {
+            logger.error('Failed to update ratings after review moderation:', ratingErr);
+        }
+
         return review;
     }
 
@@ -2469,31 +2116,49 @@ class AdminService {
         return code;
     }
 
-    // Get Product Stats (FIXED - Robust query)
+    // Get Product Stats (With accurate tab counts including approved & deleted)
     async getProductStats() {
-        const [total, active, pending, rejected, suspended, inactive] = await Promise.all([
-            Product.countDocuments({ deleted_at: null }),
-            Product.countDocuments({ status: 'active', approval_status: 'approved', deleted_at: null }),
-            Product.countDocuments({ $or: [{ approval_status: 'pending' }, { status: 'pending' }], deleted_at: null }),
-            Product.countDocuments({ $or: [{ approval_status: 'rejected' }, { status: 'rejected' }], deleted_at: null }),
-            Product.countDocuments({ status: 'suspended', deleted_at: null }),
-            Product.countDocuments({ status: 'inactive', deleted_at: null })
+        const [total, pending, approved, active, inactive, suspended, deleted, rejected] = await Promise.all([
+            Product.countDocuments(),
+            Product.countDocuments({ $or: [{ status: 'pending' }, { approval_status: 'pending' }], status: { $ne: 'deleted' } }),
+            Product.countDocuments({ status: 'approved' }),
+            Product.countDocuments({ status: 'active', approval_status: 'approved' }),
+            Product.countDocuments({ status: 'inactive' }),
+            Product.countDocuments({ status: 'suspended' }),
+            Product.countDocuments({ status: 'deleted' }),
+            Product.countDocuments({ $or: [{ status: 'rejected' }, { approval_status: 'rejected' }] })
         ]);
-        return { total, active, pending, rejected, suspended, inactive };
+        return { total, pending, approved, active, inactive, suspended, deleted, rejected };
     }
 
-    // Get All Products (FIXED - deleted_at filter + category 'others' fix)
+    // Get All Products (Supporting all tabs, pagination, search & filters)
     async getAllProducts({ page = 1, limit = 10, search = null, status = null, category = null, sellerId = null, sortBy = 'created_at', sortOrder = 'desc' } = {}) {
-        const query = { deleted_at: null }; // Soft-deleted hide karo
+        const query = {};
 
-        if (status) query.status = status;
-        if (category && category !== 'others') query.category_id = category;
+        if (status && status !== 'all' && status !== 'overview') {
+            if (status === 'pending') {
+                query.$or = [{ status: 'pending' }, { approval_status: 'pending' }];
+                query.status = { $ne: 'deleted' };
+            } else if (status === 'approved') {
+                query.status = 'approved';
+            } else if (status === 'rejected') {
+                query.$or = [{ status: 'rejected' }, { approval_status: 'rejected' }];
+            } else {
+                query.status = status;
+            }
+        }
+
+        if (category && category !== 'others' && category !== 'all') {
+            query.category_id = category;
+        }
         if (category === 'others') {
             const mainCategories = await Category.find().sort({ created_at: -1 }).limit(10).select('_id');
             const mainCategoryIds = mainCategories.map(c => c._id);
             query.category_id = { $nin: mainCategoryIds };
         }
-        if (sellerId) query.seller_id = sellerId;
+        if (sellerId && sellerId !== 'all') {
+            query.seller_id = sellerId;
+        }
 
         if (search) {
             const regex = new RegExp(search, 'i');
@@ -2513,7 +2178,7 @@ class AdminService {
             Product.find(query)
                 .populate('category_id', 'category_name')
                 .populate('sub_category_id', 'sub_category_name')
-                .populate('seller_id', 'business_name owner_name email')
+                .populate('seller_id', 'business_name owner_name email seller_code')
                 .skip((page - 1) * limit)
                 .limit(parseInt(limit))
                 .sort(sortOptions),
@@ -2526,7 +2191,7 @@ class AdminService {
                 page: parseInt(page),
                 limit: parseInt(limit),
                 total,
-                totalPages: Math.ceil(total / limit)
+                totalPages: Math.ceil(total / limit) || 1
             }
         };
     }
@@ -2678,62 +2343,128 @@ class AdminService {
         return { message: 'Product deleted successfully' };
     }
 
-    // Approve Product by Code
+    // Approve Product by Code (Pending -> Approved)
     async approveProductByCode(productCode, adminId) {
         const product = await Product.findOne({ product_code: productCode });
         if (!product) throw ApiError.notFound('Product not found');
 
-        product.status = 'active';
+        if (product.status === 'deleted') {
+            throw ApiError.badRequest('Cannot approve a deleted product');
+        }
+
+        product.status = 'approved';
         product.approval_status = 'approved';
         product.approved_by = adminId;
         product.approved_at = new Date();
         product.rejection_reason = null;
         await product.save();
 
+        try {
+            const auditService = require('../audit.service');
+            await auditService.log({
+                userId: adminId,
+                userType: 'super_admin',
+                action: 'approve',
+                module: 'product',
+                moduleId: product._id,
+                description: `Product "${product.product_name}" (${product.product_code}) approved by Super Admin`,
+                status: 'success'
+            });
+        } catch (_) {}
+
         return product;
     }
 
-    // Reject Product by Code
+    // Reject Product by Code (Pending -> Rejected)
     async rejectProductByCode(productCode, rejection_reason, adminId) {
         const product = await Product.findOne({ product_code: productCode });
         if (!product) throw ApiError.notFound('Product not found');
 
+        if (product.status === 'deleted') {
+            throw ApiError.badRequest('Cannot reject a deleted product');
+        }
+
         product.status = 'rejected';
         product.approval_status = 'rejected';
-        product.rejection_reason = rejection_reason;
+        product.rejection_reason = rejection_reason || 'Rejected by Admin';
         product.rejected_by = adminId;
         product.rejected_at = new Date();
         await product.save();
+
+        try {
+            const auditService = require('../audit.service');
+            await auditService.log({
+                userId: adminId,
+                userType: 'super_admin',
+                action: 'reject',
+                module: 'product',
+                moduleId: product._id,
+                description: `Product "${product.product_name}" (${product.product_code}) rejected by Super Admin: ${product.rejection_reason}`,
+                status: 'success'
+            });
+        } catch (_) {}
+
+        return product;
+    }
+
+    // Update Product Marketplace Status (Active / Inactive / Suspended)
+    async updateProductStatusByCode(productCode, { status: newStatus, reason = '' } = {}, adminId) {
+        const product = await Product.findOne({ product_code: productCode });
+        if (!product) throw ApiError.notFound('Product not found');
+
+        if (product.status === 'deleted') {
+            throw ApiError.badRequest('Cannot change status of a deleted product');
+        }
+
+        if (product.approval_status !== 'approved') {
+            throw ApiError.badRequest('Product must be approved before managing marketplace status');
+        }
+
+        const validStatuses = ['active', 'inactive', 'suspended', 'approved'];
+        if (!validStatuses.includes(newStatus)) {
+            throw ApiError.badRequest(`Invalid marketplace status: ${newStatus}`);
+        }
+
+        const oldStatus = product.status;
+        product.status = newStatus;
+        product.updated_by = adminId;
+
+        if (newStatus === 'suspended') {
+            product.suspension_reason = reason || 'Suspended by Admin';
+            product.suspended_by = adminId;
+            product.suspended_at = new Date();
+        } else {
+            product.suspension_reason = null;
+            product.suspended_by = null;
+            product.suspended_at = null;
+        }
+
+        await product.save();
+
+        try {
+            const auditService = require('../audit.service');
+            await auditService.log({
+                userId: adminId,
+                userType: 'super_admin',
+                action: newStatus === 'suspended' ? 'suspend' : (newStatus === 'active' ? 'activate' : 'update'),
+                module: 'product',
+                moduleId: product._id,
+                description: `Product "${product.product_name}" marketplace status changed from ${oldStatus} to ${newStatus}${reason ? ' (' + reason + ')' : ''}`,
+                status: 'success'
+            });
+        } catch (_) {}
 
         return product;
     }
 
     // Suspend Product by Code
     async suspendProductByCode(productCode, reason, adminId) {
-        const product = await Product.findOne({ product_code: productCode });
-        if (!product) throw ApiError.notFound('Product not found');
-
-        product.status = 'suspended';
-        product.suspension_reason = reason;
-        product.suspended_by = adminId;
-        product.suspended_at = new Date();
-        await product.save();
-
-        return product;
+        return this.updateProductStatusByCode(productCode, { status: 'suspended', reason }, adminId);
     }
 
     // Activate Product by Code
     async activateProductByCode(productCode, adminId) {
-        const product = await Product.findOne({ product_code: productCode });
-        if (!product) throw ApiError.notFound('Product not found');
-
-        product.status = 'active';
-        product.suspension_reason = null;
-        product.suspended_by = null;
-        product.suspended_at = null;
-        await product.save();
-
-        return product;
+        return this.updateProductStatusByCode(productCode, { status: 'active' }, adminId);
     }
 
     // Get Product Reviews by Code
@@ -3123,7 +2854,7 @@ class AdminService {
 
     // ==================== INVENTORY MANAGEMENT ====================
 
-    // Get All Inventory (with Product & Seller details, Stats, Dates fixed)
+    // Get All Inventory (with Product & Seller details, Stats, Dates fixed) - Read-only for Super Admin
     async getAllInventory({ page = 1, limit = 10, search = null, stockStatus = null } = {}) {
         const query = {};
 
@@ -3142,35 +2873,54 @@ class AdminService {
             query.product_id = { $in: productIds };
         }
 
-        // Fetch Inventory with populated Product and Seller
+        // Fetch Inventory with populated Product, Category, and Seller
         const [inventory, total] = await Promise.all([
             Inventory.find(query)
-                .populate('product_id', 'product_name sku price category_id images stock_quantity')
-                .populate('seller_id', 'business_name owner_name')
-                .sort({ last_stock_update: -1 })
+                .populate({
+                    path: 'product_id',
+                    select: 'product_name product_code sku price category_id images stock_quantity',
+                    populate: { path: 'category_id', select: 'category_name' }
+                })
+                .populate('seller_id', 'business_name owner_name seller_code')
+                .sort({ last_stock_update: -1, updated_at: -1 })
                 .skip((page - 1) * limit).limit(parseInt(limit)),
             Inventory.countDocuments(query)
         ]);
 
-        // Format Data for Frontend (Fix Invalid Date, Seller N/A)
+        // Format Data for Frontend (Clean labels, synchronized stock quantity, safe dates)
         const data = inventory.map(item => {
             // If Seller is null (Admin added product), show "Admin"
-            const sellerName = item.seller_id?.business_name || 'Admin';
+            const sellerName = item.seller_id?.business_name || item.seller_id?.owner_name || 'Admin';
+            const sellerCode = item.seller_id?.seller_code || null;
+
+            // Ensure stock quantity is accurately synchronized with source of truth
+            const stockQty = (item.stock_quantity !== undefined && item.stock_quantity !== null)
+                ? item.stock_quantity
+                : (item.product_id?.stock_quantity ?? 0);
+
+            const lowLimit = item.low_stock_limit || 5;
+            let status = item.stock_status;
+            if (!status || status === 'unknown') {
+                status = stockQty === 0 ? 'out_of_stock' : (stockQty <= lowLimit ? 'low_stock' : 'available');
+            }
+
+            const updatedDate = item.last_stock_update || item.updated_at || item.created_at;
 
             return {
                 _id: item._id,
                 product_id: item.product_id?._id || null,
                 product_name: item.product_id?.product_name || 'N/A',
+                product_code: item.product_id?.product_code || null,
                 product_sku: item.product_id?.sku || 'N/A',
                 product_image: item.product_id?.images?.[0] || null,
                 price: item.product_id?.price || 0,
                 category: item.product_id?.category_id?.category_name || 'N/A',
                 seller_name: sellerName,
-                stock_quantity: item.stock_quantity || 0,
-                stock_status: item.stock_status,
-                low_stock_limit: item.low_stock_limit || 5,
-                // Send Date in safe format
-                updated_at: item.updated_at ? new Date(item.updated_at).toISOString() : null
+                seller_code: sellerCode,
+                stock_quantity: stockQty,
+                stock_status: status,
+                low_stock_limit: lowLimit,
+                updated_at: updatedDate ? new Date(updatedDate).toISOString() : null
             };
         });
 
@@ -3196,54 +2946,6 @@ class AdminService {
         };
 
         return { inventory: data, stats, pagination: { page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / limit) } };
-    }
-
-    // Update Stock 
-    async updateInventoryStock(inventoryId, updateData, adminId) {
-        const inventory = await Inventory.findById(inventoryId);
-        if (!inventory) throw ApiError.notFound('Inventory not found');
-
-        const newQuantity = parseInt(updateData.stock_quantity);
-        if (isNaN(newQuantity) || newQuantity < 0) throw ApiError.badRequest('Invalid stock quantity');
-
-        // Update inventory stock
-        inventory.stock_quantity = newQuantity;
-
-        // Auto-update stock status
-        if (newQuantity === 0) {
-            inventory.stock_status = 'out_of_stock';
-        } else if (newQuantity <= inventory.low_stock_limit) {
-            inventory.stock_status = 'low_stock';
-        } else {
-            inventory.stock_status = 'available';
-        }
-
-        // Add movement log
-        inventory.stock_movements.push({
-            type: updateData.type === 'remove' ? 'remove' : 'add',
-            quantity: Math.abs(newQuantity - (inventory.last_stock_quantity || 0)),
-            reason: updateData.reason || 'Admin updated stock',
-            performed_by: adminId,
-            timestamp: new Date()
-        });
-
-        inventory.last_stock_update = new Date();
-        inventory.updated_by = adminId;
-        await inventory.save();
-
-        // 🔥 IMPORTANT: Sync with Product model
-        if (inventory.product_id) {
-            await Product.findByIdAndUpdate(
-                inventory.product_id,
-                {
-                    stock_quantity: newQuantity,
-                    updated_by: adminId,
-                    updated_at: new Date()
-                }
-            );
-        }
-
-        return inventory;
     }
 
     // ==================== ORDER MANAGEMENT ====================

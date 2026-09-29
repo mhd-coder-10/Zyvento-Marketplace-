@@ -1,70 +1,4 @@
 
-// import React, { useState, useEffect } from 'react';
-// import { useSearchParams } from 'react-router-dom';
-// import AdminTopbar from '../../../components/admin/AdminTopbar';
-// import ReviewDashboard from './ReviewDashboard';
-// import ReviewsList from './ReviewsList';
-// import ReviewReports from './ReviewReports';
-
-// const Reviews = () => {
-//     const [searchParams, setSearchParams] = useSearchParams();
-    
-//     // Read tab from URL, default to 'reviews' if not present or invalid
-//     const validTabs = ['dashboard', 'reviews', 'reports'];
-//     const initialTab = validTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'reviews';
-//     const [activeTab, setActiveTab] = useState(initialTab);
-
-//     // Update URL whenever tab changes
-//     useEffect(() => {
-//         setSearchParams({ tab: activeTab });
-//     }, [activeTab, setSearchParams]);
-
-//     const tabs = [
-//         { id: 'dashboard', label: 'Dashboard' },
-//         { id: 'reviews', label: 'Reviews' },
-//         { id: 'reports', label: 'Reports' }
-//     ];
-
-//     return (
-//         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-white">
-//             <AdminTopbar title="Review Management" subtitle="Manage customer product reviews" />
-
-//             <div className="max-w-7xl mx-auto px-4 md:px-6 space-y-6">
-                
-//                 {/* Tabs UI */}
-//                 <div className="flex gap-2 border-b border-gray-200 pb-2 overflow-x-auto">
-//                     {tabs.map(tab => (
-//                         <button
-//                             key={tab.id}
-//                             onClick={() => setActiveTab(tab.id)}
-//                             className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
-//                                 activeTab === tab.id
-//                                     ? 'bg-blue-600 !text-white shadow-md'
-//                                     : 'bg-gray-100 !text-gray-700 hover:bg-gray-200'
-//                             }`}
-//                         >
-//                             {tab.label}
-//                         </button>
-//                     ))}
-//                 </div>
-
-//                 {/* Tab Content (No Reload) */}
-//                 <div className="mt-6">
-//                     {activeTab === 'dashboard' && <ReviewDashboard />}
-//                     {activeTab === 'reviews' && <ReviewsList />}
-//                     {activeTab === 'reports' && <ReviewReports />}
-//                 </div>
-
-//             </div>
-//         </div>
-//     );
-// };
-
-// export default Reviews;
-
-
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -81,6 +15,12 @@ import {
     FiAlertCircle,
     FiThumbsUp,
     FiX,
+    FiPackage,
+    FiUser,
+    FiExternalLink,
+    FiPlay,
+    FiEyeOff,
+    FiFlag,
 } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import ApiService from '../../../api/ApiService';
@@ -89,20 +29,16 @@ import ApiService from '../../../api/ApiService';
 
 const STATUS_OPTIONS = [
     { value: 'all', label: 'All Status' },
-    { value: 'pending', label: 'Pending' },
     { value: 'published', label: 'Published' },
-    { value: 'flagged', label: 'Flagged' },
-    { value: 'reported', label: 'Reported' },
     { value: 'hidden', label: 'Hidden' },
+    { value: 'flagged', label: 'Flagged' },
     { value: 'rejected', label: 'Rejected' },
 ];
 
 const STATUS_BADGE = {
-    pending: 'bg-amber-50 text-amber-700 border-amber-200',
     published: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    hidden: 'bg-slate-100 text-slate-700 border-slate-300',
     flagged: 'bg-orange-50 text-orange-700 border-orange-200',
-    reported: 'bg-rose-50 text-rose-700 border-rose-200',
-    hidden: 'bg-slate-50 text-slate-600 border-slate-200',
     rejected: 'bg-rose-50 text-rose-700 border-rose-200',
 };
 
@@ -111,11 +47,12 @@ const formatDate = (d) =>
 
 const StatusBadge = ({ status }) => (
     <span
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold capitalize ${
-            STATUS_BADGE[status] || STATUS_BADGE.pending
+        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold capitalize ${
+            STATUS_BADGE[status] || STATUS_BADGE.published
         }`}
     >
-        {status || 'pending'}
+        {status === 'hidden' && <FiEyeOff size={11} />}
+        {status || 'published'}
     </span>
 );
 
@@ -155,7 +92,10 @@ const Reviews = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalReviews, setTotalReviews] = useState(0);
-    const itemsPerPage = 10;
+    const itemsPerPage = 15;
+    const [jumpPageInput, setJumpPageInput] = useState('');
+    const [selectedReviewForModal, setSelectedReviewForModal] = useState(null);
+    const [moderateLoading, setModerateLoading] = useState(false);
 
     useEffect(() => {
         const t = setTimeout(() => setDebouncedSearch(searchQuery), 400);
@@ -228,6 +168,26 @@ const Reviews = () => {
         setCurrentPage(1);
     };
 
+    const handleQuickModerate = async (reviewId, action, reason = '') => {
+        setModerateLoading(true);
+        try {
+            await ApiService.moderateReview(reviewId, { action, reason });
+            toast.success(`Review ${action}ed successfully`);
+            if (selectedReviewForModal && selectedReviewForModal._id === reviewId) {
+                setSelectedReviewForModal((prev) => ({
+                    ...prev,
+                    status: action === 'publish' || action === 'unflag' ? 'published' : (action === 'hide' ? 'hidden' : (action === 'reject' ? 'rejected' : (action === 'flag' ? 'flagged' : prev.status)))
+                }));
+            }
+            fetchReviews();
+            fetchStats();
+        } catch (err) {
+            toast.error(err?.response?.data?.message || `Failed to ${action} review`);
+        } finally {
+            setModerateLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-slate-50">
             {/* HEADER */}
@@ -293,18 +253,18 @@ const Reviews = () => {
                         accent="bg-emerald-500"
                     />
                     <StatCard
-                        icon={<FiClock size={18} className="text-amber-600" />}
-                        title="Pending"
-                        value={statsLoading ? '—' : stats?.pendingReviews ?? 0}
-                        color="bg-amber-100"
-                        accent="bg-amber-500"
+                        icon={<FiEyeOff size={18} className="text-slate-600" />}
+                        title="Hidden"
+                        value={statsLoading ? '—' : stats?.hiddenReviews ?? 0}
+                        color="bg-slate-100"
+                        accent="bg-slate-500"
                     />
                     <StatCard
-                        icon={<FiAlertCircle size={18} className="text-rose-600" />}
-                        title="Reported"
-                        value={statsLoading ? '—' : stats?.reportedReviews ?? 0}
-                        color="bg-rose-100"
-                        accent="bg-rose-500"
+                        icon={<FiFlag size={18} className="text-orange-600" />}
+                        title="Flagged"
+                        value={statsLoading ? '—' : stats?.flaggedReviews ?? 0}
+                        color="bg-orange-100"
+                        accent="bg-orange-500"
                     />
                     <StatCard
                         icon={<FiThumbsUp size={18} className="text-purple-600" />}
@@ -419,11 +379,11 @@ const Reviews = () => {
                             reviews.map((r) => (
                                 <div
                                     key={r._id}
-                                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-                                    onClick={() => navigate(`/admin/reviews/${r._id}`)}
+                                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-300 transition cursor-pointer"
+                                    onClick={() => setSelectedReviewForModal(r)}
                                 >
                                     <div className="flex items-start justify-between gap-3 mb-2">
-                                        <div className="flex">
+                                        <div className="flex items-center gap-1">
                                             {[1, 2, 3, 4, 5].map((n) => (
                                                 <FiStar
                                                     key={n}
@@ -435,8 +395,16 @@ const Reviews = () => {
                                                     }
                                                 />
                                             ))}
+                                            <span className="text-xs font-bold text-slate-700 ml-1">{r.rating}.0</span>
                                         </div>
-                                        <StatusBadge status={r.status} />
+                                        <div className="flex items-center gap-1.5">
+                                            {r.is_edited && (
+                                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                    Edited
+                                                </span>
+                                            )}
+                                            <StatusBadge status={r.status} />
+                                        </div>
                                     </div>
                                     <p className="font-medium text-slate-800 text-sm mb-1 line-clamp-2">
                                         {r.title || r.comment || 'No title'}
@@ -444,9 +412,10 @@ const Reviews = () => {
                                     <p className="text-xs text-slate-500">
                                         By {r.user_id?.first_name} {r.user_id?.last_name}
                                     </p>
-                                    <p className="text-xs text-slate-400 mt-1">
-                                        {r.product_id?.product_name || 'Product N/A'} • {formatDate(r.created_at)}
-                                    </p>
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-xs text-slate-400">
+                                        <span>{r.product_id?.product_name || 'Product N/A'}</span>
+                                        <span>{formatDate(r.created_at)}</span>
+                                    </div>
                                 </div>
                             ))
                         )}
@@ -461,9 +430,8 @@ const Reviews = () => {
                                         (h) => (
                                             <th
                                                 key={h}
-                                                className={`px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide ${
-                                                    h === 'Actions' ? 'text-center' : 'text-left'
-                                                }`}
+                                                className={`px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide ${h === 'Actions' ? 'text-center' : 'text-left'
+                                                    }`}
                                             >
                                                 {h}
                                             </th>
@@ -496,9 +464,16 @@ const Reviews = () => {
                                         >
                                             <td className="px-4 py-4">
                                                 <div className="min-w-0 max-w-[280px]">
-                                                    <p className="font-medium text-slate-800 truncate text-sm">
-                                                        {r.title || r.comment?.slice(0, 50) || 'No title'}
-                                                    </p>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <p className="font-medium text-slate-800 truncate text-sm">
+                                                            {r.title || r.comment?.slice(0, 50) || 'No title'}
+                                                        </p>
+                                                        {r.is_edited && (
+                                                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                                Edited
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <p className="text-xs text-slate-400 truncate">
                                                         {r.review_code}
                                                     </p>
@@ -542,13 +517,37 @@ const Reviews = () => {
                                                 {formatDate(r.created_at)}
                                             </td>
                                             <td className="px-4 py-4 text-center">
-                                                <button
-                                                    onClick={() => navigate(`/admin/reviews/${r._id}`)}
-                                                    className="p-2 text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg"
-                                                    title="View review"
-                                                >
-                                                    <FiEye size={16} />
-                                                </button>
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedReviewForModal(r)}
+                                                        className="p-2 text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg transition"
+                                                        title="View review"
+                                                    >
+                                                        <FiEye size={15} />
+                                                    </button>
+                                                    {r.status === 'published' ? (
+                                                        <button
+                                                            type="button"
+                                                            disabled={moderateLoading}
+                                                            onClick={() => handleQuickModerate(r._id, 'hide', 'Hidden by Admin')}
+                                                            className="p-2 text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-200 rounded-lg transition disabled:opacity-50"
+                                                            title="Hide Review (Excluded from public storefront)"
+                                                        >
+                                                            <FiXCircle size={15} />
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            disabled={moderateLoading}
+                                                            onClick={() => handleQuickModerate(r._id, 'publish')}
+                                                            className="p-2 text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition disabled:opacity-50"
+                                                            title="Publish Review (Show publicly)"
+                                                        >
+                                                            <FiCheckCircle size={15} />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))
@@ -557,36 +556,260 @@ const Reviews = () => {
                         </table>
                     </div>
 
-                    {/* PAGINATION */}
+                    {/* PAGINATION WITH DIRECT JUMP */}
                     {!loading && reviews.length > 0 && (
-                        <div className="grid grid-cols-1 items-center gap-3 border-t border-slate-200 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 px-4 py-4 bg-slate-50/40">
                             <p className="text-xs text-slate-500">
                                 Showing {(currentPage - 1) * itemsPerPage + 1} to{' '}
                                 {Math.min(currentPage * itemsPerPage, totalReviews)} of {totalReviews} reviews
                             </p>
-                            <div className="flex items-center justify-center gap-1 sm:justify-end">
-                                <button
-                                    onClick={() => handlePageChange(currentPage - 1)}
-                                    disabled={currentPage === 1}
-                                    className="p-2 rounded-lg border border-sky-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50"
-                                >
-                                    <FiChevronLeft size={16} />
-                                </button>
-                                <span className="px-3 text-sm text-slate-600">
-                                    Page {currentPage} of {totalPages}
-                                </span>
-                                <button
-                                    onClick={() => handlePageChange(currentPage + 1)}
-                                    disabled={currentPage === totalPages}
-                                    className="p-2 rounded-lg border border-sky-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50"
-                                >
-                                    <FiChevronRight size={16} />
-                                </button>
+                            <div className="flex flex-wrap items-center justify-center gap-2">
+                                {/* Page Jumper */}
+                                <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-white border border-slate-200 px-2 py-1 rounded-lg shadow-2xs">
+                                    <span className="text-slate-500">Go to:</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max={totalPages}
+                                        value={jumpPageInput}
+                                        onChange={(e) => setJumpPageInput(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const p = parseInt(jumpPageInput);
+                                                if (!isNaN(p) && p >= 1 && p <= totalPages) {
+                                                    handlePageChange(p);
+                                                    setJumpPageInput('');
+                                                }
+                                            }
+                                        }}
+                                        placeholder={currentPage.toString()}
+                                        className="w-12 text-center text-xs border border-slate-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const p = parseInt(jumpPageInput);
+                                            if (!isNaN(p) && p >= 1 && p <= totalPages) {
+                                                handlePageChange(p);
+                                                setJumpPageInput('');
+                                            }
+                                        }}
+                                        className="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[11px] transition shadow-2xs"
+                                    >
+                                        Jump
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => handlePageChange(currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                        className="p-2 rounded-lg border border-sky-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50 transition"
+                                    >
+                                        <FiChevronLeft size={16} />
+                                    </button>
+                                    <span className="px-3 text-xs font-semibold text-slate-700">
+                                        Page {currentPage} of {totalPages}
+                                    </span>
+                                    <button
+                                        onClick={() => handlePageChange(currentPage + 1)}
+                                        disabled={currentPage === totalPages}
+                                        className="p-2 rounded-lg border border-sky-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50 transition"
+                                    >
+                                        <FiChevronRight size={16} />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
                 </section>
             </main>
+
+            {/* QUICK VIEW REVIEW MODAL */}
+            {selectedReviewForModal && (
+                <div
+                    className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+                    onClick={() => setSelectedReviewForModal(null)}
+                >
+                    <div
+                        className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150 text-left"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+                            <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                                    {selectedReviewForModal.review_code || `#REV-${selectedReviewForModal._id?.slice(-6).toUpperCase()}`}
+                                </span>
+                                <StatusBadge status={selectedReviewForModal.status} />
+                                {selectedReviewForModal.is_edited && (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                        Edited
+                                    </span>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedReviewForModal(null)}
+                                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+                            >
+                                <FiX className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 space-y-4 overflow-y-auto">
+                            {/* Customer & Product Card */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                    <p className="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Customer</p>
+                                    <p className="font-bold text-slate-900 truncate">
+                                        {selectedReviewForModal.user_id?.first_name} {selectedReviewForModal.user_id?.last_name || ''}
+                                    </p>
+                                    <p className="text-slate-500 truncate text-[11px]">{selectedReviewForModal.user_id?.email || 'N/A'}</p>
+                                </div>
+                                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                    <p className="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Product</p>
+                                    <p className="font-bold text-slate-900 truncate" title={selectedReviewForModal.product_id?.product_name}>
+                                        {selectedReviewForModal.product_id?.product_name || 'N/A'}
+                                    </p>
+                                    <p className="text-slate-500 truncate text-[11px]">{selectedReviewForModal.seller_id?.business_name || 'N/A'}</p>
+                                </div>
+                            </div>
+
+                            {/* Rating and Date */}
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-xs">
+                                <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-0.5">
+                                        {[1, 2, 3, 4, 5].map((n) => (
+                                            <FiStar
+                                                key={n}
+                                                size={14}
+                                                className={
+                                                    n <= selectedReviewForModal.rating
+                                                        ? 'fill-amber-400 text-amber-400'
+                                                        : 'text-slate-300'
+                                                }
+                                            />
+                                        ))}
+                                    </div>
+                                    <span className="font-bold text-slate-800">{selectedReviewForModal.rating}.0 / 5.0</span>
+                                </div>
+                                <span className="text-slate-400 text-[11px]">
+                                    {formatDate(selectedReviewForModal.created_at)}
+                                    {selectedReviewForModal.is_edited && selectedReviewForModal.updated_at && ` (Edited)`}
+                                </span>
+                            </div>
+
+                            {/* Title & Comment (Edited value only) */}
+                            <div className="space-y-1.5">
+                                {selectedReviewForModal.title && (
+                                    <h4 className="font-bold text-slate-900 text-sm">
+                                        "{selectedReviewForModal.title}"
+                                    </h4>
+                                )}
+                                <p className="text-slate-700 text-xs sm:text-sm leading-relaxed bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100 whitespace-pre-line">
+                                    {selectedReviewForModal.comment || 'No comment provided.'}
+                                </p>
+                            </div>
+
+                            {/* Media Photos & Videos */}
+                            {((selectedReviewForModal.images && selectedReviewForModal.images.length > 0) || (selectedReviewForModal.videos && selectedReviewForModal.videos.length > 0)) && (
+                                <div className="space-y-2 pt-1">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Attachments ({((selectedReviewForModal.images?.length || 0) + (selectedReviewForModal.videos?.length || 0))})
+                                    </p>
+                                    <div className="flex flex-wrap gap-2.5">
+                                        {selectedReviewForModal.images?.map((img, idx) => (
+                                            <a
+                                                key={`adm-img-${idx}`}
+                                                href={img}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 shadow-2xs hover:ring-2 hover:ring-blue-500 transition block"
+                                            >
+                                                <img src={img} alt="Attachment" className="w-full h-full object-cover" />
+                                            </a>
+                                        ))}
+                                        {selectedReviewForModal.videos?.map((vid, idx) => (
+                                            <a
+                                                key={`adm-vid-${idx}`}
+                                                href={vid}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-slate-900 shadow-2xs hover:ring-2 hover:ring-blue-500 transition flex items-center justify-center text-white"
+                                            >
+                                                <FiPlay className="w-5 h-5 fill-white" />
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3.5 bg-slate-50 border-t border-slate-100 shrink-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                {selectedReviewForModal.status !== 'published' && (
+                                    <button
+                                        type="button"
+                                        disabled={moderateLoading}
+                                        onClick={() => handleQuickModerate(selectedReviewForModal._id, 'publish')}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs disabled:opacity-50"
+                                    >
+                                        <FiCheckCircle size={14} />
+                                        <span>Publish</span>
+                                    </button>
+                                )}
+                                {selectedReviewForModal.status !== 'hidden' && (
+                                    <button
+                                        type="button"
+                                        disabled={moderateLoading}
+                                        onClick={() => handleQuickModerate(selectedReviewForModal._id, 'hide', 'Hidden by Admin')}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-600 hover:bg-slate-700 text-white text-xs font-bold transition shadow-xs disabled:opacity-50"
+                                    >
+                                        <FiXCircle size={14} />
+                                        <span>Hide</span>
+                                    </button>
+                                )}
+                                {selectedReviewForModal.status !== 'rejected' && (
+                                    <button
+                                        type="button"
+                                        disabled={moderateLoading}
+                                        onClick={() => handleQuickModerate(selectedReviewForModal._id, 'reject', 'Rejected by Admin')}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-xs disabled:opacity-50"
+                                    >
+                                        <FiXCircle size={14} />
+                                        <span>Reject</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const rId = selectedReviewForModal._id;
+                                        setSelectedReviewForModal(null);
+                                        navigate(`/admin/reviews/${rId}`);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs"
+                                >
+                                    <span>Full Details</span>
+                                    <FiExternalLink className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedReviewForModal(null)}
+                                    className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

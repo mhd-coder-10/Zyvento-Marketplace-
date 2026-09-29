@@ -10,7 +10,6 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const User = require('../models/user.model');
 const Seller = require('../models/seller.model');
-const Employee = require('../models/employee.model');
 const VerificationOTP = require('../models/verification_otp_model');
 const ApiError = require('../utils/apiError');
 const jwtHelper = require('../utils/jwtHelper');
@@ -359,8 +358,7 @@ class AuthService {
             .select('-password -refresh_token')
             .populate('role_ids')
             .populate('direct_permissions')
-            .populate('seller_id')
-            .populate('employee_id');
+            .populate('seller_id');
 
         if (!user) {
             throw ApiError.notFound('User not found');
@@ -430,14 +428,15 @@ class AuthService {
         }
 
         // Clean up previous image if exists
-        if (user.profile_image_public_id) {
+        const oldImage = user.profile_image_public_id || user.profile_image;
+        if (oldImage) {
             try {
-                if (user.profile_image_public_id.startsWith('local_')) {
-                    const oldFileName = user.profile_image_public_id.replace('local_', '');
+                if (typeof oldImage === 'string' && oldImage.startsWith('local_')) {
+                    const oldFileName = oldImage.replace('local_', '');
                     const oldPath = path.join(__dirname, '../../uploads/profiles', oldFileName);
                     if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
                 } else {
-                    await cloudinaryHelper.deleteFile(user.profile_image_public_id);
+                    await cloudinaryHelper.deleteFile(oldImage);
                 }
             } catch (delErr) {
                 logger.warn('Failed to delete previous profile image:', delErr?.message);
@@ -526,14 +525,15 @@ class AuthService {
             throw ApiError.badRequest('No profile image to delete');
         }
 
-        if (user.profile_image_public_id) {
+        const imgToDelete = user.profile_image_public_id || user.profile_image;
+        if (imgToDelete) {
             try {
-                if (user.profile_image_public_id.startsWith('local_')) {
-                    const oldFileName = user.profile_image_public_id.replace('local_', '');
+                if (typeof imgToDelete === 'string' && imgToDelete.startsWith('local_')) {
+                    const oldFileName = imgToDelete.replace('local_', '');
                     const oldPath = path.join(__dirname, '../../uploads/profiles', oldFileName);
                     if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
                 } else {
-                    await cloudinaryHelper.deleteFile(user.profile_image_public_id);
+                    await cloudinaryHelper.deleteFile(imgToDelete);
                 }
             } catch (err) {
                 logger.warn('Failed to delete profile image file:', err?.message);

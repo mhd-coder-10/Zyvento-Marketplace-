@@ -17,7 +17,14 @@ import {
     FiStar,
 } from 'react-icons/fi';
 
-const AdminHeader = ({ sidebarOpen, setSidebarOpen, isMobile, user }) => {
+const AdminHeader = ({
+    sidebarOpen,
+    setSidebarOpen,
+    isExpanded = sidebarOpen,
+    toggleSidebar,
+    isMobile,
+    user
+}) => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -62,19 +69,30 @@ const AdminHeader = ({ sidebarOpen, setSidebarOpen, isMobile, user }) => {
     const unreadCount = notifications.filter((n) => !n.read).length;
 
     return (
-        <header className="fixed top-0 right-0 left-0 z-40 h-16 lg:left-64 transition-all duration-300 bg-white/85 backdrop-blur-xl border-b border-sky-100 shadow-[0_4px_20px_-14px_rgba(2,132,199,0.5)]">
+        <header
+            className={`fixed top-0 right-0 z-40 h-16 transition-all duration-300 ease-in-out bg-white/85 backdrop-blur-xl border-b border-sky-100 shadow-[0_4px_20px_-14px_rgba(2,132,199,0.5)] ${
+                isExpanded && !isMobile ? 'left-0 lg:left-64' : 'left-0'
+            }`}
+        >
             <div className="flex items-center justify-between h-full px-3 sm:px-6 gap-2">
                 {/* Left side */}
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     <button
-                        onClick={() => setSidebarOpen(!sidebarOpen)}
+                        onClick={() => {
+                            if (toggleSidebar) {
+                                toggleSidebar();
+                            } else {
+                                setSidebarOpen(!sidebarOpen);
+                            }
+                        }}
                         className="p-2 rounded-xl text-slate-600 hover:bg-sky-50 hover:text-sky-600 active:scale-95 transition-all"
                         aria-label="Toggle sidebar"
+                        title={isExpanded ? 'Collapse sidebar' : 'Open sidebar'}
                     >
-                        {isMobile && sidebarOpen ? (
+                        {isExpanded && isMobile ? (
                             <FiX className="w-5 h-5" />
                         ) : (
-                            <FiMenu className="w-5 h-5" />
+                            <FiMenu className={`w-5 h-5 ${isExpanded && !isMobile ? 'text-sky-600' : ''}`} />
                         )}
                     </button>
 

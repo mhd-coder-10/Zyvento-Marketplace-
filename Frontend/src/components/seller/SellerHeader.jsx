@@ -12,15 +12,30 @@ import {
     FiX,
     FiExternalLink,
     FiShoppingBag,
+    FiAlertTriangle,
+    FiStar,
 } from 'react-icons/fi';
 
-const SellerHeader = ({ sidebarOpen, setSidebarOpen, isMobile, user }) => {
+const SellerHeader = ({
+    sidebarOpen,
+    setSidebarOpen,
+    isExpanded = sidebarOpen,
+    toggleSidebar,
+    isMobile,
+    user
+}) => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const profileRef = useRef(null);
     const notificationRef = useRef(null);
+
+    const [notifications, setNotifications] = useState([
+        { id: 1, title: 'New order received', time: '10 min ago', read: false, type: 'order' },
+        { id: 2, title: 'Stock low on top product', time: '1 hour ago', read: false, type: 'stock' },
+        { id: 3, title: 'Customer left a 5-star review', time: 'Yesterday', read: true, type: 'review' },
+    ]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -43,28 +58,43 @@ const SellerHeader = ({ sidebarOpen, setSidebarOpen, isMobile, user }) => {
     const fullName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.name || user?.business_name || 'Seller';
     const initial = (user?.first_name?.[0] || user?.business_name?.[0] || 'S').toUpperCase();
 
-    const notifications = [
-        { id: 1, title: 'New order received', time: '10 min ago', read: false },
-        { id: 2, title: 'Stock low on top product', time: '1 hour ago', read: false },
-        { id: 3, title: 'Customer left a 5-star review', time: 'Yesterday', read: true },
-    ];
-
     const unreadCount = notifications.filter((n) => !n.read).length;
 
+    const markAllAsRead = () => {
+        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    };
+
+    const toggleNotificationRead = (id) => {
+        setNotifications((prev) =>
+            prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+        );
+    };
+
     return (
-        <header className="fixed top-0 right-0 left-0 z-40 h-16 lg:left-64 transition-all duration-300 bg-white/90 backdrop-blur-xl border-b border-sky-100 shadow-[0_4px_20px_-14px_rgba(2,132,199,0.4)]">
+        <header
+            className={`fixed top-0 right-0 z-40 h-16 transition-all duration-300 ease-in-out bg-white/90 backdrop-blur-xl border-b border-sky-100 shadow-[0_4px_20px_-14px_rgba(2,132,199,0.4)] ${
+                isExpanded && !isMobile ? 'left-0 lg:left-64' : 'left-0'
+            }`}
+        >
             <div className="flex items-center justify-between h-full px-4 sm:px-6">
                 {/* Left side: Hamburger Toggle */}
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => setSidebarOpen(!sidebarOpen)}
+                        onClick={() => {
+                            if (toggleSidebar) {
+                                toggleSidebar();
+                            } else {
+                                setSidebarOpen(!sidebarOpen);
+                            }
+                        }}
                         className="p-2 rounded-xl text-slate-600 hover:bg-sky-50 hover:text-sky-600 active:scale-95 transition-all"
                         aria-label="Toggle sidebar"
+                        title={isExpanded ? 'Collapse sidebar' : 'Open sidebar'}
                     >
-                        {isMobile && sidebarOpen ? (
+                        {isExpanded && isMobile ? (
                             <FiX className="w-5 h-5" />
                         ) : (
-                            <FiMenu className="w-5 h-5" />
+                            <FiMenu className={`w-5 h-5 ${isExpanded && !isMobile ? 'text-sky-600' : ''}`} />
                         )}
                     </button>
                 </div>
@@ -75,7 +105,11 @@ const SellerHeader = ({ sidebarOpen, setSidebarOpen, isMobile, user }) => {
                     <div className="relative" ref={notificationRef}>
                         <button
                             onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                            className="relative p-2.5 rounded-xl text-slate-600 hover:bg-sky-50 hover:text-sky-600 transition-colors"
+                            className={`relative p-2.5 rounded-xl transition-all active:scale-95 ${
+                                isNotificationsOpen
+                                    ? 'bg-sky-100/70 text-sky-600 ring-2 ring-sky-300'
+                                    : 'text-slate-600 hover:bg-sky-50 hover:text-sky-600'
+                            }`}
                             aria-label="Notifications"
                         >
                             <FiBell className="w-5 h-5" />
@@ -84,26 +118,87 @@ const SellerHeader = ({ sidebarOpen, setSidebarOpen, isMobile, user }) => {
                             )}
                         </button>
 
+                        {/* Mobile Backdrop to catch outside clicks nicely */}
                         {isNotificationsOpen && (
-                            <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-sky-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                                <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
-                                    <span className="font-semibold text-slate-800 text-sm">Notifications</span>
-                                    <span className="text-[11px] font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full">
-                                        {unreadCount} new
-                                    </span>
-                                </div>
-                                <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
-                                    {notifications.map((item) => (
-                                        <div
-                                            key={item.id}
-                                            className={`px-4 py-3 hover:bg-slate-50/80 transition-colors cursor-pointer ${
-                                                !item.read ? 'bg-sky-50/30' : ''
-                                            }`}
+                            <div
+                                className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[1px] sm:hidden"
+                                onClick={() => setIsNotificationsOpen(false)}
+                            />
+                        )}
+
+                        {isNotificationsOpen && (
+                            <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-[4.25rem] sm:top-full sm:mt-2 max-w-sm sm:w-80 md:w-88 mx-auto sm:mx-0 bg-white rounded-2xl shadow-2xl border border-sky-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-sky-50/50 to-white">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-bold text-slate-800 text-sm">Notifications</span>
+                                        {unreadCount > 0 && (
+                                            <span className="text-[11px] font-bold text-sky-600 bg-sky-100/70 px-2 py-0.5 rounded-full">
+                                                {unreadCount} new
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {unreadCount > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={markAllAsRead}
+                                                className="text-[11px] font-semibold text-sky-600 hover:text-sky-700 hover:underline"
+                                            >
+                                                Mark all read
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsNotificationsOpen(false)}
+                                            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 sm:hidden"
+                                            aria-label="Close"
                                         >
-                                            <p className="text-xs font-medium text-slate-800">{item.title}</p>
-                                            <p className="text-[11px] text-slate-400 mt-0.5">{item.time}</p>
+                                            <FiX className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="max-h-[65vh] sm:max-h-80 overflow-y-auto divide-y divide-slate-100">
+                                    {notifications.length === 0 ? (
+                                        <div className="p-6 text-center text-slate-400 text-xs">
+                                            No notifications right now
                                         </div>
-                                    ))}
+                                    ) : (
+                                        notifications.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                onClick={() => toggleNotificationRead(item.id)}
+                                                className={`px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer flex items-start gap-3 ${
+                                                    !item.read ? 'bg-sky-50/40' : 'bg-white'
+                                                }`}
+                                            >
+                                                <div className="mt-0.5 shrink-0">
+                                                    {item.type === 'order' ? (
+                                                        <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                                            <FiShoppingBag className="w-3.5 h-3.5" />
+                                                        </div>
+                                                    ) : item.type === 'stock' ? (
+                                                        <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+                                                            <FiAlertTriangle className="w-3.5 h-3.5" />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-600 flex items-center justify-center">
+                                                            <FiStar className="w-3.5 h-3.5" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`text-xs leading-snug ${!item.read ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
+                                                        {item.title}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-400 mt-0.5">{item.time}</p>
+                                                </div>
+                                                {!item.read && (
+                                                    <span className="w-2 h-2 rounded-full bg-sky-500 mt-1.5 shrink-0" />
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -141,8 +236,16 @@ const SellerHeader = ({ sidebarOpen, setSidebarOpen, isMobile, user }) => {
                             />
                         </button>
 
+                        {/* Mobile Backdrop for Profile */}
                         {isProfileOpen && (
-                            <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-sky-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                            <div
+                                className="fixed inset-0 z-40 bg-slate-900/10 backdrop-blur-[1px] sm:hidden"
+                                onClick={() => setIsProfileOpen(false)}
+                            />
+                        )}
+
+                        {isProfileOpen && (
+                            <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-sky-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                                 <div className="px-4 py-2 border-b border-slate-100">
                                     <p className="text-sm font-semibold text-slate-800 truncate">{fullName}</p>
                                     <p className="text-xs text-slate-500 truncate">{user?.email}</p>

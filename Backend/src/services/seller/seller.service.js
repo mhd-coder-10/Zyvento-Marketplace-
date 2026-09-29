@@ -1,6 +1,6 @@
 // Handles all seller related business logic
 // Manages seller profile, dashboard, documents, products, orders
-// Also handles employees, reports, and settings
+// Also handles reports, and settings
 
 const mongoose = require('mongoose');
 const Seller = require('../../models/seller.model');
@@ -8,8 +8,6 @@ const User = require('../../models/user.model');
 const Product = require('../../models/product.model');
 const Order = require('../../models/order.model');
 const OrderItem = require('../../models/order_item.model');
-const Employee = require('../../models/employee.model');
-const EmployeeRoleHistory = require('../../models/employee_role_history.model');
 const Review = require('../../models/review.model');
 const Category = require('../../models/category.model');
 const SubCategory = require('../../models/sub_category.model');
@@ -87,7 +85,7 @@ class SellerService {
     async getSellerReviews({ sellerId, page = 1, limit = 10, rating = null }) {
         const query = {
             seller_id: sellerId,
-            review_status: 'approved'
+            status: 'published'
         };
 
         if (rating) {
@@ -145,7 +143,7 @@ class SellerService {
         const seller = await this.resolveSeller(sellerId, userId);
 
         const allowedFields = [
-            'business_name', 'store_name', 'tagline', 'store_description',
+            'business_name', 'store_name', 'brand_name', 'tagline', 'store_description',
             'logo', 'banner', 'owner_name', 'mobile_number', 'email',
             'business_type', 'gst_number', 'pan_number', 'tax_id',
             'business_address', 'bank_details', 'settings'
@@ -166,6 +164,23 @@ class SellerService {
 
         if (updateData.store_name && !updateData.business_name) {
             seller.business_name = updateData.store_name;
+        }
+
+        // Clean up old logo or banner if replaced
+        if (updateData.logo && seller.logo && updateData.logo !== seller.logo) {
+            try {
+                await cloudinaryHelper.deleteFile(seller.logo);
+            } catch (err) {
+                logger.error('Error deleting old seller logo:', err);
+            }
+        }
+
+        if (updateData.banner && seller.banner && updateData.banner !== seller.banner) {
+            try {
+                await cloudinaryHelper.deleteFile(seller.banner);
+            } catch (err) {
+                logger.error('Error deleting old seller banner:', err);
+            }
         }
 
         await seller.save();
@@ -548,12 +563,11 @@ class SellerService {
         }
 
         const document = seller.documents[documentIndex];
-        if (document.document_url && document.document_url.includes('cloudinary')) {
+        if (document.document_url) {
             try {
-                const publicId = document.document_url.split('/').pop().split('.')[0];
-                await cloudinaryHelper.deleteFile(publicId);
+                await cloudinaryHelper.deleteFile(document.document_url);
             } catch (err) {
-                // Ignore delete file error
+                logger.error('Error deleting seller document from cloudinary:', err);
             }
         }
 
@@ -570,23 +584,41 @@ class SellerService {
 
     // ============ PRODUCTS ============
     async getMyProducts({ sellerId, page = 1, limit = 10, status = null, category = null, search = null }) {
-        const query = { seller_id: sellerId };
+        let seller = null;
+        if (sellerId && mongoose.Types.ObjectId.isValid(sellerId)) {
+            seller = await Seller.findById(sellerId);
+        }
+
+        const effectiveSellerId = seller ? seller._id : (mongoose.Types.ObjectId.isValid(sellerId) ? new mongoose.Types.ObjectId(sellerId) : sellerId);
+        const sellerMatches = [{ seller_id: effectiveSellerId }];
+        if (seller?.user_id) {
+            sellerMatches.push({ created_by: seller.user_id });
+        }
+
+        const conditions = [{ $or: sellerMatches }];
 
         if (status) {
-            query.status = status;
+            conditions.push({ status });
+        } else {
+            // By default, exclude soft-deleted products from seller's active view
+            conditions.push({ status: { $ne: 'deleted' } });
         }
 
         if (category) {
-            query.category_id = category;
+            conditions.push({ category_id: category });
         }
 
         if (search) {
-            query.$or = [
-                { product_name: { $regex: search, $options: 'i' } },
-                { brand: { $regex: search, $options: 'i' } },
-                { sku: { $regex: search, $options: 'i' } }
-            ];
+            conditions.push({
+                $or: [
+                    { product_name: { $regex: search, $options: 'i' } },
+                    { brand: { $regex: search, $options: 'i' } },
+                    { sku: { $regex: search, $options: 'i' } }
+                ]
+            });
         }
+
+        const query = conditions.length === 1 ? conditions[0] : { $and: conditions };
 
         const [products, total] = await Promise.all([
             Product.find(query)
@@ -609,6 +641,42 @@ class SellerService {
         };
     }
 
+    async getProductById(sellerId, productId, userId = null) {
+        let seller = await Seller.findById(sellerId);
+        if (!seller && userId) {
+            seller = await Seller.findOne({ user_id: userId });
+        }
+        if (!seller) {
+            throw ApiError.notFound('Seller not found');
+        }
+
+        let query = { seller_id: seller._id };
+        if (mongoose.Types.ObjectId.isValid(productId)) {
+            query._id = productId;
+        } else {
+            query.product_code = productId;
+        }
+
+        const product = await Product.findOne(query)
+            .populate('category_id', 'category_name')
+            .populate('sub_category_id', 'sub_category_name')
+            .populate('seller_id', 'business_name store_name brand_name logo banner seller_code rating');
+
+        if (!product) {
+            throw ApiError.notFound('Product not found or access denied');
+        }
+
+        const inventory = await Inventory.findOne({ product_id: product._id });
+        const productObj = product.toObject();
+        productObj.inventory = inventory ? {
+            stock_quantity: inventory.stock_quantity,
+            available_quantity: inventory.available_quantity,
+            stock_status: inventory.stock_status
+        } : null;
+
+        return productObj;
+    }
+
     async createProduct(sellerId, productData, userId = null) {
         let seller = await Seller.findById(sellerId);
         if (!seller && userId) {
@@ -621,32 +689,63 @@ class SellerService {
         const effectiveUserId = seller.user_id || userId;
 
         // Calculate final price
-        let finalPrice = productData.price;
-        if (productData.discount) {
-            finalPrice = productData.price - (productData.price * productData.discount / 100);
+        let finalPrice = Number(productData.price);
+        const discount = Number(productData.discount || 0);
+        if (discount > 0) {
+            finalPrice = finalPrice - (finalPrice * discount / 100);
         }
 
-        const stockQuantity = productData.stock_quantity ?? productData.stock ?? 0;
+        const stockQuantity = Number(productData.stock_quantity ?? productData.stock ?? 0);
         const normalizedImages = Array.isArray(productData.images)
             ? productData.images.map((img) => (typeof img === 'string' ? img : img.url || '')).filter(Boolean)
             : [];
 
-        const status = productData.status || 'active';
-        const approvalStatus = status === 'active' ? 'approved' : 'pending';
+        // All newly created seller products start as Pending approval
+        const status = 'pending';
+        const approvalStatus = 'pending';
+
+        const subCategoryId = productData.sub_category_id && mongoose.Types.ObjectId.isValid(productData.sub_category_id)
+            ? new mongoose.Types.ObjectId(productData.sub_category_id)
+            : null;
+
+        const categoryId = productData.category_id && mongoose.Types.ObjectId.isValid(productData.category_id)
+            ? new mongoose.Types.ObjectId(productData.category_id)
+            : productData.category_id;
+
+        const sku = (productData.sku && productData.sku.trim()) || `SKU-${Date.now().toString().slice(-6)}`;
 
         const product = new Product({
             ...productData,
+            category_id: categoryId,
+            sub_category_id: subCategoryId,
             seller_id: seller._id,
             created_by: effectiveUserId,
             stock_quantity: stockQuantity,
             images: normalizedImages,
             final_price: finalPrice,
+            sku: sku,
             product_code: productData.product_code || `PRD-${Date.now().toString().slice(-6)}`,
             status: status,
             approval_status: approvalStatus,
         });
 
         await product.save();
+
+        // Record Activity Audit Log
+        try {
+            const auditService = require('../audit.service');
+            await auditService.log({
+                userId: effectiveUserId,
+                userType: 'seller',
+                action: 'create',
+                module: 'product',
+                moduleId: product._id,
+                description: `Product "${product.product_name}" created by seller (Pending Admin Approval)`,
+                status: 'success'
+            });
+        } catch (audErr) {
+            // non-fatal
+        }
 
         // Also create / sync Inventory entry so inventory tracking works
         try {
@@ -664,6 +763,232 @@ class SellerService {
         }
 
         return product;
+    }
+
+    async getProductById(sellerId, productId, userId = null) {
+        let seller = await Seller.findById(sellerId);
+        if (!seller && userId) {
+            seller = await Seller.findOne({ user_id: userId });
+        }
+        if (!seller) {
+            throw ApiError.notFound('Seller not found');
+        }
+
+        const effectiveUserId = seller.user_id || userId;
+        const query = {
+            $or: [
+                { seller_id: seller._id },
+                { created_by: effectiveUserId }
+            ]
+        };
+
+        if (mongoose.Types.ObjectId.isValid(productId)) {
+            query._id = productId;
+        } else {
+            query.product_code = productId;
+        }
+
+        const product = await Product.findOne(query)
+            .populate('category_id', 'category_name')
+            .populate('sub_category_id', 'sub_category_name')
+            .lean();
+
+        if (!product) {
+            throw ApiError.notFound('Product not found or unauthorized');
+        }
+
+        return product;
+    }
+
+    async updateProduct(sellerId, productId, updateData, userId = null) {
+        let seller = await Seller.findById(sellerId);
+        if (!seller && userId) {
+            seller = await Seller.findOne({ user_id: userId });
+        }
+        if (!seller) {
+            throw ApiError.notFound('Seller not found');
+        }
+
+        const effectiveUserId = seller.user_id || userId;
+
+        const query = {
+            $or: [
+                { seller_id: seller._id },
+                { created_by: effectiveUserId }
+            ]
+        };
+
+        if (mongoose.Types.ObjectId.isValid(productId)) {
+            query._id = productId;
+        } else {
+            query.product_code = productId;
+        }
+
+        const product = await Product.findOne(query);
+
+        if (!product) {
+            throw ApiError.notFound('Product not found or unauthorized');
+        }
+
+        if (updateData.sub_category_id !== undefined) {
+            if (updateData.sub_category_id && mongoose.Types.ObjectId.isValid(updateData.sub_category_id)) {
+                product.sub_category_id = new mongoose.Types.ObjectId(updateData.sub_category_id);
+            } else {
+                product.sub_category_id = null;
+            }
+        }
+
+        if (updateData.category_id && mongoose.Types.ObjectId.isValid(updateData.category_id)) {
+            product.category_id = new mongoose.Types.ObjectId(updateData.category_id);
+        }
+
+        if (updateData.product_name) product.product_name = updateData.product_name.trim();
+        if (updateData.brand !== undefined) product.brand = (updateData.brand || '').trim();
+        if (updateData.description !== undefined) product.description = (updateData.description || '').trim();
+        if (updateData.sku && updateData.sku.trim()) product.sku = updateData.sku.trim();
+
+        if (updateData.price !== undefined) {
+            product.price = Number(updateData.price);
+        }
+        if (updateData.compare_at_price !== undefined) {
+            product.compare_at_price = updateData.compare_at_price ? Number(updateData.compare_at_price) : undefined;
+        }
+        if (updateData.cost_per_item !== undefined) {
+            product.cost_per_item = updateData.cost_per_item ? Number(updateData.cost_per_item) : undefined;
+        }
+        if (updateData.discount !== undefined) {
+            product.discount_percent = Number(updateData.discount || 0);
+        }
+
+        // Recalculate final price
+        const price = Number(product.price);
+        const discount = Number(product.discount_percent || 0);
+        product.final_price = discount > 0 ? (price - (price * discount / 100)) : price;
+
+        const stockQuantity = updateData.stock_quantity !== undefined 
+            ? Number(updateData.stock_quantity) 
+            : (updateData.stock !== undefined ? Number(updateData.stock) : product.stock_quantity);
+        product.stock_quantity = stockQuantity;
+
+        if (updateData.images !== undefined) {
+            product.images = Array.isArray(updateData.images)
+                ? updateData.images.map((img) => (typeof img === 'string' ? img : img.url || '')).filter(Boolean)
+                : product.images;
+        }
+
+        // NOTE: Seller cannot directly modify marketplace status (Admin-controlled)
+
+        product.updated_by = effectiveUserId;
+        await product.save();
+
+        // Sync Inventory
+        try {
+            const Inventory = require('../../models/inventory.model');
+            let inventory = await Inventory.findOne({ product_id: product._id });
+            const lowLimit = inventory?.low_stock_limit || 5;
+            const newStatus = stockQuantity > lowLimit ? 'available' : (stockQuantity > 0 ? 'low_stock' : 'out_of_stock');
+
+            if (inventory) {
+                const oldStock = inventory.stock_quantity || 0;
+                inventory.seller_id = seller._id;
+                inventory.stock_quantity = stockQuantity;
+                inventory.available_quantity = Math.max(0, stockQuantity - (inventory.reserved_quantity || 0));
+                inventory.stock_status = newStatus;
+                inventory.last_stock_update = new Date();
+                inventory.updated_by = effectiveUserId;
+                inventory.stock_movements = inventory.stock_movements || [];
+
+                if (stockQuantity !== oldStock) {
+                    inventory.stock_movements.push({
+                        type: stockQuantity > oldStock ? 'add' : 'remove',
+                        quantity: Math.abs(stockQuantity - oldStock),
+                        reason: 'Seller updated stock from inventory',
+                        performed_by: effectiveUserId,
+                        timestamp: new Date()
+                    });
+                }
+                await inventory.save();
+            } else {
+                await Inventory.create({
+                    product_id: product._id,
+                    seller_id: seller._id,
+                    stock_quantity: stockQuantity,
+                    available_quantity: stockQuantity,
+                    sold_quantity: 0,
+                    reserved_quantity: 0,
+                    low_stock_limit: 5,
+                    stock_status: newStatus,
+                    last_stock_update: new Date(),
+                    updated_by: effectiveUserId,
+                    stock_movements: [{
+                        type: 'add',
+                        quantity: stockQuantity,
+                        reason: 'Initial stock setup by seller',
+                        performed_by: effectiveUserId,
+                        timestamp: new Date()
+                    }]
+                });
+            }
+        } catch (invErr) {
+            console.error('Inventory sync error in seller.updateProduct:', invErr);
+        }
+
+        return product;
+    }
+
+    async deleteProduct(sellerId, productId, userId = null) {
+        let seller = await Seller.findById(sellerId);
+        if (!seller && userId) {
+            seller = await Seller.findOne({ user_id: userId });
+        }
+        if (!seller) {
+            throw ApiError.notFound('Seller not found');
+        }
+
+        const effectiveUserId = seller.user_id || userId;
+
+        const query = {
+            $or: [
+                { seller_id: seller._id },
+                { created_by: effectiveUserId }
+            ]
+        };
+
+        if (mongoose.Types.ObjectId.isValid(productId)) {
+            query._id = productId;
+        } else {
+            query.product_code = productId;
+        }
+
+        const product = await Product.findOne(query);
+
+        if (!product) {
+            throw ApiError.notFound('Product not found or unauthorized');
+        }
+
+        // Soft delete: keep product in DB with status = 'deleted' so Admin can view it
+        product.status = 'deleted';
+        product.deleted_at = new Date();
+        product.deleted_by = effectiveUserId;
+        await product.save();
+
+        // Record Activity Audit Log
+        try {
+            const auditService = require('../audit.service');
+            await auditService.log({
+                userId: effectiveUserId,
+                userType: 'seller',
+                action: 'delete',
+                module: 'product',
+                moduleId: product._id,
+                description: `Product "${product.product_name}" deleted by seller`,
+                status: 'success'
+            });
+        } catch (audErr) {
+            // non-fatal
+        }
+
+        return { message: 'Product deleted successfully' };
     }
 
     // ============ ORDERS ============
@@ -1054,45 +1379,61 @@ class SellerService {
         };
     }
 
-    // ============ SELLER CATEGORY CREATION ============
-    async createCategory({ category_name, description, sub_category_name }, userId) {
-        if (!category_name || !category_name.trim()) {
-            throw ApiError.badRequest('Category name is required');
+    // ============ SELLER CATEGORY & SUB-CATEGORY CREATION ============
+    async createCategory({ category_id, category_name, description, sub_category_name }, userId) {
+        let category = null;
+        let isNewCategory = false;
+
+        if (category_id) {
+            category = await Category.findOne({ _id: category_id, deleted_at: null }) || await Category.findById(category_id);
         }
 
-        const trimmedName = category_name.trim();
-
-        // 1. Check if category already exists in database (case-insensitive)
-        let category = await Category.findOne({
-            category_name: { $regex: new RegExp(`^${trimmedName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') },
-            deleted_at: null
-        });
-
-        let isNewCategory = false;
         if (!category) {
-            // Generate unique category_code
-            const base = trimmedName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6) || 'cat';
-            const randomCode = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
+            if (!category_name || !category_name.trim()) {
+                throw ApiError.badRequest('Category name is required');
+            }
 
-            category = new Category({
-                category_name: trimmedName,
-                category_code: randomCode,
-                description: description ? description.trim() : '',
-                status: 'active',
-                created_by: userId
+            const trimmedName = category_name.trim();
+
+            // 1. Check if category already exists in database (case-insensitive)
+            category = await Category.findOne({
+                category_name: { $regex: new RegExp(`^${trimmedName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') },
+                deleted_at: null
             });
 
-            await category.save();
-            isNewCategory = true;
-            logger.info(`Seller created new Category: ${trimmedName}`, { categoryId: category._id, userId });
+            if (!category) {
+                // Generate unique category_code
+                const base = trimmedName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6) || 'cat';
+                const randomCode = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
+
+                category = new Category({
+                    category_name: trimmedName,
+                    category_code: randomCode,
+                    description: description ? description.trim() : '',
+                    status: 'active',
+                    created_by: userId
+                });
+
+                await category.save();
+                isNewCategory = true;
+                logger.info(`Seller created new Category: ${trimmedName}`, { categoryId: category._id, userId });
+            }
         }
 
         // 2. Check or create SubCategory if requested
         let subCategory = null;
+        let isNewSub = false;
         if (sub_category_name && sub_category_name.trim()) {
             const trimmedSub = sub_category_name.trim();
+            const catObjectId = mongoose.Types.ObjectId.isValid(category._id)
+                ? new mongoose.Types.ObjectId(category._id)
+                : category._id;
+
             subCategory = await SubCategory.findOne({
-                category_id: category._id,
+                $or: [
+                    { category_id: catObjectId },
+                    { category_id: category._id.toString() }
+                ],
                 sub_category_name: { $regex: new RegExp(`^${trimmedSub.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') },
                 deleted_at: null
             });
@@ -1104,12 +1445,14 @@ class SellerService {
                 subCategory = new SubCategory({
                     sub_category_name: trimmedSub,
                     sub_category_code: subCode,
-                    category_id: category._id,
+                    category_id: catObjectId,
                     status: 'active',
+                    description: description ? description.trim() : '',
                     created_by: userId
                 });
 
                 await subCategory.save();
+                isNewSub = true;
                 logger.info(`Seller created new SubCategory: ${trimmedSub}`, { subCategoryId: subCategory._id, categoryId: category._id, userId });
             }
         }
@@ -1117,7 +1460,61 @@ class SellerService {
         return {
             category,
             subCategory,
-            isNew: isNewCategory
+            isNew: isNewCategory,
+            isNewSub
+        };
+    }
+
+    async createSubCategory({ category_id, sub_category_name, description }, userId) {
+        if (!category_id) {
+            throw ApiError.badRequest('Primary category ID is required');
+        }
+        if (!sub_category_name || !sub_category_name.trim()) {
+            throw ApiError.badRequest('Sub-category name is required');
+        }
+
+        const category = await Category.findOne({ _id: category_id, deleted_at: null }) || await Category.findById(category_id);
+        if (!category) {
+            throw ApiError.notFound('Primary category not found');
+        }
+
+        const trimmedSub = sub_category_name.trim();
+        const catObjectId = mongoose.Types.ObjectId.isValid(category._id)
+            ? new mongoose.Types.ObjectId(category._id)
+            : category._id;
+
+        let subCategory = await SubCategory.findOne({
+            $or: [
+                { category_id: catObjectId },
+                { category_id: category._id.toString() }
+            ],
+            sub_category_name: { $regex: new RegExp(`^${trimmedSub.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') },
+            deleted_at: null
+        });
+
+        let isNewSub = false;
+        if (!subCategory) {
+            const subBase = trimmedSub.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6) || 'sub';
+            const subCode = `sub_${subBase}${Math.floor(1000 + Math.random() * 9000)}`;
+
+            subCategory = new SubCategory({
+                sub_category_name: trimmedSub,
+                sub_category_code: subCode,
+                category_id: catObjectId,
+                status: 'active',
+                description: description ? description.trim() : '',
+                created_by: userId
+            });
+
+            await subCategory.save();
+            isNewSub = true;
+            logger.info(`Seller created new SubCategory: ${trimmedSub}`, { subCategoryId: subCategory._id, categoryId: category._id, userId });
+        }
+
+        return {
+            category,
+            subCategory,
+            isNewSub
         };
     }
 }

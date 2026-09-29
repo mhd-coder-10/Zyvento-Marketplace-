@@ -19,9 +19,7 @@ const audit_log_schema = new mongoose.Schema(
             enum: [
                 "super_admin",
                 "sub_admin",
-                "admin_employee",
                 "seller",
-                "seller_employee",
                 "customer"
             ],
             required: true
@@ -59,6 +57,8 @@ const audit_log_schema = new mongoose.Schema(
                 "seller",
                 "product",
                 "category",
+                "sub_category",
+                "inventory",
                 "order",
                 "payment",
                 "review",
@@ -74,7 +74,8 @@ const audit_log_schema = new mongoose.Schema(
                 "coupon",
                 "return",
                 "analytics",
-                "finance"
+                "finance",
+                "seller_request"
             ]
         },
 

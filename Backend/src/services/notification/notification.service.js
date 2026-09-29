@@ -5,7 +5,6 @@
 const Notification = require('../../models/notification.model');
 const User = require('../../models/user.model');
 const Seller = require('../../models/seller.model');
-const Employee = require('../../models/employee.model');
 const ApiError = require('../../utils/apiError');
 const emailHelper = require('../../utils/emailHelper');
 const logger = require('../../utils/logger');
@@ -348,14 +347,9 @@ class NotificationService {
                 user_type: constants.USER_TYPES.SELLER,
                 account_status: constants.ACCOUNT_STATUS.ACTIVE
             }).select('_id');
-        } else if (receiverType === 'seller_employee') {
-            users = await User.find({
-                user_type: constants.USER_TYPES.SELLER_EMPLOYEE,
-                account_status: constants.ACCOUNT_STATUS.ACTIVE
-            }).select('_id');
         } else if (receiverType === 'admin' || receiverType === 'sub_admin') {
             users = await User.find({
-                user_type: { $in: ['super_admin', 'sub_admin', 'admin_employee'] },
+                user_type: { $in: ['super_admin', 'sub_admin'] },
                 account_status: constants.ACCOUNT_STATUS.ACTIVE
             }).select('_id');
         } else {

@@ -85,6 +85,35 @@ class AuditService {
         }
     }
 
+    async logProductCreation(userId, productId, product, ip, userAgent) {
+        return this.log({
+            userId,
+            action: 'create',
+            module: 'product',
+            moduleId: productId,
+            description: `Product created: ${product?.product_name || productId}`,
+            newData: { product_name: product?.product_name, sku: product?.sku },
+            ip,
+            userAgent,
+            status: 'success'
+        });
+    }
+
+    async logProductUpdate(userId, productId, oldProduct, newProduct, ip, userAgent) {
+        return this.log({
+            userId,
+            action: 'update',
+            module: 'product',
+            moduleId: productId,
+            description: `Product updated: ${newProduct?.product_name || productId}`,
+            oldData: { product_name: oldProduct?.product_name, sku: oldProduct?.sku },
+            newData: { product_name: newProduct?.product_name, sku: newProduct?.sku },
+            ip,
+            userAgent,
+            status: 'success'
+        });
+    }
+
     // ============ SANITIZE DATA ============
     /**
      * Remove sensitive data before storing

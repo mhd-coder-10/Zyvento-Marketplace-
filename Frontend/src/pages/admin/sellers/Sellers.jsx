@@ -682,7 +682,6 @@ const Sellers = () => {
                             <ul className="text-xs text-slate-500 mt-3 space-y-1 pl-6 list-disc">
                                 <li>Linked user account</li>
                                 <li>All products</li>
-                                <li>All employees</li>
                                 <li>All reviews and complaints</li>
                                 <li>All order items</li>
                             </ul>

@@ -29,7 +29,6 @@ const PERMISSIONS_MAP = {
     dashboard: ['read'],
     users: ['read', 'create', 'update', 'delete'],
     sub_admins: ['read', 'create', 'update', 'delete'],
-    employees: ['read', 'create', 'update', 'delete'],
     sellers: ['read', 'create', 'update', 'delete', 'approve', 'reject'],
     products: ['read', 'create', 'update', 'delete', 'approve', 'reject'],
     categories: ['read', 'create', 'update', 'delete'],
@@ -79,7 +78,6 @@ const ROLE_TEMPLATES = [
             dashboard: ['read'],
             users: ['read', 'create', 'update', 'delete'],
             sellers: ['read', 'create', 'update', 'delete', 'approve', 'reject'],
-            employees: ['read', 'create', 'update', 'delete'],
             products: ['read', 'create', 'update', 'delete', 'approve', 'reject'],
             categories: ['read', 'create', 'update', 'delete'],
             inventory: ['read', 'update'],
@@ -140,7 +138,6 @@ const ROLE_TEMPLATES = [
         permissions: {
             dashboard: ['read'],
             sellers: ['read', 'create', 'update', 'approve', 'reject'],
-            employees: ['read', 'create', 'update', 'delete'],
             reports: ['read', 'export']
         }
     },
@@ -161,78 +158,7 @@ const ROLE_TEMPLATES = [
             reviews: ['read'],
             reports: ['read']
         }
-    },
-    {
-        role_name: 'Order Manager',
-        role_key: 'ORDER_MANAGER',
-        role_type: 'employee',
-        description: 'Manages orders only',
-        data_scope: 'own',
-        is_system_role: true,
-        priority: 40,
-        permissions: {
-            dashboard: ['read'],
-            orders: ['read', 'update', 'manage'],
-            returns: ['read']
-        }
-    },
-    {
-        role_name: 'Product Manager',
-        role_key: 'PRODUCT_MANAGER',
-        role_type: 'employee',
-        description: 'Manages products only',
-        data_scope: 'own',
-        is_system_role: true,
-        priority: 40,
-        permissions: {
-            dashboard: ['read'],
-            products: ['read', 'create', 'update', 'delete']
-        }
-    },
-    {
-        role_name: 'Inventory Manager',
-        role_key: 'INVENTORY_MANAGER',
-        role_type: 'employee',
-        description: 'Stock management',
-        data_scope: 'own',
-        is_system_role: true,
-        priority: 40,
-        permissions: {
-            dashboard: ['read'],
-            inventory: ['read', 'update'],
-            products: ['read']
-        }
-    },
-    {
-        role_name: 'Support Staff',
-        role_key: 'SUPPORT_STAFF',
-        role_type: 'employee',
-        description: 'Customer queries',
-        data_scope: 'own',
-        is_system_role: true,
-        priority: 40,
-        permissions: {
-            dashboard: ['read'],
-            orders: ['read'],
-            returns: ['read'],
-            reviews: ['read']
-        }
-    },
-    {
-        role_name: 'Account Manager',
-        role_key: 'ACCOUNT_MANAGER',
-        role_type: 'employee',
-        description: 'Accounts & payouts',
-        data_scope: 'own',
-        is_system_role: true,
-        priority: 40,
-        permissions: {
-            dashboard: ['read'],
-            payments: ['read'],
-            transactions: ['read'],
-            reports: ['read', 'export']
-        }
-    }
+
 ];
 
 // ============================================================

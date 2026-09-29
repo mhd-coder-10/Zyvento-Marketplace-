@@ -83,7 +83,7 @@ const auth = asyncHandler(async (req, res, next) => {
     );
 
     // ============ AUTO-RESOLVE SELLER ID FOR SELLER USERS ============
-    if (!user.seller_id && (user.user_type === 'seller' || user.user_type === 'seller_employee')) {
+    if (!user.seller_id && user.user_type === 'seller') {
         try {
             const sellerDoc = await Seller.findOne({ user_id: user._id }).select('_id');
             if (sellerDoc) {
@@ -100,9 +100,7 @@ const auth = asyncHandler(async (req, res, next) => {
     req.userId = user._id;
     req.userType = user.user_type;
     req.sellerId = user.seller_id;
-    req.employeeId = user.employee_id;
     req.subAdminType = user.sub_admin_type;
-    req.employeeType = user.employee_type;
     req.roleIds = activeRoles.map((r) => r._id);
     req.activeRoles = activeRoles;
 

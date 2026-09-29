@@ -15,9 +15,7 @@ class JwtHelper {
             userType: user.user_type,
             roleIds: user.role_ids || [],
             sellerId: user.seller_id,
-            employeeId: user.employee_id,
             subAdminType: user.sub_admin_type,
-            employeeType: user.employee_type,
         };
 
         const accessToken = jwt.sign(payload, environment.JWT_ACCESS_SECRET, {
@@ -39,7 +37,6 @@ class JwtHelper {
             userType: user.user_type,
             roleIds: user.role_ids || [],
             sellerId: user.seller_id,
-            employeeId: user.employee_id,
         };
 
         return jwt.sign(payload, environment.JWT_ACCESS_SECRET, {

@@ -4,12 +4,29 @@
 
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
 
 const reviewController = require('../../controllers/review/review.controller');
 const auth = require('../../middleware/auth.middleware');
 const { authorize, checkPermission } = require('../../middleware/authorization.middleware');
 const { validate } = require('../../middleware/validation.middleware');
+const { uploadMultiple } = require('../../middleware/upload.middleware');
 const reviewValidation = require('../../validations/review.validation');
+const environment = require('../../config/environment');
+
+// Optional auth helper to extract user ID without rejecting unauthenticated requests
+const optionalAuth = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+            const decoded = jwt.verify(token, environment.JWT_ACCESS_SECRET);
+            req.userId = decoded.id || decoded.userId;
+            req.userType = decoded.role || decoded.userType;
+        } catch (_) {}
+    }
+    next();
+};
 
 /**
  * @swagger
@@ -75,6 +92,7 @@ const reviewValidation = require('../../validations/review.validation');
  */
 router.get(
     '/product/:productId',
+    optionalAuth,
     validate(reviewValidation.getProductReviews),
     reviewController.getProductReviews
 );
@@ -224,9 +242,15 @@ router.get(
  *         description: Validation error
  */
 router.post(
+    '/upload-media',
+    auth,
+    uploadMultiple('media', 3),
+    reviewController.uploadReviewMedia
+);
+
+router.post(
     '/',
     auth,
-    authorize('customer'),
     validate(reviewValidation.createReview),
     reviewController.createReview
 );
@@ -283,7 +307,6 @@ router.post(
 router.put(
     '/:reviewId',
     auth,
-    authorize('customer'),
     validate(reviewValidation.updateReview),
     reviewController.updateReview
 );
@@ -317,7 +340,6 @@ router.put(
 router.delete(
     '/:reviewId',
     auth,
-    authorize('customer'),
     validate(reviewValidation.deleteReview),
     reviewController.deleteReview
 );
@@ -353,7 +375,6 @@ router.delete(
 router.get(
     '/my-reviews',
     auth,
-    authorize('customer'),
     validate(reviewValidation.getUserReviews),
     reviewController.getUserReviews
 );
@@ -389,7 +410,6 @@ router.get(
 router.post(
     '/:reviewId/helpful',
     auth,
-    authorize('customer'),
     validate(reviewValidation.markHelpful),
     reviewController.markHelpful
 );

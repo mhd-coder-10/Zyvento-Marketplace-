@@ -19,7 +19,7 @@ const DashboardLayout = () => {
 
     const userRole = user?.role?.roleName || user?.role_name || 'customer';
     const isAdmin = ['super_admin', 'sub_admin'].includes(userRole);
-    const isSeller = ['seller', 'seller_employee'].includes(userRole);
+    const isSeller = userRole === 'seller';
 
     if (!isAdmin && !isSeller) {
         return <Navigate to="/" replace />;

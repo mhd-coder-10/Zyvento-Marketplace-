@@ -12,6 +12,7 @@ const { checkSellerAccess, authorize, checkSubAdminAccess, checkPermission } = r
 const { validate } = require('../../middleware/validation.middleware');
 const adminValidation = require('../../validations/admin.validation');
 const auditService = require("../../services/audit.service");
+const sellerRequestController = require('../../controllers/seller/seller_request.controller');
 const roleRoutes = require('./role.routes');
 const permissionRoutes = require('./permission.routes');
 
@@ -159,6 +160,35 @@ router.delete(
     adminController.deleteSeller
 );
 
+// ============ SELLER REQUESTS ============
+// Get Seller Request Stats
+router.get(
+    '/seller-requests/stats',
+    checkPermission('SELLERS_READ'),
+    sellerRequestController.getRequestStats
+);
+
+// Get All Seller Requests
+router.get(
+    '/seller-requests',
+    checkPermission('SELLERS_READ'),
+    sellerRequestController.getAllRequests
+);
+
+// Get Seller Request Details
+router.get(
+    '/seller-requests/:requestCode',
+    checkPermission('SELLERS_READ'),
+    sellerRequestController.getAdminRequestByCode
+);
+
+// Update Seller Request Status & Response
+router.put(
+    '/seller-requests/:requestCode/status',
+    checkPermission('SELLERS_UPDATE'),
+    sellerRequestController.updateRequestStatus
+);
+
 // ============ SUB-ADMIN ROUTES ============
 
 // Get available users for Sub-Admin creation
@@ -241,77 +271,6 @@ router.get(
     adminController.getSubAdminByCode
 );
 
-// ============ EMPLOYEE ROUTES ============
-
-router.get(
-    '/employees/stats',
-    checkPermission('EMPLOYEES_READ'),
-    adminController.getEmployeeStats
-);
-
-router.get(
-    '/employees/available-users',
-    checkPermission('EMPLOYEES_READ'),
-    adminController.getAvailableUsersForEmployee
-);
-
-router.get(
-    '/employees/deleted',
-    checkPermission('EMPLOYEES_READ'),
-    validate(adminValidation.getDeletedEmployees, 'query'),
-    adminController.getDeletedEmployees
-);
-
-router.get(
-    '/employees',
-    checkPermission('EMPLOYEES_READ'),
-    validate(adminValidation.getAllEmployees, 'query'),
-    adminController.getAllEmployees
-);
-
-router.post(
-    '/employees',
-    checkPermission('EMPLOYEES_CREATE'),
-    validate(adminValidation.createEmployee),
-    adminController.createEmployee
-);
-
-router.put(
-    '/employees/:employeeCode',
-    checkPermission('EMPLOYEES_UPDATE'),
-    validate(adminValidation.employeeCodeParam, 'params'),
-    validate(adminValidation.updateEmployee),
-    adminController.updateEmployee
-);
-
-router.put(
-    '/employees/:employeeCode/status',
-    checkPermission('EMPLOYEES_UPDATE'),
-    validate(adminValidation.employeeCodeParam, 'params'),
-    validate(adminValidation.updateEmployeeStatus),
-    adminController.updateEmployeeStatus
-);
-
-router.put(
-    '/employees/:employeeCode/restore',
-    checkPermission('EMPLOYEES_UPDATE'),
-    validate(adminValidation.employeeCodeParam, 'params'),
-    adminController.restoreEmployee
-);
-
-router.delete(
-    '/employees/:employeeCode',
-    checkPermission('EMPLOYEES_DELETE'),
-    validate(adminValidation.employeeCodeParam, 'params'),
-    adminController.deleteEmployee
-);
-
-router.get(
-    '/employees/:employeeCode',
-    checkPermission('EMPLOYEES_READ'),
-    validate(adminValidation.employeeCodeParam, 'params'),
-    adminController.getEmployeeByCode
-);
 
 // ============ REVIEW MANAGEMENT ROUTES ============
 
@@ -422,6 +381,12 @@ router.put(
     adminController.activateProductByCode
 );
 
+router.put(
+    '/products/:productCode/status',
+    checkPermission('PRODUCTS_UPDATE'),
+    adminController.updateProductStatusByCode
+);
+
 router.get(
     '/products/:productCode/reviews',
     checkPermission('PRODUCTS_READ'),
@@ -504,16 +469,11 @@ router.delete(
     adminController.deleteSubCategory
 );
 
-// ============ INVENTORY ROUTES ============
+// ============ INVENTORY ROUTES (READ-ONLY) ============
 
 router.get('/inventory',
     checkPermission('INVENTORY_READ'),
     adminController.getAllInventory
-);
-
-router.put('/inventory/:inventoryId/stock',
-    checkPermission('INVENTORY_UPDATE'),
-    adminController.updateInventoryStock
 );
 
 // ============ ORDERS ROUTES ============

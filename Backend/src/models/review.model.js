@@ -130,26 +130,30 @@ const review_schema = new mongoose.Schema(
         },
         product_code: {
             type: String,
-            required: true
+            default: ""
         }, // SAME as Product module
         order_id: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Order",
-            required: true
+            required: false,
+            default: null
         },
         order_code: {
             type: String,
-            required: true
+            required: false,
+            default: ""
         }, // SAME as Order module
         order_item_id: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "OrderItem",
-            required: true
+            required: false,
+            default: null
         },
         seller_id: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Seller",
-            required: true
+            required: false,
+            default: null
         },
 
         // ============ REVIEW DETAILS ============
@@ -177,6 +181,42 @@ const review_schema = new mongoose.Schema(
             default: []
         },
 
+        // ============ EDIT HISTORY TRACKING ============
+        is_edited: {
+            type: Boolean,
+            default: false
+        },
+        initial_comment: {
+            type: String,
+            default: ""
+        },
+        initial_rating: {
+            type: Number,
+            default: null
+        },
+        initial_created_at: {
+            type: Date,
+            default: null
+        },
+        edit_history: [{
+            comment: {
+                type: String,
+                default: ""
+            },
+            rating: {
+                type: Number,
+                default: null
+            },
+            title: {
+                type: String,
+                default: ""
+            },
+            edited_at: {
+                type: Date,
+                default: Date.now
+            }
+        }],
+
         // ============ VERIFICATION & STATUS ============
         is_verified_purchase: {
             type: Boolean,
@@ -184,14 +224,14 @@ const review_schema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ["pending", "published", "flagged", "reported", "hidden", "rejected"],
-            default: "pending"
+            enum: ["published", "flagged", "hidden", "rejected"],
+            default: "published"
         },
-        // Keep legacy field for backward compatibility if needed
+        // Keep legacy field for backward compatibility
         review_status: {
             type: String,
-            enum: ["pending", "approved", "rejected"],
-            default: "pending"
+            enum: ["approved", "rejected"],
+            default: "approved"
         },
 
         // ============ REPORTING ============

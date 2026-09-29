@@ -124,56 +124,58 @@ class InventoryService {
     }) {
         const product = await Product.findOne({
             _id: productId,
-            seller_id: sellerId
+            $or: [
+                { seller_id: sellerId },
+                { created_by: sellerId }
+            ]
         });
 
         if (!product) {
             throw ApiError.notFound('Product not found or unauthorized');
         }
 
+        const newStock = stockQuantity !== undefined ? Math.max(0, parseInt(stockQuantity, 10)) : undefined;
         let inventory = await Inventory.findOne({ product_id: productId });
+        const lowLimit = lowStockLimit || inventory?.low_stock_limit || 5;
+        const calcStatus = (qty) => (qty > lowLimit ? 'available' : (qty > 0 ? 'low_stock' : 'out_of_stock'));
 
         if (!inventory) {
             // Create new inventory if not exists
+            const initStock = newStock !== undefined ? newStock : (product.stock_quantity || 0);
             inventory = new Inventory({
                 product_id: productId,
                 seller_id: sellerId,
-                stock_quantity: stockQuantity || 0,
+                stock_quantity: initStock,
                 sold_quantity: 0,
                 reserved_quantity: 0,
-                available_quantity: stockQuantity || 0,
-                low_stock_limit: lowStockLimit || 5,
-                stock_status: (stockQuantity || 0) > 10 ? 'available' :
-                            (stockQuantity || 0) > 0 ? 'low_stock' : 'out_of_stock',
+                available_quantity: initStock,
+                low_stock_limit: lowLimit,
+                stock_status: calcStatus(initStock),
                 warehouse_location: warehouseLocation || {},
-                supplier_info: supplierInfo || {}
+                supplier_info: supplierInfo || {},
+                last_stock_update: new Date(),
+                stock_movements: [{
+                    type: 'add',
+                    quantity: initStock,
+                    reason: 'Initial inventory setup',
+                    performed_by: sellerId,
+                    timestamp: new Date()
+                }]
             });
 
             await inventory.save();
-
-            // Add initial stock movement
-            inventory.stock_movements.push({
-                type: 'add',
-                quantity: stockQuantity || 0,
-                reason: 'Initial inventory setup',
-                performed_by: sellerId,
-                timestamp: new Date()
-            });
-            await inventory.save();
-
         } else {
             // Update existing inventory
             const oldStock = inventory.stock_quantity;
 
-            if (stockQuantity !== undefined) {
-                inventory.stock_quantity = stockQuantity;
-                inventory.available_quantity = stockQuantity - inventory.reserved_quantity;
-                inventory.stock_status = stockQuantity > 10 ? 'available' :
-                                        stockQuantity > 0 ? 'low_stock' : 'out_of_stock';
+            if (newStock !== undefined) {
+                inventory.stock_quantity = newStock;
+                inventory.available_quantity = Math.max(0, newStock - (inventory.reserved_quantity || 0));
+                inventory.stock_status = calcStatus(newStock);
 
                 // Add stock movement
-                if (stockQuantity !== oldStock) {
-                    const difference = stockQuantity - oldStock;
+                if (newStock !== oldStock) {
+                    const difference = newStock - oldStock;
                     inventory.stock_movements.push({
                         type: difference > 0 ? 'add' : 'remove',
                         quantity: Math.abs(difference),
@@ -198,6 +200,12 @@ class InventoryService {
 
             inventory.last_stock_update = new Date();
             await inventory.save();
+        }
+
+        // 🔥 CRITICAL: Always sync Product model stock_quantity
+        if (newStock !== undefined) {
+            product.stock_quantity = newStock;
+            await product.save({ validateBeforeSave: false });
         }
 
         logger.info(`Inventory updated for product: ${productId}`, { sellerId });
@@ -237,7 +245,10 @@ class InventoryService {
     async addStock({ productId, sellerId, quantity, reason, performedBy }) {
         const product = await Product.findOne({
             _id: productId,
-            seller_id: sellerId
+            $or: [
+                { seller_id: sellerId },
+                { created_by: sellerId }
+            ]
         });
 
         if (!product) {
@@ -250,22 +261,28 @@ class InventoryService {
             throw ApiError.notFound('Inventory not found for this product');
         }
 
-        const oldStock = inventory.stock_quantity;
-        inventory.stock_quantity += quantity;
-        inventory.available_quantity += quantity;
-        inventory.stock_status = inventory.stock_quantity > 10 ? 'available' :
-                                inventory.stock_quantity > 0 ? 'low_stock' : 'out_of_stock';
+        const addQty = Math.max(0, parseInt(quantity, 10) || 0);
+        inventory.stock_quantity += addQty;
+        inventory.available_quantity += addQty;
+        const lowLimit = inventory.low_stock_limit || 5;
+        inventory.stock_status = inventory.stock_quantity > lowLimit ? 'available' :
+                                (inventory.stock_quantity > 0 ? 'low_stock' : 'out_of_stock');
         inventory.last_restocked_at = new Date();
+        inventory.last_stock_update = new Date();
 
         inventory.stock_movements.push({
             type: 'add',
-            quantity: quantity,
+            quantity: addQty,
             reason: reason || 'Stock added',
             performed_by: performedBy,
             timestamp: new Date()
         });
 
         await inventory.save();
+
+        // Sync with Product model
+        product.stock_quantity = inventory.stock_quantity;
+        await product.save({ validateBeforeSave: false });
 
         logger.info(`Stock added: ${quantity} for product ${productId}`, { sellerId, performedBy });
 
@@ -275,7 +292,10 @@ class InventoryService {
     async removeStock({ productId, sellerId, quantity, reason, performedBy }) {
         const product = await Product.findOne({
             _id: productId,
-            seller_id: sellerId
+            $or: [
+                { seller_id: sellerId },
+                { created_by: sellerId }
+            ]
         });
 
         if (!product) {
@@ -288,24 +308,31 @@ class InventoryService {
             throw ApiError.notFound('Inventory not found for this product');
         }
 
-        if (inventory.stock_quantity < quantity) {
+        const remQty = Math.max(0, parseInt(quantity, 10) || 0);
+        if (inventory.stock_quantity < remQty) {
             throw ApiError.badRequest('Insufficient stock available');
         }
 
-        inventory.stock_quantity -= quantity;
-        inventory.available_quantity -= quantity;
-        inventory.stock_status = inventory.stock_quantity > 10 ? 'available' :
-                                inventory.stock_quantity > 0 ? 'low_stock' : 'out_of_stock';
+        inventory.stock_quantity -= remQty;
+        inventory.available_quantity = Math.max(0, inventory.available_quantity - remQty);
+        const lowLimit = inventory.low_stock_limit || 5;
+        inventory.stock_status = inventory.stock_quantity > lowLimit ? 'available' :
+                                (inventory.stock_quantity > 0 ? 'low_stock' : 'out_of_stock');
+        inventory.last_stock_update = new Date();
 
         inventory.stock_movements.push({
             type: 'remove',
-            quantity: quantity,
+            quantity: remQty,
             reason: reason || 'Stock removed',
             performed_by: performedBy,
             timestamp: new Date()
         });
 
         await inventory.save();
+
+        // Sync with Product model
+        product.stock_quantity = inventory.stock_quantity;
+        await product.save({ validateBeforeSave: false });
 
         logger.info(`Stock removed: ${quantity} for product ${productId}`, { sellerId, performedBy });
 

@@ -588,73 +588,10 @@ const ApiService = {
         return axios.put(`${API_URL}/admin/sellers/${sellerIdentifier}/status`, data, { headers });
     },
 
-    // Delete seller (cascade - removes seller + user + products + employees + reviews)
+    // Delete seller (cascade - removes seller + user + products + reviews)
     deleteSeller: (sellerIdentifier) => {
         setAuthHeaders();
         return axios.delete(`${API_URL}/admin/sellers/${sellerIdentifier}`, { headers });
-    },
-
-
-    // ============ EMPLOYEE MANAGEMENT APIs ============
-
-    // Get all employees (paginated + filters)
-    getAllEmployees: (params = {}) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/admin/employees`, { params, headers });
-    },
-
-    // Get employee stats
-    getEmployeeStats: () => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/admin/employees/stats`, { headers });
-    },
-
-    // Get available users for employee creation (searchable email dropdown)
-    getAvailableUsersForEmployee: (params = {}) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/admin/employees/available-users`, { params, headers });
-    },
-
-    // Get deleted employees (Deleted tab)
-    getDeletedEmployees: (params = {}) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/admin/employees/deleted`, { params, headers });
-    },
-
-    // Get employee by code
-    getEmployeeByCode: (employeeCode) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/admin/employees/${employeeCode}`, { headers });
-    },
-
-    // Create employee
-    createEmployee: (data) => {
-        setAuthHeaders();
-        return axios.post(`${API_URL}/admin/employees`, data, { headers });
-    },
-
-    // Update employee details
-    updateEmployeeDetails: (employeeCode, data) => {
-        setAuthHeaders();
-        return axios.put(`${API_URL}/admin/employees/${employeeCode}`, data, { headers });
-    },
-
-    // Update employee status
-    updateEmployeeStatus: (employeeCode, data) => {
-        setAuthHeaders();
-        return axios.put(`${API_URL}/admin/employees/${employeeCode}/status`, data, { headers });
-    },
-
-    // Restore deleted employee
-    restoreEmployee: (employeeCode) => {
-        setAuthHeaders();
-        return axios.put(`${API_URL}/admin/employees/${employeeCode}/restore`, {}, { headers });
-    },
-
-    // Delete employee (soft)
-    deleteEmployee: (employeeCode) => {
-        setAuthHeaders();
-        return axios.delete(`${API_URL}/admin/employees/${employeeCode}`, { headers });
     },
 
 
@@ -732,6 +669,14 @@ const ApiService = {
         return axios.get(`${API_URL}/product/${productId}`);
     },
 
+    // Get Product Activity History
+    getProductActivity: (productId) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/product/${productId}/activity`, {
+            headers: headers,
+        });
+    },
+
     // Get Single Product by Slug (Public)
     getProductBySlug: (slug) => {
         return axios.get(`${API_URL}/product/slug/${slug}`);
@@ -780,8 +725,14 @@ const ApiService = {
         return axios.put(`${API_URL}/admin/products/${productCode}/activate`);
     },
 
-    // Get Product Reviews by Code (FIXED URL - yeh maine change kiya hai)
-    getProductReviews: (productCode, params) => {
+    // Update Marketplace Product Status (Active, Inactive, Suspended)
+    updateProductStatus: (productCode, data) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/admin/products/${productCode}/status`, data);
+    },
+
+    // Get Product Reviews by Code (Admin)
+    getAdminProductReviews: (productCode, params) => {
         setAuthHeaders();
         return axios.get(`${API_URL}/admin/products/${productCode}/reviews`, { params });
     },
@@ -857,16 +808,10 @@ const ApiService = {
         return axios.delete(`${API_URL}/admin/sub-categories/${code}`);
     },
 
-    // INVENTORY MANAGEMENT APIs ---------
-
+    // INVENTORY MANAGEMENT APIs --------- (READ-ONLY)
     // All Inventory
     getAllInventory: (params) => {
         return axios.get(`${API_URL}/admin/inventory`, { params });
-    },
-
-    // Update Inventory
-    updateInventoryStock: (inventoryId, data) => {
-        return axios.put(`${API_URL}/admin/inventory/${inventoryId}/stock`, data);
     },
 
     // ORDERS MANAGEMENT APIs ---------
@@ -906,37 +851,6 @@ const ApiService = {
     exportReturnsPDF: () => {
         return axios.get(`${API_URL}/admin/returns/export/pdf`, { responseType: 'blob' });
     },
-
-
-    // REVIEW APIs ---------------
-    // getReviewDashboard: () => {
-    //     return axios.get(`${API_URL}/admin/reviews/dashboard`);
-    // },
-
-    // getAllReviews: (params) => {
-    //     return axios.get(`${API_URL}/admin/reviews`, { params });
-    // },
-
-    // getReviewDetails: (reviewCode) => {
-    //     return axios.get(`${API_URL}/admin/reviews/${reviewCode}`);
-    // },
-
-    // moderateReview: (reviewCode, data) => {
-    //     return axios.patch(`${API_URL}/admin/reviews/${reviewCode}/status`, data);
-    // },
-
-    // getAllReviewReports: (params) => {
-    //     return axios.get(`${API_URL}/admin/reviews/reports`, { params });
-    // },
-
-    // updateReviewReport: (reportId, data) => {
-    //     return axios.patch(`${API_URL}/admin/reviews/reports/${reportId}`, data);
-    // },
-
-    // getReviewAnalytics: () => {
-    //     return axios.get(`${API_URL}/admin/reviews/analytics`);
-    // },
-
 
     // PAYMENTS MANAGEMENT APIs ---------
 
@@ -1722,6 +1636,17 @@ const ApiService = {
         });
     },
 
+    // Upload review media (images/videos)
+    uploadReviewMedia: (formData) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/review/upload-media`, formData, {
+            headers: {
+                ...headers,
+                ...formDataHeaders,
+            },
+        });
+    },
+
     // Create review (Customer only)
     createReview: (data) => {
         setAuthHeaders();
@@ -1881,22 +1806,6 @@ const ApiService = {
         });
     },
 
-    // Get employees (Sub-Admin)
-    getSubAdminEmployees: (params) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/sub-admin/employees`, {
-            headers: headers,
-            params: params,
-        });
-    },
-
-    // Get employee details (Sub-Admin)
-    getSubAdminEmployeeDetails: (employeeId) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/sub-admin/employees/${employeeId}`, {
-            headers: headers,
-        });
-    },
 
     // Get orders (Sub-Admin)
     getSubAdminOrders: (params) => {
@@ -2190,11 +2099,46 @@ const ApiService = {
         });
     },
 
+    // Get single seller product by ID or Code
+    getSellerProductById: (productId) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/seller/products/${productId}`, {
+            headers: headers,
+        });
+    },
+
     // Create product by seller
     createProductBySeller: (data) => {
         setAuthHeaders();
         return axios.post(`${API_URL}/seller/products`, data, {
             headers: headers,
+        });
+    },
+
+    // Update product by seller
+    updateSellerProduct: (productId, data) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/seller/products/${productId}`, data, {
+            headers: headers,
+        });
+    },
+
+    // Delete product by seller
+    deleteSellerProduct: (productId) => {
+        setAuthHeaders();
+        return axios.delete(`${API_URL}/seller/products/${productId}`, {
+            headers: headers,
+        });
+    },
+
+    // Upload product images (Cloudinary)
+    uploadSellerProductImages: (formData) => {
+        const token = getToken();
+        return axios.post(`${API_URL}/seller/upload-images`, formData, {
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                "Content-Type": "multipart/form-data",
+            },
         });
     },
 
@@ -2275,6 +2219,12 @@ const ApiService = {
         return axios.post(`${API_URL}/seller/categories`, data, { headers });
     },
 
+    // Create sub-category by seller under existing primary category
+    createSellerSubCategory: (data) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/seller/sub-categories`, data, { headers });
+    },
+
     // Get seller settings
     getSellerSettings: () => {
         setAuthHeaders();
@@ -2291,14 +2241,6 @@ const ApiService = {
         });
     },
 
-    // Update seller product
-    updateSellerProduct: (productId, data) => {
-        setAuthHeaders();
-        return axios.put(`${API_URL}/product/${productId}`, data, {
-            headers: headers,
-        });
-    },
-
     updateProduct: (productId, data) => {
         setAuthHeaders();
         return axios.put(`${API_URL}/product/${productId}`, data, {
@@ -2306,10 +2248,10 @@ const ApiService = {
         });
     },
 
-    // Delete seller product
-    deleteSellerProduct: (productId) => {
+    // Update product stock by seller
+    updateSellerProductStock: (productId, stockQuantity) => {
         setAuthHeaders();
-        return axios.delete(`${API_URL}/product/${productId}`, {
+        return axios.put(`${API_URL}/seller/products/${productId}`, { stock_quantity: stockQuantity }, {
             headers: headers,
         });
     },
@@ -2356,38 +2298,6 @@ const ApiService = {
         });
     },
 
-    // Get seller employees
-    getSellerEmployees: (sellerId, params) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/employee/seller/${sellerId}`, {
-            headers: headers,
-            params: params,
-        });
-    },
-
-    // Create employee for seller
-    createSellerEmployee: (data) => {
-        setAuthHeaders();
-        return axios.post(`${API_URL}/admin/employees`, data, {
-            headers: headers,
-        });
-    },
-
-    // Update seller employee status
-    updateSellerEmployeeStatus: (employeeId, data) => {
-        setAuthHeaders();
-        return axios.patch(`${API_URL}/employee/${employeeId}/status`, data, {
-            headers: headers,
-        });
-    },
-
-    // Delete seller employee
-    deleteSellerEmployee: (employeeId) => {
-        setAuthHeaders();
-        return axios.delete(`${API_URL}/employee/${employeeId}`, {
-            headers: headers,
-        });
-    },
 
     // ==========================================
     // SYSTEM SETTINGS (Public & Admin)
@@ -2475,6 +2385,59 @@ const ApiService = {
             headers: headers,
             params: params,
             responseType: 'blob',
+        });
+    },
+
+    // ============ SELLER REQUESTS (SELLER SIDE) ============
+    createSellerRequest: (data) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/seller/requests`, data, {
+            headers: headers,
+        });
+    },
+
+    getMySellerRequests: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/seller/requests`, {
+            headers: headers,
+            params: params,
+        });
+    },
+
+    getSellerRequestByCode: (requestCode) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/seller/requests/${requestCode}`, {
+            headers: headers,
+        });
+    },
+
+    // ============ SELLER REQUESTS (ADMIN SIDE) ============
+    getAdminSellerRequests: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/seller-requests`, {
+            headers: headers,
+            params: params,
+        });
+    },
+
+    getAdminSellerRequestStats: () => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/seller-requests/stats`, {
+            headers: headers,
+        });
+    },
+
+    getAdminSellerRequestByCode: (requestCode) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/seller-requests/${requestCode}`, {
+            headers: headers,
+        });
+    },
+
+    updateAdminSellerRequestStatus: (requestCode, data) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/admin/seller-requests/${requestCode}/status`, data, {
+            headers: headers,
         });
     },
 };

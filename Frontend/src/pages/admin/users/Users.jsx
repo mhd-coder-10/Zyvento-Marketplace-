@@ -19,7 +19,6 @@ const MAIN_USER_TYPES = [
     { value: 'super_admin', label: 'Super Admin' },
     { value: 'sub_admin', label: 'Sub Admin (Platform Staff)' },
     { value: 'seller', label: 'Sellers' },
-    { value: 'seller_employee', label: 'Employees' },
     { value: 'customer', label: 'Customers' },
 ];
 
@@ -29,16 +28,6 @@ const SUB_ADMIN_TYPES = [
     { value: 'finance_manager', label: 'Finance Manager' },
     { value: 'support_manager', label: 'Support Manager' },
     { value: 'seller_manager', label: 'Seller Manager' },
-];
-
-const EMPLOYEE_TYPES = [
-    { value: 'all', label: 'All Employee Types' },
-    { value: 'manager', label: 'Manager' },
-    { value: 'product_manager', label: 'Product Manager' },
-    { value: 'order_manager', label: 'Order Manager' },
-    { value: 'inventory_manager', label: 'Inventory Manager' },
-    { value: 'support_staff', label: 'Support Staff' },
-    { value: 'account_manager', label: 'Account Manager' },
 ];
 
 const STATUS_OPTIONS = [
@@ -79,7 +68,6 @@ const getStatusBadge = (status) => {
 const getRoleBadge = (user) => {
     const type = user?.user_type;
     const sub = user?.sub_admin_type;
-    const emp = user?.employee_type;
 
     if (type === 'super_admin') {
         return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 text-[11px] font-semibold"><FaUsersCog size={11} /> Super Admin</span>;
@@ -90,10 +78,6 @@ const getRoleBadge = (user) => {
     }
     if (type === 'seller') {
         return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-sky-200 bg-sky-50 text-sky-700 text-[11px] font-semibold"><FaStore size={11} /> Seller</span>;
-    }
-    if (type === 'seller_employee') {
-        const label = emp ? emp.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Employee';
-        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-teal-200 bg-teal-50 text-teal-700 text-[11px] font-semibold"><FaUserTag size={11} /> {label}</span>;
     }
     if (type === 'customer') {
         return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-[11px] font-semibold"><FiUser size={11} /> Customer</span>;
@@ -147,7 +131,6 @@ const Users = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [userTypeFilter, setUserTypeFilter] = useState('all');
     const [subAdminTypeFilter, setSubAdminTypeFilter] = useState('all');
-    const [employeeTypeFilter, setEmployeeTypeFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
 
     // Pagination
@@ -182,9 +165,6 @@ const Users = () => {
             if (subAdminTypeFilter && subAdminTypeFilter !== 'all' && userTypeFilter === 'sub_admin') {
                 params.sub_admin_type = subAdminTypeFilter;
             }
-            if (employeeTypeFilter && employeeTypeFilter !== 'all' && userTypeFilter === 'seller_employee') {
-                params.employee_type = employeeTypeFilter;
-            }
             if (statusFilter && statusFilter !== 'all') params.account_status = statusFilter;
 
             const res = await ApiService.getAllUsers(params);
@@ -205,7 +185,7 @@ const Users = () => {
         } finally {
             setLoading(false);
         }
-    }, [currentPage, itemsPerPage, debouncedSearch, userTypeFilter, subAdminTypeFilter, employeeTypeFilter, statusFilter]);
+    }, [currentPage, itemsPerPage, debouncedSearch, userTypeFilter, subAdminTypeFilter, statusFilter]);
 
     // ========== FETCH STATS ==========
     const fetchStats = useCallback(async () => {
@@ -234,12 +214,11 @@ const Users = () => {
     // Reset page when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [userTypeFilter, subAdminTypeFilter, employeeTypeFilter, statusFilter, debouncedSearch]);
+    }, [userTypeFilter, subAdminTypeFilter, statusFilter, debouncedSearch]);
 
     // Reset sub-filters when main type changes
     useEffect(() => {
         setSubAdminTypeFilter('all');
-        setEmployeeTypeFilter('all');
     }, [userTypeFilter]);
 
     // ========== HANDLERS ==========
@@ -275,7 +254,7 @@ const Users = () => {
             emailOf(u),
             phoneOf(u),
             u.user_type || '',
-            u.sub_admin_type || u.employee_type || '',
+            u.sub_admin_type || '',
             u.account_status || '',
             joinedOf(u) ? new Date(joinedOf(u)).toLocaleDateString('en-IN') : '',
         ]);
@@ -300,7 +279,6 @@ const Users = () => {
         setSearchQuery('');
         setUserTypeFilter('all');
         setSubAdminTypeFilter('all');
-        setEmployeeTypeFilter('all');
         setStatusFilter('all');
         setCurrentPage(1);
     };
@@ -308,19 +286,17 @@ const Users = () => {
     const activeFilterCount =
         (userTypeFilter !== 'all' ? 1 : 0) +
         (subAdminTypeFilter !== 'all' ? 1 : 0) +
-        (employeeTypeFilter !== 'all' ? 1 : 0) +
         (statusFilter !== 'all' ? 1 : 0) +
         (searchQuery ? 1 : 0);
 
     const showSubAdminDropdown = userTypeFilter === 'sub_admin';
-    const showEmployeeDropdown = userTypeFilter === 'seller_employee';
 
     // ========== RENDER ==========
     return (
         <div className="min-h-screen min-w-0 overflow-x-hidden bg-slate-50">
             <AdminTopbar
                 title="User Management"
-                subtitle="Manage all customers, vendors, employees & admins"
+                subtitle="Manage all customers, vendors & admins"
                 actions={
                     <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center lg:justify-end">
                         <button
@@ -382,14 +358,6 @@ const Users = () => {
                         accent="bg-sky-500"
                     />
                     <StatCard
-                        icon={<FaUserTag size={18} className="text-teal-600" />}
-                        title="Employees"
-                        value={statsLoading ? '—' : (stats?.sellerEmployees ?? 0)}
-                        subtext="Seller staff"
-                        color="bg-teal-100"
-                        accent="bg-teal-500"
-                    />
-                    <StatCard
                         icon={<FiUser size={18} className="text-emerald-600" />}
                         title="Customers"
                         value={statsLoading ? '—' : (stats?.customers ?? 0)}
@@ -445,16 +413,6 @@ const Users = () => {
                                         <option key={o.value} value={o.value}>{o.label}</option>
                                     ))}
                                 </select>
-                            ) : showEmployeeDropdown ? (
-                                <select
-                                    value={employeeTypeFilter}
-                                    onChange={(e) => setEmployeeTypeFilter(e.target.value)}
-                                    className="min-h-11 w-full rounded-lg border border-teal-300 bg-teal-50 px-3 py-2.5 text-sm text-teal-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-                                >
-                                    {EMPLOYEE_TYPES.map((o) => (
-                                        <option key={o.value} value={o.value}>{o.label}</option>
-                                    ))}
-                                </select>
                             ) : (
                                 <div className="hidden xl:block" />
                             )}
@@ -487,12 +445,7 @@ const Users = () => {
                                         <button onClick={() => setSubAdminTypeFilter('all')} className="hover:text-blue-900"><FiX size={12} /></button>
                                     </span>
                                 )}
-                                {employeeTypeFilter !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal-200 px-2.5 py-0.5 text-xs font-medium text-teal-700">
-                                        {EMPLOYEE_TYPES.find(o => o.value === employeeTypeFilter)?.label}
-                                        <button onClick={() => setEmployeeTypeFilter('all')} className="hover:text-teal-900"><FiX size={12} /></button>
-                                    </span>
-                                )}
+
                                 {statusFilter !== 'all' && (
                                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
                                         Status: {STATUS_OPTIONS.find(o => o.value === statusFilter)?.label}

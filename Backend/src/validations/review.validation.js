@@ -20,10 +20,10 @@ const reviewValidation = {
 
         order_id: Joi.string()
             .pattern(/^[0-9a-fA-F]{24}$/)
-            .required()
+            .optional()
+            .allow('', null)
             .messages({
                 'string.pattern.base': 'Invalid order ID format',
-                'string.empty': 'Order ID is required',
             }),
 
         rating: Joi.number()
@@ -37,34 +37,50 @@ const reviewValidation = {
             }),
 
         title: Joi.string()
-            .min(2)
             .max(100)
             .optional()
+            .allow('')
             .messages({
-                'string.min': 'Title must be at least 2 characters',
                 'string.max': 'Title cannot exceed 100 characters',
             }),
 
         comment: Joi.string()
-            .min(5)
-            .max(1000)
-            .optional()
+            .min(2)
+            .max(2000)
+            .required()
             .messages({
-                'string.min': 'Comment must be at least 5 characters',
-                'string.max': 'Comment cannot exceed 1000 characters',
+                'string.min': 'Comment must be at least 2 characters',
+                'string.max': 'Comment cannot exceed 2000 characters',
+                'any.required': 'Comment is required',
             }),
 
         images: Joi.array()
             .items(Joi.string())
-            .max(5)
+            .max(3)
             .optional()
             .messages({
-                'array.max': 'Cannot upload more than 5 images',
+                'array.max': 'Cannot upload more than 3 images',
+            }),
+
+        videos: Joi.array()
+            .items(Joi.string())
+            .max(3)
+            .optional()
+            .messages({
+                'array.max': 'Cannot upload more than 3 videos',
             }),
     }),
 
     // ============ UPDATE REVIEW ============
     updateReview: Joi.object({
+        reviewId: Joi.string()
+            .pattern(/^[0-9a-fA-F]{24}$/)
+            .optional(),
+
+        review_id: Joi.string()
+            .pattern(/^[0-9a-fA-F]{24}$/)
+            .optional(),
+
         rating: Joi.number()
             .min(1)
             .max(5)
@@ -75,21 +91,36 @@ const reviewValidation = {
             }),
 
         title: Joi.string()
-            .min(2)
             .max(100)
             .optional()
+            .allow('')
             .messages({
-                'string.min': 'Title must be at least 2 characters',
                 'string.max': 'Title cannot exceed 100 characters',
             }),
 
         comment: Joi.string()
-            .min(5)
-            .max(1000)
+            .min(2)
+            .max(2000)
             .optional()
             .messages({
-                'string.min': 'Comment must be at least 5 characters',
-                'string.max': 'Comment cannot exceed 1000 characters',
+                'string.min': 'Comment must be at least 2 characters',
+                'string.max': 'Comment cannot exceed 2000 characters',
+            }),
+
+        images: Joi.array()
+            .items(Joi.string())
+            .max(3)
+            .optional()
+            .messages({
+                'array.max': 'Cannot upload more than 3 images',
+            }),
+
+        videos: Joi.array()
+            .items(Joi.string())
+            .max(3)
+            .optional()
+            .messages({
+                'array.max': 'Cannot upload more than 3 videos',
             }),
     }),
 
@@ -358,14 +389,14 @@ const reviewValidation = {
 
     // ============ DELETE REVIEW ============
     deleteReview: Joi.object({
+        reviewId: Joi.string()
+            .pattern(/^[0-9a-fA-F]{24}$/)
+            .optional(),
+
         review_id: Joi.string()
             .pattern(/^[0-9a-fA-F]{24}$/)
-            .required()
-            .messages({
-                'string.pattern.base': 'Invalid review ID format',
-                'string.empty': 'Review ID is required',
-            }),
-    }),
+            .optional(),
+    }).or('reviewId', 'review_id'),
 };
 
 module.exports = reviewValidation;

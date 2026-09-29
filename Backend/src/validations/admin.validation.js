@@ -20,7 +20,7 @@ const adminValidation = {
         role_name: Joi.string().trim().min(2).max(100).required(),
         role_key: Joi.string().trim().min(2).max(100).required(),
         role_type: Joi.string()
-            .valid('system', 'admin', 'sub_admin', 'seller', 'employee', 'customer')
+            .valid('system', 'admin', 'sub_admin', 'seller', 'customer')
             .required(),
         description: Joi.string().trim().max(500).optional().allow('', null),
         permission_ids: Joi.array()
@@ -119,13 +119,10 @@ const adminValidation = {
         limit: Joi.number().integer().min(1).max(100).default(10),
         search: Joi.string().optional().allow(''),
         user_type: Joi.string()
-            .valid('all', 'super_admin', 'sub_admin', 'seller', 'seller_employee', 'customer')
+            .valid('all', 'super_admin', 'sub_admin', 'seller', 'customer')
             .optional(),
         sub_admin_type: Joi.string()
             .valid('all', 'manager', 'finance_manager', 'support_manager', 'seller_manager')
-            .optional(),
-        employee_type: Joi.string()
-            .valid('all', 'manager', 'product_manager', 'order_manager', 'inventory_manager', 'support_staff', 'account_manager')
             .optional(),
         account_status: Joi.string()
             .valid('all', 'active', 'blocked', 'inactive', 'deleted', 'pending')
@@ -151,7 +148,7 @@ const adminValidation = {
         password: Joi.string().min(6).required(),
 
         user_type: Joi.string()
-            .valid('super_admin', 'sub_admin', 'seller', 'seller_employee', 'customer')
+            .valid('super_admin', 'sub_admin', 'seller', 'customer')
             .required(),
 
         sub_admin_type: Joi.string()
@@ -162,21 +159,9 @@ const adminValidation = {
                 otherwise: Joi.optional().allow(null)
             }),
 
-        employee_type: Joi.string()
-            .valid('manager', 'product_manager', 'order_manager', 'inventory_manager', 'support_staff', 'account_manager')
-            .when('user_type', {
-                is: 'seller_employee',
-                then: Joi.required(),
-                otherwise: Joi.optional().allow(null)
-            }),
-
         seller_id: Joi.string()
             .pattern(/^[0-9a-fA-F]{24}$/)
-            .when('user_type', {
-                is: 'seller_employee',
-                then: Joi.optional().allow(null, ''),
-                otherwise: Joi.optional().allow(null, '')
-            }),
+            .optional().allow(null, ''),
 
         account_status: Joi.string()
             .valid('active', 'inactive', 'pending', 'blocked')
@@ -192,16 +177,11 @@ const adminValidation = {
         username: Joi.string().min(3).max(30).optional().allow(''),
 
         user_type: Joi.string()
-            .valid('super_admin', 'sub_admin', 'seller', 'seller_employee', 'customer')
+            .valid('super_admin', 'sub_admin', 'seller', 'customer')
             .optional(),
 
         sub_admin_type: Joi.string()
             .valid('manager', 'finance_manager', 'support_manager', 'seller_manager')
-            .optional()
-            .allow(null, ''),
-
-        employee_type: Joi.string()
-            .valid('manager', 'product_manager', 'order_manager', 'inventory_manager', 'support_staff', 'account_manager')
             .optional()
             .allow(null, ''),
 
@@ -275,6 +255,8 @@ const adminValidation = {
     // Update Seller Details
     adminUpdateSeller: Joi.object({
         business_name: Joi.string().min(2).max(100).optional(),
+        store_name: Joi.string().max(100).optional().allow('', null),
+        brand_name: Joi.string().max(100).optional().allow('', null),
         owner_name: Joi.string().min(2).max(50).optional(),
         email: Joi.string().email().optional(),
         mobile_number: Joi.string().optional().allow(''),
@@ -444,105 +426,6 @@ const adminValidation = {
     }),
 
 
-    // ============ EMPLOYEE VALIDATION ============
-
-    employeeCodeParam: Joi.object({
-        employeeCode: Joi.string()
-            .pattern(/^EMP-[A-Z0-9]+$/)
-            .required()
-            .messages({
-                'string.pattern.base': 'Invalid employee code format'
-            })
-    }),
-
-    getAllEmployees: Joi.object({
-        page: Joi.number().integer().min(1).default(1),
-        limit: Joi.number().integer().min(1).max(100).default(10),
-        search: Joi.string().optional().allow(''),
-        status: Joi.string()
-            .valid('all', 'pending', 'active', 'inactive', 'blocked')
-            .default('all'),
-        employee_type: Joi.string()
-            .valid('all', 'manager', 'product_manager', 'order_manager',
-                'inventory_manager', 'support_staff', 'account_manager')
-            .default('all'),
-        seller_id: Joi.string().optional().allow('', 'all'),
-        view: Joi.string().valid('active', 'deleted').default('active'),
-        sort_by: Joi.string()
-            .valid('created_at', 'updated_at', 'full_name', 'employee_code', 'joining_date')
-            .default('created_at'),
-        sort_order: Joi.string().valid('asc', 'desc').default('desc'),
-        start_date: Joi.date().optional(),
-        end_date: Joi.date().optional()
-    }),
-
-    getAvailableUsersQuery: Joi.object({
-        search: Joi.string().optional().allow(''),
-        limit: Joi.number().integer().min(1).max(200).default(50)
-    }),
-
-    getDeletedEmployees: Joi.object({
-        page: Joi.number().integer().min(1).default(1),
-        limit: Joi.number().integer().min(1).max(100).default(10),
-        search: Joi.string().optional().allow(''),
-        employee_type: Joi.string()
-            .valid('all', 'manager', 'product_manager', 'order_manager',
-                'inventory_manager', 'support_staff', 'account_manager')
-            .default('all'),
-        sort_by: Joi.string().valid('deleted_at', 'created_at', 'full_name').default('deleted_at'),
-        sort_order: Joi.string().valid('asc', 'desc').default('desc')
-    }),
-
-    createEmployee: Joi.object({
-        // Existing user OR new user creation
-        user_id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional(),
-        first_name: Joi.string().trim().min(2).max(50).optional(),
-        last_name: Joi.string().trim().min(2).max(50).optional(),
-        email: Joi.string().email().optional(),
-        mobile_number: Joi.string().pattern(/^[0-9]{10,15}$/).optional(),
-        password: Joi.string().min(6).max(128).optional(),
-
-        seller_id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
-        employee_type: Joi.string()
-            .valid('manager', 'product_manager', 'order_manager',
-                'inventory_manager', 'support_staff', 'account_manager')
-            .required(),
-        designation: Joi.string().trim().max(100).optional().allow('', null),
-        department: Joi.string().trim().max(100).optional().allow('', null),
-        joining_date: Joi.date().optional(),
-        notes: Joi.string().trim().max(1000).optional().allow('', null),
-        current_role_ids: Joi.array()
-            .items(Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
-            .optional().default([])
-    }).xor('user_id', 'email'),   // either existing user_id OR new email required
-
-    updateEmployee: Joi.object({
-        full_name: Joi.string().trim().min(2).max(100).optional(),
-        mobile_number: Joi.string().pattern(/^[0-9]{10,15}$/).optional().allow('', null),
-        seller_id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional(),
-        employee_type: Joi.string()
-            .valid('manager', 'product_manager', 'order_manager',
-                'inventory_manager', 'support_staff', 'account_manager')
-            .optional(),
-        designation: Joi.string().trim().max(100).optional().allow('', null),
-        department: Joi.string().trim().max(100).optional().allow('', null),
-        joining_date: Joi.date().optional(),
-        notes: Joi.string().trim().max(1000).optional().allow('', null),
-        current_role_ids: Joi.array()
-            .items(Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
-            .optional(),
-        role_change_reason: Joi.string().trim().max(500).optional().allow('', null)
-    }).min(1),
-
-    // updateEmployeeStatus
-    updateEmployeeStatus: Joi.object({
-        status: Joi.string()
-            .valid('active', 'inactive', 'blocked')
-            .required(),
-        reason: Joi.string().trim().max(500).optional().allow('', null),
-        notes: Joi.string().trim().max(1000).optional().allow('', null)
-    }),
-
 
 
     // ============ REVIEW MANAGEMENT (ADMIN SIDE) ============
@@ -553,7 +436,7 @@ const adminValidation = {
         limit: Joi.number().integer().min(1).max(100).default(10),
         search: Joi.string().optional().allow(''),
         status: Joi.string()
-            .valid('all', 'pending', 'published', 'flagged', 'reported', 'hidden', 'rejected')
+            .valid('all', 'published', 'flagged', 'hidden', 'rejected')
             .optional(),
         rating: Joi.number().integer().min(1).max(5).optional(),
         seller_id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional(),
@@ -565,10 +448,10 @@ const adminValidation = {
         sort_order: Joi.string().valid('asc', 'desc').default('desc'),
     }),
 
-    // Review ID Param
+    // Review ID Param (Allows 24-hex Mongo ObjectId or alphanumeric review code)
     adminReviewIdParam: Joi.object({
         reviewId: Joi.string()
-            .pattern(/^[0-9a-fA-F]{24}$/)
+            .trim()
             .required(),
     }),
 

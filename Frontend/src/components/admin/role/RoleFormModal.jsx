@@ -8,7 +8,6 @@ const ROLE_TYPE_OPTIONS = [
     { value: 'sub_admin', label: 'Sub-Admin' },
     { value: 'admin', label: 'Admin' },
     { value: 'seller', label: 'Seller' },
-    { value: 'employee', label: 'Employee' },
     { value: 'customer', label: 'Customer' }
 ];
 

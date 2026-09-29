@@ -20,7 +20,7 @@ const role_schema = new mongoose.Schema(
 
     role_type: {
         type: String,
-        enum: ["system", "admin", "sub_admin", "seller", "employee", "customer"],
+        enum: ["system", "admin", "sub_admin", "seller", "customer"],
         required: true
     },
 

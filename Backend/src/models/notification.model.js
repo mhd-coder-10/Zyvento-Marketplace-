@@ -29,7 +29,7 @@ const notification_schema = new mongoose.Schema(
         // ============ RECEIVER TYPE ============
         receiver_type: {
             type: String,
-            enum: ["customer", "seller", "seller_employee", "admin", "sub_admin", "super_admin"],
+            enum: ["customer", "seller", "admin", "sub_admin", "super_admin"],
             required: true
         },
 
@@ -50,7 +50,7 @@ const notification_schema = new mongoose.Schema(
             type: String,
             enum: [
                 "order", "payment", "product", "inventory", "profile",
-                "seller", "employee", "offer", "return", "refund",
+                "seller", "offer", "return", "refund",
                 "system", "promotion", "security", "role_change", "permission_change"
             ],
             required: true
@@ -65,7 +65,7 @@ const notification_schema = new mongoose.Schema(
             type: String,
             enum: [
                 "Order", "OrderItem", "Payment", "Product", "Inventory",
-                "Return", "Refund", "Seller", "Employee", "Coupon", "Role", "Permission"
+                "Return", "Refund", "Seller", "Coupon", "Role", "Permission"
             ],
             default: null
         },

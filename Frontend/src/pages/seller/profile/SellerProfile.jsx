@@ -36,6 +36,7 @@ const SellerProfile = () => {
 
     const [form, setForm] = useState({
         // Brand & Names
+        brand_name: '',
         store_name: '',
         business_name: '',
         business_type: 'individual',
@@ -88,6 +89,7 @@ const SellerProfile = () => {
                 const bank = p.bank_details || {};
 
                 setForm({
+                    brand_name: p.brand_name || p.store_name || p.business_name || '',
                     store_name: p.store_name || p.business_name || '',
                     business_name: p.business_name || '',
                     business_type: p.business_type || 'individual',
@@ -129,6 +131,7 @@ const SellerProfile = () => {
         setSaving(true);
         try {
             const payload = {
+                brand_name: form.brand_name?.trim() || form.store_name?.trim() || form.business_name?.trim(),
                 store_name: form.store_name?.trim() || form.business_name?.trim(),
                 business_name: form.business_name?.trim() || form.store_name?.trim(),
                 business_type: form.business_type,
@@ -270,58 +273,97 @@ const SellerProfile = () => {
                 <form onSubmit={handleSave} className="p-6 text-left">
                     {/* Tab: General & Business */}
                     {activeTab === 'general' && (
-                        <div className="space-y-4 max-w-2xl">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                                        Public Store Name *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={form.store_name}
-                                        onChange={(e) => setForm({ ...form, store_name: e.target.value })}
-                                        placeholder="e.g. Acme Tech Solutions"
-                                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none"
-                                    />
+                        <div className="space-y-5 max-w-2xl">
+                            {/* Brand & Store Identity Box */}
+                            <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-sky-50/40 border border-blue-100/90 space-y-4">
+                                <div className="flex items-center gap-2 pb-1 border-b border-blue-100">
+                                    <FiTag className="text-blue-600 w-4 h-4" />
+                                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Brand & Storefront Identity
+                                    </h3>
                                 </div>
 
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                                        Legal Business Name *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={form.business_name}
-                                        onChange={(e) => setForm({ ...form, business_name: e.target.value })}
-                                        placeholder="e.g. Acme Pvt Ltd"
-                                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none"
-                                    />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-800 mb-1">
+                                            Brand Name / Trade Name *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={form.brand_name}
+                                            onChange={(e) => setForm({ ...form, brand_name: e.target.value })}
+                                            placeholder="e.g. Vikram Decor, Nike, Sony"
+                                            className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none bg-white font-medium"
+                                        />
+                                        <p className="text-[10px] text-slate-500 mt-1">
+                                            Auto-prefilled as the Brand for all your new and edited products.
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-800 mb-1">
+                                            Public Store Name *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={form.store_name}
+                                            onChange={(e) => setForm({ ...form, store_name: e.target.value })}
+                                            placeholder="e.g. Vikram Home Decor Store"
+                                            className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none bg-white font-medium"
+                                        />
+                                        <p className="text-[10px] text-slate-500 mt-1">
+                                            Customer-facing store name displayed on the marketplace.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                            Legal Business Name *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={form.business_name}
+                                            onChange={(e) => setForm({ ...form, business_name: e.target.value })}
+                                            placeholder="e.g. Vikram Decor Pvt Ltd"
+                                            className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none bg-white"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                            Business Structure / Type
+                                        </label>
+                                        <select
+                                            value={form.business_type}
+                                            onChange={(e) => setForm({ ...form, business_type: e.target.value })}
+                                            className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none bg-white"
+                                        >
+                                            {BUSINESS_TYPES.map((t) => (
+                                                <option key={t.value} value={t.value}>
+                                                    {t.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                                        Business Type
-                                    </label>
-                                    <select
-                                        value={form.business_type}
-                                        onChange={(e) => setForm({ ...form, business_type: e.target.value })}
-                                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none bg-white"
-                                    >
-                                        {BUSINESS_TYPES.map((t) => (
-                                            <option key={t.value} value={t.value}>
-                                                {t.label}
-                                            </option>
-                                        ))}
-                                    </select>
+                            {/* Owner / Primary Contact Card */}
+                            <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200 space-y-4">
+                                <div className="flex items-center gap-2 pb-1 border-b border-slate-200">
+                                    <FiUser className="text-blue-600 w-4 h-4" />
+                                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Account Owner Information
+                                    </h3>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                                        Owner / Primary Contact Name *
+                                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                        Owner / Signatory Full Name *
                                     </label>
                                     <input
                                         type="text"
@@ -329,8 +371,11 @@ const SellerProfile = () => {
                                         value={form.owner_name}
                                         onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
                                         placeholder="Full name of owner"
-                                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none"
+                                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 outline-none bg-white"
                                     />
+                                    <p className="text-[10px] text-slate-500 mt-1">
+                                        Legal authorized individual who owns and operates this store.
+                                    </p>
                                 </div>
                             </div>
 

@@ -23,6 +23,7 @@ const productController = {
         const maxPrice = req.query.max_price || req.query.maxPrice;
         const brand = req.query.brand;
         const rating = req.query.rating;
+        const seller = req.query.seller || req.query.seller_id || req.query.sellerId;
         const sortBy = req.query.sort_by || req.query.sortBy || 'created_at';
         const sortOrder = req.query.sort_order || req.query.sortOrder || 'desc';
 
@@ -36,6 +37,7 @@ const productController = {
             maxPrice,
             brand,
             rating,
+            seller,
             sortBy,
             sortOrder
         });
@@ -54,6 +56,14 @@ const productController = {
         const product = await productService.getProductById(productId);
         res.status(200).json(
             ApiResponse.success(product, 'Product details fetched successfully')
+        );
+    }),
+
+    getProductActivity: asyncHandler(async (req, res) => {
+        const { productId } = req.params;
+        const result = await productService.getProductActivity(productId);
+        res.status(200).json(
+            ApiResponse.success(result, 'Product activity history fetched successfully')
         );
     }),
 

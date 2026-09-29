@@ -2,6 +2,7 @@
 // Manages category CRUD, sub-categories, and category images
 // Also handles category status and reordering
 
+const mongoose = require('mongoose');
 const Category = require('../../models/category.model');
 const SubCategory = require('../../models/sub_category.model');
 const Product = require('../../models/product.model');
@@ -81,8 +82,18 @@ class CategoryService {
             throw ApiError.notFound('Category not found');
         }
 
-        const query = { category_id: categoryId };
-        if (status) {
+        const catObjectId = mongoose.Types.ObjectId.isValid(categoryId)
+            ? new mongoose.Types.ObjectId(categoryId)
+            : categoryId;
+
+        const query = {
+            $or: [
+                { category_id: catObjectId },
+                { category_id: categoryId.toString() }
+            ],
+            deleted_at: null
+        };
+        if (status && status !== 'all') {
             query.status = status;
         }
 
@@ -149,6 +160,18 @@ class CategoryService {
             }
         }
 
+        // Handle category_image if updated
+        if (updateData.category_image !== undefined && updateData.category_image !== category.category_image) {
+            if (category.category_image) {
+                try {
+                    await cloudinaryHelper.deleteFile(category.category_image);
+                } catch (error) {
+                    logger.error('Error deleting old category image on update:', error);
+                }
+            }
+            filteredData.category_image = updateData.category_image;
+        }
+
         // Check if category name is being changed and if it already exists
         if (updateData.category_name) {
             const existingCategory = await Category.findOne({
@@ -194,8 +217,7 @@ class CategoryService {
         // Delete category image from cloudinary
         if (category.category_image) {
             try {
-                const publicId = category.category_image.split('/').pop().split('.')[0];
-                await cloudinaryHelper.deleteFile(publicId);
+                await cloudinaryHelper.deleteFile(category.category_image);
             } catch (error) {
                 logger.error('Error deleting category image:', error);
             }
@@ -235,8 +257,7 @@ class CategoryService {
         // Delete old image if exists
         if (category.category_image) {
             try {
-                const oldPublicId = category.category_image.split('/').pop().split('.')[0];
-                await cloudinaryHelper.deleteFile(oldPublicId);
+                await cloudinaryHelper.deleteFile(category.category_image);
             } catch (error) {
                 logger.error('Error deleting old category image:', error);
             }
@@ -273,8 +294,7 @@ class CategoryService {
 
         // Delete from cloudinary
         try {
-            const publicId = category.category_image.split('/').pop().split('.')[0];
-            await cloudinaryHelper.deleteFile(publicId);
+            await cloudinaryHelper.deleteFile(category.category_image);
         } catch (error) {
             logger.error('Error deleting category image:', error);
         }

@@ -5,7 +5,7 @@ export const ALL_MODULES = [
     icon: 'FiHome',
     path: '/dashboard',
     permission: 'view_dashboard',
-    roles: ['super_admin', 'sub_admin', 'seller', 'seller_employee'],
+    roles: ['super_admin', 'sub_admin', 'seller'],
     order: 1,
   },
   {
@@ -50,7 +50,7 @@ export const ALL_MODULES = [
     icon: 'FiShoppingCart',
     path: '/orders',
     permission: 'manage_orders',
-    roles: ['super_admin', 'sub_admin', 'seller', 'seller_employee'],
+    roles: ['super_admin', 'sub_admin', 'seller'],
     order: 6,
   },
   {
@@ -113,7 +113,7 @@ export const ALL_MODULES = [
     icon: 'FiUser',
     path: '/profile',
     permission: 'view_profile',
-    roles: ['super_admin', 'sub_admin', 'seller', 'seller_employee', 'customer'],
+    roles: ['super_admin', 'sub_admin', 'seller', 'customer'],
     order: 13,
   },
 ];

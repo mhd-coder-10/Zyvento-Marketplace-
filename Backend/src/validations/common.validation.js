@@ -60,17 +60,6 @@ const commonValidation = {
             }),
     }),
 
-    // ============ EMPLOYEE ID PARAM ============
-    employeeIdParam: Joi.object({
-        employeeId: Joi.string()
-            .pattern(/^[0-9a-fA-F]{24}$/)
-            .required()
-            .messages({
-                'string.pattern.base': 'Invalid employee ID format',
-                'string.empty': 'Employee ID is required',
-            }),
-    }),
-
     // ============ CATEGORY ID PARAM ============
     categoryIdParam: Joi.object({
         categoryId: Joi.string()

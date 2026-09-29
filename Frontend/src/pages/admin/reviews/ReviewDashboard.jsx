@@ -28,9 +28,7 @@ const ReviewDashboard = () => {
     const cardConfig = [
         { label: 'Total Reviews', value: stats.total, icon: <FiStar />, color: 'bg-blue-50 text-blue-600' },
         { label: 'Published', value: stats.published, icon: <FiCheckCircle />, color: 'bg-emerald-50 text-emerald-600' },
-        { label: 'Pending', value: stats.pending, icon: <FiClock />, color: 'bg-amber-50 text-amber-600' },
         { label: 'Flagged', value: stats.flagged, icon: <FiFlag />, color: 'bg-orange-50 text-orange-600' },
-        { label: 'Reported', value: stats.reported, icon: <FiAlertCircle />, color: 'bg-red-50 text-red-600' },
         { label: 'Hidden', value: stats.hidden, icon: <FiEyeOff />, color: 'bg-gray-100 text-gray-600' },
         { label: 'Rejected', value: stats.rejected, icon: <FiXCircle />, color: 'bg-rose-50 text-rose-600' }
     ];

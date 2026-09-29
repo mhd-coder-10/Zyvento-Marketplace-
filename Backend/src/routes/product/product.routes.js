@@ -118,6 +118,11 @@ router.get(
     productController.getProductById
 );
 
+router.get(
+    '/:productId/activity',
+    productController.getProductActivity
+);
+
 /**
  * @swagger
  * /product/category/{categoryId}:
