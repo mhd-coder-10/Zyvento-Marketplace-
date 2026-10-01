@@ -207,6 +207,14 @@ class SellerService {
         const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
+        // Original seller sale price expression (platform coupons NEVER reduce seller revenue)
+        const sellerGrossExpr = {
+            $ifNull: [
+                '$subtotal',
+                { $add: ['$total_amount', { $ifNull: ['$coupon_discount', { $ifNull: ['$discount_amount', 0] }] }] }
+            ]
+        };
+
         // Concurrent fetch of products, stock alerts, orders, and financial stats
         const [
             totalProducts,
@@ -234,7 +242,7 @@ class SellerService {
                         count: { $sum: 1 },
                         totalRevenue: {
                             $sum: {
-                                $cond: [{ $eq: ['$payment_status', 'paid'] }, '$total_amount', 0]
+                                $cond: [{ $eq: ['$payment_status', 'paid'] }, sellerGrossExpr, 0]
                             }
                         },
                         totalUnits: { $sum: '$total_items' }
@@ -249,7 +257,7 @@ class SellerService {
                         todayOrders: { $sum: 1 },
                         todaySales: {
                             $sum: {
-                                $cond: [{ $eq: ['$payment_status', 'paid'] }, '$total_amount', 0]
+                                $cond: [{ $eq: ['$payment_status', 'paid'] }, sellerGrossExpr, 0]
                             }
                         },
                         todayUnits: { $sum: '$total_items' }
@@ -264,7 +272,7 @@ class SellerService {
                         orders: { $sum: 1 },
                         sales: {
                             $sum: {
-                                $cond: [{ $eq: ['$payment_status', 'paid'] }, '$total_amount', 0]
+                                $cond: [{ $eq: ['$payment_status', 'paid'] }, sellerGrossExpr, 0]
                             }
                         },
                         units: { $sum: '$total_items' }
@@ -279,7 +287,7 @@ class SellerService {
                         orders: { $sum: 1 },
                         sales: {
                             $sum: {
-                                $cond: [{ $eq: ['$payment_status', 'paid'] }, '$total_amount', 0]
+                                $cond: [{ $eq: ['$payment_status', 'paid'] }, sellerGrossExpr, 0]
                             }
                         },
                         units: { $sum: '$total_items' }
@@ -688,12 +696,8 @@ class SellerService {
 
         const effectiveUserId = seller.user_id || userId;
 
-        // Calculate final price
-        let finalPrice = Number(productData.price);
-        const discount = Number(productData.discount || 0);
-        if (discount > 0) {
-            finalPrice = finalPrice - (finalPrice * discount / 100);
-        }
+        // Maintain pure seller price without artificial discount/coupon markup
+        const sellerPrice = Number(productData.price);
 
         const stockQuantity = Number(productData.stock_quantity ?? productData.stock ?? 0);
         const normalizedImages = Array.isArray(productData.images)
@@ -720,9 +724,13 @@ class SellerService {
             sub_category_id: subCategoryId,
             seller_id: seller._id,
             created_by: effectiveUserId,
+            price: sellerPrice,
+            mrp: sellerPrice,
+            final_price: sellerPrice,
+            discount_percent: 0,
+            videos: [],
             stock_quantity: stockQuantity,
             images: normalizedImages,
-            final_price: finalPrice,
             sku: sku,
             product_code: productData.product_code || `PRD-${Date.now().toString().slice(-6)}`,
             status: status,
@@ -847,23 +855,18 @@ class SellerService {
         if (updateData.description !== undefined) product.description = (updateData.description || '').trim();
         if (updateData.sku && updateData.sku.trim()) product.sku = updateData.sku.trim();
 
+        // Maintain pure seller price across listing pages and details without artificial discount
         if (updateData.price !== undefined) {
-            product.price = Number(updateData.price);
+            const newPrice = Number(updateData.price);
+            product.price = newPrice;
+            product.mrp = newPrice;
+            product.final_price = newPrice;
+            product.discount_percent = 0;
+        } else {
+            product.mrp = product.price;
+            product.final_price = product.price;
+            product.discount_percent = 0;
         }
-        if (updateData.compare_at_price !== undefined) {
-            product.compare_at_price = updateData.compare_at_price ? Number(updateData.compare_at_price) : undefined;
-        }
-        if (updateData.cost_per_item !== undefined) {
-            product.cost_per_item = updateData.cost_per_item ? Number(updateData.cost_per_item) : undefined;
-        }
-        if (updateData.discount !== undefined) {
-            product.discount_percent = Number(updateData.discount || 0);
-        }
-
-        // Recalculate final price
-        const price = Number(product.price);
-        const discount = Number(product.discount_percent || 0);
-        product.final_price = discount > 0 ? (price - (price * discount / 100)) : price;
 
         const stockQuantity = updateData.stock_quantity !== undefined 
             ? Number(updateData.stock_quantity) 
@@ -1282,7 +1285,9 @@ class SellerService {
         let pendingRevenue = 0;
 
         const transactions = orders.map((ord) => {
-            const gross = Number(ord.total_amount) || 0;
+            // Seller's product price must NEVER be reduced because of a platform coupon
+            const platformCouponDiscount = Number(ord.coupon_discount) || Number(ord.discount_amount) || 0;
+            const gross = Number(ord.subtotal) > 0 ? Number(ord.subtotal) : (Number(ord.total_amount) + platformCouponDiscount);
             totalGrossRevenue += gross;
 
             const isDelivered = ord.order_status === 'delivered';
@@ -1303,6 +1308,8 @@ class SellerService {
                 order_number: ord.order_number,
                 created_at: ord.created_at,
                 gross_amount: gross,
+                coupon_discount: platformCouponDiscount,
+                customer_paid: Number(ord.total_amount) || 0,
                 commission_amount: fee,
                 net_amount: net,
                 status: isDelivered ? 'paid' : (ord.order_status === 'cancelled' ? 'cancelled' : 'pending'),

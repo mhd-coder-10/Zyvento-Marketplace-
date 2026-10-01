@@ -648,6 +648,12 @@ router.delete(
 // ============ REPORT ROUTES ============
 
 router.get(
+    '/reports/coupons/:code',
+    checkPermission('REPORTS_READ'),
+    adminController.getCouponReportDetail
+);
+
+router.get(
     '/reports/:reportType',
     checkPermission('REPORTS_READ'),
     adminController.getReportData

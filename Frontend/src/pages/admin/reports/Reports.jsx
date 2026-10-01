@@ -7,8 +7,9 @@ import SalesReport from './SalesReport';
 import RevenueReport from './RevenueReport';
 import OrderReport from './OrderReport';
 import ProductReport from './ProductReport';
+import CouponReport from './CouponReport';
 
-const validTabs = ['revenue', 'sales', 'orders', 'products', 'users'];
+const validTabs = ['revenue', 'sales', 'orders', 'products', 'users', 'coupons'];
 const DEFAULT_TAB = 'revenue';
 const STORAGE_KEY = 'admin_reports_active_tab';
 
@@ -57,6 +58,7 @@ const Reports = () => {
         { id: 'sales', label: 'Sales Report', component: SalesReport },
         { id: 'orders', label: 'Order Report', component: OrderReport },
         { id: 'products', label: 'Product Report', component: ProductReport },
+        { id: 'coupons', label: 'Coupon Report', component: CouponReport },
     ];
 
     const ActiveComponent = reportTypes.find(r => r.id === activeTab)?.component || RevenueReport;

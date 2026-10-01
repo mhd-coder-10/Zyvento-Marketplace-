@@ -364,6 +364,12 @@ const OrderDetails = () => {
                                 <span>Subtotal:</span>
                                 <span className="font-bold text-slate-900">₹{Number(order.subtotal || order.total_amount || 0).toFixed(2)}</span>
                             </div>
+                            {Number(order.coupon_discount || 0) > 0 && (
+                                <div className="flex justify-between text-emerald-600 font-bold">
+                                    <span>Coupon Discount {order.coupon_code ? `(${order.coupon_code})` : ''}:</span>
+                                    <span>-₹{Number(order.coupon_discount).toFixed(2)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between">
                                 <span>Delivery Charges:</span>
                                 <span className="font-bold text-emerald-600">FREE</span>

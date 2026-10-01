@@ -12,6 +12,8 @@ const Payment = require('../../models/payment.model');
 const Notification = require('../../models/notification.model');
 const User = require('../../models/user.model');
 const Seller = require('../../models/seller.model');
+const Finance = require('../../models/finance.model');
+const Address = require('../../models/address.model');
 const ApiError = require('../../utils/apiError');
 const Helpers = require('../../utils/helpers');
 const logger = require('../../utils/logger');
@@ -41,16 +43,50 @@ class OrderService {
     }
 
     // ============ CUSTOMER ROUTES ============
-    async placeOrder({ userId, shipping_address, order_items, payment_method, coupon_code, notes }) {
+    async placeOrder({ userId, shipping_address, address_id, order_items, payment_method, coupon_code, notes }) {
         // 1. Validate user
         const user = await User.findById(userId);
         if (!user) {
             throw ApiError.notFound('User not found');
         }
 
-        // 2. Validate cart items
+        // 1.1 Address resolution if address_id passed
+        if (!shipping_address && address_id) {
+            const addr = await Address.findById(address_id);
+            if (!addr) {
+                throw ApiError.notFound('Delivery address not found');
+            }
+            shipping_address = {
+                full_name: addr.full_name,
+                mobile_number: addr.phone || addr.mobile_number,
+                house_number: addr.house_number || '',
+                street: addr.address_line1 + (addr.address_line2 ? `, ${addr.address_line2}` : ''),
+                landmark: addr.landmark || '',
+                city: addr.city,
+                state: addr.state,
+                country: addr.country || 'India',
+                pincode: addr.pincode
+            };
+        }
+
+        if (!shipping_address) {
+            throw ApiError.badRequest('Shipping address is required');
+        }
+
+        // 2. Validate cart items or fallback to cart
         if (!order_items || order_items.length === 0) {
-            throw ApiError.badRequest('Order items are required');
+            const userCart = await Cart.findOne({ user_id: userId });
+            if (!userCart || !userCart.products || userCart.products.length === 0) {
+                throw ApiError.badRequest('Cart is empty. Please add items to cart.');
+            }
+            order_items = userCart.products.map(p => ({
+                product_id: p.product_id,
+                quantity: p.quantity,
+                variant: p.variant || null
+            }));
+            if (!coupon_code && userCart.coupon_code) {
+                coupon_code = userCart.coupon_code;
+            }
         }
 
         // 3. Process each item
@@ -105,7 +141,7 @@ class OrderService {
 
         const sellerId = Array.from(sellerIds)[0];
 
-        // 5. Validate coupon
+        // 5. Validate coupon (Platform-funded coupon)
         let discountAmount = 0;
         let couponId = null;
         let couponCodeApplied = null;
@@ -118,41 +154,52 @@ class OrderService {
                 expiry_date: { $gte: new Date() }
             });
 
-            if (coupon) {
-                // Check usage limit
-                if (coupon.usage_limit && coupon.used_count >= coupon.usage_limit) {
-                    throw ApiError.badRequest('Coupon usage limit exceeded');
-                }
-
-                // Check minimum order amount
-                if (coupon.minimum_order_amount && subtotal < coupon.minimum_order_amount) {
-                    throw ApiError.badRequest(`Minimum order amount of ${coupon.minimum_order_amount} required for this coupon`);
-                }
-
-                // Calculate discount
-                if (coupon.discount_type === 'percentage') {
-                    discountAmount = (subtotal * coupon.discount_value) / 100;
-                    if (coupon.maximum_discount && discountAmount > coupon.maximum_discount) {
-                        discountAmount = coupon.maximum_discount;
-                    }
-                } else {
-                    discountAmount = coupon.discount_value;
-                }
-
-                couponId = coupon._id;
-                couponCodeApplied = coupon.coupon_code;
-
-                // Increment coupon usage
-                coupon.used_count += 1;
-                await coupon.save();
-            } else {
+            if (!coupon) {
                 throw ApiError.badRequest('Invalid or expired coupon code');
             }
+
+            // Check overall usage limit
+            if (coupon.usage_limit && coupon.used_count >= coupon.usage_limit) {
+                throw ApiError.badRequest('Coupon usage limit exceeded');
+            }
+
+            // Check per-user limit
+            const userUsageCount = (coupon.usage_history || []).filter(
+                h => h.user_id && h.user_id.toString() === userId.toString()
+            ).length;
+            if (coupon.per_user_limit && userUsageCount >= coupon.per_user_limit) {
+                throw ApiError.badRequest(`You have reached the maximum allowed usage limit (${coupon.per_user_limit}) for this coupon`);
+            }
+
+            // Check minimum order amount
+            if (coupon.minimum_order_amount && subtotal < coupon.minimum_order_amount) {
+                throw ApiError.badRequest(`Minimum order amount of ₹${coupon.minimum_order_amount} required for this coupon`);
+            }
+
+            // Calculate discount
+            if (coupon.discount_type === 'percentage') {
+                discountAmount = (subtotal * coupon.discount_value) / 100;
+                if (coupon.maximum_discount && discountAmount > coupon.maximum_discount) {
+                    discountAmount = coupon.maximum_discount;
+                }
+            } else {
+                discountAmount = coupon.discount_value;
+            }
+
+            if (discountAmount > subtotal) {
+                discountAmount = subtotal;
+            }
+            discountAmount = Math.round((discountAmount + Number.EPSILON) * 100) / 100;
+
+            couponId = coupon._id;
+            couponCodeApplied = coupon.coupon_code;
         }
 
         // 6. Calculate totals
-        const totalAmount = subtotal - discountAmount;
+        // Seller Sale Amount = subtotal (NEVER reduced by coupon)
+        // Zyvento bears the discountAmount as platform coupon cost
         const deliveryCharge = 0; // Calculate based on delivery settings
+        const totalAmount = Math.max(0, subtotal + deliveryCharge - discountAmount);
 
         // 7. Generate order number
         const orderNumber = Helpers.generateOrderNumber();
@@ -166,11 +213,12 @@ class OrderService {
             total_items: processedItems.reduce((sum, item) => sum + item.quantity, 0),
             subtotal,
             discount_amount: discountAmount,
+            coupon_discount: discountAmount,
+            coupon_code: couponCodeApplied,
+            coupon_id: couponId,
+            platform_coupon_cost: discountAmount,
             delivery_charge: deliveryCharge,
             total_amount: totalAmount,
-            coupon_id: couponId,
-            coupon_code: couponCodeApplied,
-            coupon_discount: discountAmount,
             payment_method: payment_method,
             payment_status: 'pending',
             order_status: 'pending',
@@ -178,6 +226,50 @@ class OrderService {
         });
 
         await order.save();
+
+        // Update coupon usage and history if coupon applied
+        if (couponId) {
+            const coupon = await Coupon.findById(couponId);
+            if (coupon) {
+                coupon.used_count += 1;
+                coupon.usage_history.push({
+                    user_id: userId,
+                    order_id: order._id,
+                    used_at: new Date(),
+                    discount_applied: discountAmount
+                });
+                await coupon.save();
+            }
+
+            // Record Platform Coupon Cost in Finance Module as Expense for Zyvento
+            if (discountAmount > 0) {
+                try {
+                    const finYearMonth = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+                    await Finance.create({
+                        entry_code: `FIN-${finYearMonth}-${order.order_number}`,
+                        entry_type: 'expense',
+                        category: 'Platform Coupon Cost',
+                        amount: discountAmount,
+                        net_amount: discountAmount,
+                        tax_rate: 0,
+                        tax_amount: 0,
+                        party_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Customer',
+                        payment_method: 'other',
+                        payment_reference: `COUPON-${couponCodeApplied}`,
+                        status: 'completed',
+                        description: `Platform coupon discount (${couponCodeApplied}) for Order #${order.order_number}`,
+                        notes: `Seller sale amount preserved at ₹${subtotal}. Customer paid ₹${totalAmount}. Platform bears ₹${discountAmount}.`,
+                        reference_type: 'order',
+                        reference_id: order._id,
+                        reference_code: order.order_number,
+                        entry_date: new Date(),
+                        created_by: userId
+                    });
+                } catch (finErr) {
+                    logger.error('Failed to create finance expense entry for platform coupon:', finErr);
+                }
+            }
+        }
 
         // 9. Create order items
         const orderItems = [];
@@ -402,6 +494,9 @@ class OrderService {
             newData: { reason },
             status: 'success'
         });
+
+        // Reversal of Platform Coupon usage & Finance entry
+        await this._reverseCouponAndFinance(order);
 
         return order;
     }
@@ -760,6 +855,9 @@ class OrderService {
             status: 'success'
         });
 
+        // Reversal of Platform Coupon usage & Finance entry
+        await this._reverseCouponAndFinance(order);
+
         return order;
     }
 
@@ -1033,6 +1131,42 @@ class OrderService {
         }
 
         return orderItem;
+    }
+
+    // ============ REVERSE COUPON & FINANCE ON CANCEL/REFUND ============
+    async _reverseCouponAndFinance(order) {
+        if (!order) return;
+        try {
+            // Find coupon by id or code
+            const couponId = order.coupon_id;
+            const couponCode = order.coupon_code;
+
+            if (couponId || couponCode) {
+                const coupon = couponId ? await Coupon.findById(couponId) : await Coupon.findOne({ coupon_code: couponCode });
+                if (coupon) {
+                    coupon.used_count = Math.max(0, (coupon.used_count || 1) - 1);
+                    coupon.usage_history = (coupon.usage_history || []).filter(
+                        h => !h.order_id || h.order_id.toString() !== order._id.toString()
+                    );
+                    await coupon.save();
+                }
+            }
+
+            // Cancel Zyvento platform coupon expense entry in Finance
+            await Finance.findOneAndUpdate(
+                {
+                    reference_type: 'order',
+                    reference_id: order._id,
+                    category: 'Platform Coupon Cost'
+                },
+                {
+                    status: 'cancelled',
+                    notes: `Platform coupon expense cancelled due to order cancellation/refund #${order.order_number}`
+                }
+            );
+        } catch (err) {
+            logger.error('Failed to reverse coupon usage/finance entry:', err);
+        }
     }
 }
 

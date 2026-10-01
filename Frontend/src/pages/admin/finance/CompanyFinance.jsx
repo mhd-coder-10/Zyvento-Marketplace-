@@ -23,6 +23,7 @@ const INCOME_CATEGORIES = [
 ];
 
 const EXPENSE_CATEGORIES = [
+    'Platform Coupon Cost',
     'Seller Settlement Payout',
     'Logistics & Delivery Partner',
     'Cloud Infrastructure',

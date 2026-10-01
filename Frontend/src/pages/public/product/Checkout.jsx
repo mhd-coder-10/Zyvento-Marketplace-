@@ -178,6 +178,7 @@ const Checkout = () => {
             const orderData = {
                 address_id: selectedAddress._id,
                 payment_method: paymentMethod,
+                coupon_code: cart?.coupon_code || undefined,
             };
 
             const response = await ApiService.placeOrder(orderData);
@@ -192,7 +193,7 @@ const Checkout = () => {
                 } else {
                     const paymentResponse = await ApiService.initiatePayment({
                         orderId: orderId,
-                        amount: cart.total_amount,
+                        amount: order?.total_amount != null ? order.total_amount : cart.total_amount,
                         payment_method: paymentMethod,
                     });
 
@@ -561,8 +562,8 @@ const Checkout = () => {
                                 const threshold = Number(settings?.free_shipping_threshold) || 499;
                                 const stdFee = Number(settings?.standard_delivery_fee) || 49;
                                 const shipFee = sub >= threshold ? 0 : stdFee;
-                                const disc = Number(cart?.discount || 0);
-                                const total = Math.max(0, sub + shipFee - disc);
+                                const couponDiscount = Number(cart?.coupon_discount || cart?.discount || 0);
+                                const total = Number(cart?.total_amount != null ? cart.total_amount : Math.max(0, sub + shipFee - couponDiscount));
 
                                 return (
                                     <div className="space-y-2.5 pt-3 border-t border-slate-100 text-xs font-semibold text-slate-600">
@@ -576,10 +577,10 @@ const Checkout = () => {
                                                 {shipFee === 0 ? 'FREE' : `₹${shipFee.toFixed(2)}`}
                                             </span>
                                         </div>
-                                        {disc > 0 && (
+                                        {couponDiscount > 0 && (
                                             <div className="flex justify-between text-emerald-600 font-bold">
-                                                <span>Discount</span>
-                                                <span>-₹{disc.toFixed(2)}</span>
+                                                <span>Coupon Discount {cart?.coupon_code ? `(${cart.coupon_code})` : ''}</span>
+                                                <span>-₹{couponDiscount.toFixed(2)}</span>
                                             </div>
                                         )}
                                         <div className="pt-3 border-t border-slate-100 flex justify-between items-baseline text-slate-900">

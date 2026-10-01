@@ -94,11 +94,11 @@ const cartController = {
     // ============ APPLY COUPON ============
     applyCoupon: asyncHandler(async (req, res) => {
         const userId = req.userId;
-        const { coupon_code } = req.body;
+        const couponCode = req.body.coupon_code || req.body.code;
 
         const cart = await cartService.applyCoupon({
             userId,
-            couponCode: coupon_code
+            couponCode
         });
 
         res.status(200).json(

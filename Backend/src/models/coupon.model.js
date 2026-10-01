@@ -87,7 +87,7 @@ const coupon_schema = new mongoose.Schema(
         // ============ STATUS ============
         status: {
             type: String,
-            enum: ["active", "expired", "disabled"],
+            enum: ["active", "expired", "disabled", "pending"],
             default: "active"
         },
 
@@ -122,9 +122,58 @@ const coupon_schema = new mongoose.Schema(
         timestamps: {
             createdAt: "created_at",
             updatedAt: "updated_at"
-        }
+        },
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true }
     }
 );
+
+coupon_schema.pre('validate', function() {
+    if (!this.coupon_code && this.get('code')) {
+        this.coupon_code = this.get('code');
+    }
+});
+
+// Virtual aliases
+coupon_schema.virtual('code')
+    .get(function() { return this.coupon_code; })
+    .set(function(v) { this.coupon_code = v; });
+
+coupon_schema.virtual('discountType')
+    .get(function() { return this.discount_type; })
+    .set(function(v) { this.discount_type = v; });
+
+coupon_schema.virtual('discountValue')
+    .get(function() { return this.discount_value; })
+    .set(function(v) { this.discount_value = v; });
+
+coupon_schema.virtual('minOrderAmount')
+    .get(function() { return this.minimum_order_amount; })
+    .set(function(v) { this.minimum_order_amount = v; });
+
+coupon_schema.virtual('maxDiscountAmount')
+    .get(function() { return this.maximum_discount; })
+    .set(function(v) { this.maximum_discount = v; });
+
+coupon_schema.virtual('startDate')
+    .get(function() { return this.start_date; })
+    .set(function(v) { this.start_date = v; });
+
+coupon_schema.virtual('expiryDate')
+    .get(function() { return this.expiry_date; })
+    .set(function(v) { this.expiry_date = v; });
+
+coupon_schema.virtual('usageLimit')
+    .get(function() { return this.usage_limit; })
+    .set(function(v) { this.usage_limit = v; });
+
+coupon_schema.virtual('perUserLimit')
+    .get(function() { return this.per_user_limit; })
+    .set(function(v) { this.per_user_limit = v; });
+
+coupon_schema.virtual('usedCount')
+    .get(function() { return this.used_count; })
+    .set(function(v) { this.used_count = v; });
 
 // ============ INDEXES ============
 coupon_schema.index({ status: 1 });

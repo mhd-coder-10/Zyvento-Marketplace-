@@ -36,7 +36,7 @@ class ProductService {
         sortOrder = 'desc'
     }) {
         const query = {
-            status: { $in: ['active', 'suspended'] },
+            status: { $in: ['active', 'approved'] },
             approval_status: 'approved'
         };
 
@@ -421,17 +421,18 @@ class ProductService {
             throw ApiError.conflict('Product with this SKU already exists');
         }
 
-        // Calculate final price
-        let finalPrice = productData.price;
-        if (productData.discount) {
-            finalPrice = productData.price - (productData.price * productData.discount / 100);
-        }
+        // Maintain pure seller price without artificial discount/coupon markup
+        const sellerPrice = Number(productData.price);
 
         const product = new Product({
             ...productData,
+            price: sellerPrice,
+            mrp: sellerPrice,
+            final_price: sellerPrice,
+            discount_percent: 0,
+            videos: [],
             seller_id: sellerId,
             sku,
-            final_price: finalPrice,
             status: 'draft',
             approval_status: 'pending'
         });
@@ -508,11 +509,13 @@ class ProductService {
             }
         }
 
-        // Recalculate final price if price or discount changed
-        if (updateData.price !== undefined || updateData.discount !== undefined) {
-            const price = Number(updateData.price !== undefined ? updateData.price : product.price);
-            const discount = Number(updateData.discount ?? product.discount ?? product.discount_percent ?? 0);
-            filteredData.final_price = discount > 0 ? (price - (price * discount / 100)) : price;
+        // Maintain pure seller price across listing pages and details without artificial discount
+        if (updateData.price !== undefined) {
+            const newPrice = Number(updateData.price);
+            filteredData.price = newPrice;
+            filteredData.mrp = newPrice;
+            filteredData.final_price = newPrice;
+            filteredData.discount_percent = 0;
         }
 
         if (filteredData.status === 'active') {

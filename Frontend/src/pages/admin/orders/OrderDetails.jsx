@@ -217,6 +217,11 @@ const OrderDetails = () => {
                         <p className="text-sm !text-gray-600">Method: <span className="font-bold !text-black uppercase">{order.payment_method || 'Online'}</span></p>
                         <p className="text-sm !text-gray-600">Total: <span className="font-bold !text-black">₹{order.total_amount}</span></p>
                         <p className="text-xs !text-gray-600">Subtotal: ₹{order.subtotal}</p>
+                        {order.coupon_code && (
+                            <p className="text-xs text-emerald-600 font-semibold">
+                                Platform Coupon: <span className="font-mono">{order.coupon_code}</span> (-₹{order.coupon_discount || order.platform_coupon_cost || 0})
+                            </p>
+                        )}
                         <p className="text-xs !text-gray-600">Discount: ₹{order.discount_amount}</p>
                         <p className="text-xs !text-gray-600">Delivery: ₹{order.delivery_charge}</p>
                     </div>

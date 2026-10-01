@@ -1264,6 +1264,11 @@ const adminController = {
         content();
     }),
 
+    getCouponReportDetail: asyncHandler(async (req, res) => {
+        const detail = await adminService.getCouponReportDetail(req.params.code);
+        res.status(200).json(ApiResponse.success(detail, 'Coupon report details fetched successfully'));
+    }),
+
 
     // ============ SYSTEM SETTINGS ============
     getSystemSettings: asyncHandler(async (req, res) => {

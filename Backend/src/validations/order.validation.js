@@ -24,7 +24,11 @@ const orderValidation = {
                 .messages({
                     'string.pattern.base': 'Invalid pincode format',
                 }),
-        }).required(),
+        }).optional(),
+
+        address_id: Joi.string()
+            .pattern(/^[0-9a-fA-F]{24}$/)
+            .optional(),
 
         order_items: Joi.array()
             .items(
@@ -46,26 +50,23 @@ const orderValidation = {
                 })
             )
             .min(1)
-            .required()
-            .messages({
-                'array.min': 'At least one item is required in the order',
-            }),
+            .optional(),
 
         payment_method: Joi.string()
-            .valid('credit_card', 'debit_card', 'upi', 'net_banking', 'cash_on_delivery', 'wallet')
             .required()
             .messages({
-                'any.only': 'Invalid payment method',
                 'string.empty': 'Payment method is required',
             }),
 
         coupon_code: Joi.string()
+            .allow('', null)
             .optional(),
 
         notes: Joi.string()
             .max(500)
+            .allow('', null)
             .optional(),
-    }),
+    }).or('shipping_address', 'address_id'),
 
     // ============ UPDATE ORDER STATUS ============
     updateOrderStatus: Joi.object({

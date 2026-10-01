@@ -212,6 +212,14 @@ class CartService {
             throw ApiError.badRequest('Coupon usage limit exceeded');
         }
 
+        // Check per-user limit
+        const userUsageCount = (coupon.usage_history || []).filter(
+            h => h.user_id && h.user_id.toString() === userId.toString()
+        ).length;
+        if (coupon.per_user_limit && userUsageCount >= coupon.per_user_limit) {
+            throw ApiError.badRequest(`You have reached the maximum allowed usage limit (${coupon.per_user_limit}) for this coupon`);
+        }
+
         // Calculate subtotal
         let subtotal = 0;
         for (const item of cart.products) {
@@ -220,7 +228,7 @@ class CartService {
 
         // Check minimum order amount
         if (coupon.minimum_order_amount && subtotal < coupon.minimum_order_amount) {
-            throw ApiError.badRequest(`Minimum order amount of ${coupon.minimum_order_amount} required`);
+            throw ApiError.badRequest(`Minimum order amount of ₹${coupon.minimum_order_amount} required`);
         }
 
         // Calculate discount
@@ -234,12 +242,17 @@ class CartService {
             discountAmount = coupon.discount_value;
         }
 
+        if (discountAmount > subtotal) {
+            discountAmount = subtotal;
+        }
+        discountAmount = Math.round((discountAmount + Number.EPSILON) * 100) / 100;
+
         cart.coupon_code = coupon.coupon_code;
         cart.coupon_discount = discountAmount;
         cart.coupon_id = coupon._id;
 
         // Recalculate total
-        cart.total_amount = subtotal - discountAmount;
+        cart.total_amount = Math.max(0, subtotal - discountAmount);
 
         await cart.save();
 

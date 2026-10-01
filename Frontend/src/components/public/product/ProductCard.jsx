@@ -8,6 +8,8 @@ import {
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
 
+const FALLBACK_PRODUCT_IMAGE = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80';
+
 const ProductCard = ({ product, viewMode = 'grid', onUpdate }) => {
     const navigate = useNavigate();
     const { isAuthenticated } = useSelector((state) => state.auth);
@@ -21,9 +23,9 @@ const ProductCard = ({ product, viewMode = 'grid', onUpdate }) => {
     // Resolve product fields safely across schemas
     const title = product?.product_name || product?.name || 'Product';
     const brand = product?.brand || '';
-    const price = product?.final_price ?? product?.finalPrice ?? product?.price ?? 0;
-    const mrp = product?.price ?? product?.mrp ?? price;
-    const discount = product?.discount_percent ?? product?.discount ?? (mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0);
+    const price = product?.final_price ?? product?.price ?? product?.finalPrice ?? 0;
+    const mrp = product?.mrp ?? product?.price ?? price;
+    const discount = Number(product?.discount_percent ?? product?.discount ?? (mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0));
     const stock = Number(product?.stock_quantity ?? product?.stock ?? product?.quantity ?? 0);
     const rating = Number(product?.ratings ?? product?.rating ?? product?.average_rating ?? 0);
     const totalReviews = Number(product?.num_reviews ?? product?.total_reviews ?? product?.totalReviews ?? product?.reviews_count ?? 0);
@@ -137,6 +139,13 @@ const ProductCard = ({ product, viewMode = 'grid', onUpdate }) => {
                         <img
                             src={imageUrl}
                             alt={title}
+                            onError={(e) => {
+                                if (secondaryImageUrl && e.currentTarget.src !== secondaryImageUrl) {
+                                    e.currentTarget.src = secondaryImageUrl;
+                                } else if (e.currentTarget.src !== FALLBACK_PRODUCT_IMAGE) {
+                                    e.currentTarget.src = FALLBACK_PRODUCT_IMAGE;
+                                }
+                            }}
                             className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-500"
                             loading="lazy"
                         />
@@ -240,6 +249,13 @@ const ProductCard = ({ product, viewMode = 'grid', onUpdate }) => {
                             <img
                                 src={isHovered && secondaryImageUrl !== imageUrl ? secondaryImageUrl : imageUrl}
                                 alt={title}
+                                onError={(e) => {
+                                    if (secondaryImageUrl && e.currentTarget.src !== secondaryImageUrl) {
+                                        e.currentTarget.src = secondaryImageUrl;
+                                    } else if (e.currentTarget.src !== FALLBACK_PRODUCT_IMAGE) {
+                                        e.currentTarget.src = FALLBACK_PRODUCT_IMAGE;
+                                    }
+                                }}
                                 className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-500"
                                 loading="lazy"
                             />

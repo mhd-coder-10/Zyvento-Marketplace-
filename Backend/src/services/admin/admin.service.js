@@ -2315,10 +2315,18 @@ class AdminService {
             }
         }
 
-        if (updateData.price || updateData.discount_percent) {
-            const newPrice = updateData.price || product.price;
-            const newDiscount = updateData.discount_percent || product.discount_percent;
-            filteredData.final_price = newPrice - (newPrice * newDiscount / 100);
+        if (updateData.price !== undefined) {
+            const newPrice = Number(updateData.price);
+            filteredData.price = newPrice;
+            filteredData.mrp = newPrice;
+            filteredData.final_price = newPrice;
+            filteredData.discount_percent = 0;
+        } else {
+            filteredData.discount_percent = 0;
+            if (filteredData.price !== undefined) {
+                filteredData.mrp = filteredData.price;
+                filteredData.final_price = filteredData.price;
+            }
         }
 
         filteredData.updated_by = adminId;
@@ -4697,6 +4705,8 @@ class AdminService {
             orders: 'Order Report',
             products: 'Product Report',
             users: 'User Report',
+            coupons: 'Coupon Report',
+            coupon: 'Coupon Report',
         };
         const title = reportTitles[reportType] || `${reportType.charAt(0).toUpperCase()}${reportType.slice(1)} Report`;
 
@@ -4883,9 +4893,9 @@ class AdminService {
     }
 
     async getReportData(reportType, {
-        // startDate = null, endDate = null, period = null, metric = null 
         startDate = null, endDate = null, period = null, metric = null,
-        page = 1, limit = 10, search = '', seller_id = '', status = ''
+        page = 1, limit = 10, search = '', seller_id = '', status = '',
+        discount_type = '', discountType = '', coupon_code = '', code = ''
     } = {}) {
 
         const dateQuery = {};
@@ -5982,7 +5992,377 @@ class AdminService {
             data = { labels, orders: values }; // 'orders' key reused — AdminCharts reads this for non-'revenue' chart types
         }
 
+        else if (reportType === 'coupons' || reportType === 'coupon') {
+            const start = startDate ? new Date(startDate) : new Date(new Date().setDate(new Date().getDate() - 30));
+            const end = endDate ? new Date(endDate) : new Date();
+            end.setHours(23, 59, 59, 999);
+
+            const now = new Date();
+
+            // 1. Coupon count metrics
+            const [totalCoupons, activeCoupons, expiredCoupons] = await Promise.all([
+                Coupon.countDocuments(),
+                Coupon.countDocuments({
+                    status: 'active',
+                    start_date: { $lte: now },
+                    expiry_date: { $gte: now }
+                }),
+                Coupon.countDocuments({
+                    $or: [
+                        { status: 'expired' },
+                        { expiry_date: { $lt: now } }
+                    ]
+                })
+            ]);
+
+            // 2. Order usage metrics within date range
+            // Platform-funded coupons: seller's product price preserved.
+            // Exclude cancelled and failed/refunded orders
+            const orderMatch = {
+                created_at: { $gte: start, $lte: end },
+                order_status: { $ne: 'cancelled' },
+                payment_status: { $nin: ['failed', 'refunded'] },
+                $or: [
+                    { coupon_id: { $ne: null } },
+                    { coupon_code: { $ne: null, $ne: '' } },
+                    { coupon_discount: { $gt: 0 } },
+                    { discount_amount: { $gt: 0 } }
+                ]
+            };
+
+            const [usageSummaryAgg, trendAgg, topCouponsAgg] = await Promise.all([
+                Order.aggregate([
+                    { $match: orderMatch },
+                    {
+                        $group: {
+                            _id: null,
+                            totalUsage: { $sum: 1 },
+                            totalDiscountGiven: {
+                                $sum: { $ifNull: ['$coupon_discount', { $ifNull: ['$discount_amount', 0] }] }
+                            },
+                            totalOrderAmount: {
+                                $sum: {
+                                    $ifNull: [
+                                        '$subtotal',
+                                        { $add: ['$total_amount', { $ifNull: ['$coupon_discount', { $ifNull: ['$discount_amount', 0] }] }] }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ]),
+                // Daily Usage & Cost Trend
+                Order.aggregate([
+                    { $match: orderMatch },
+                    {
+                        $group: {
+                            _id: { $dateToString: { format: '%Y-%m-%d', date: '$created_at' } },
+                            usageCount: { $sum: 1 },
+                            discountGiven: {
+                                $sum: { $ifNull: ['$coupon_discount', { $ifNull: ['$discount_amount', 0] }] }
+                            },
+                            couponCost: {
+                                $sum: { $ifNull: ['$platform_coupon_cost', { $ifNull: ['$coupon_discount', { $ifNull: ['$discount_amount', 0] }] }] }
+                            },
+                            orderValue: {
+                                $sum: {
+                                    $ifNull: [
+                                        '$subtotal',
+                                        { $add: ['$total_amount', { $ifNull: ['$coupon_discount', { $ifNull: ['$discount_amount', 0] }] }] }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    { $sort: { _id: 1 } }
+                ]),
+                // Top Used Coupons
+                Order.aggregate([
+                    { $match: orderMatch },
+                    {
+                        $group: {
+                            _id: { $toUpper: { $ifNull: ['$coupon_code', 'COUPON'] } },
+                            usageCount: { $sum: 1 },
+                            discountGiven: {
+                                $sum: { $ifNull: ['$coupon_discount', { $ifNull: ['$discount_amount', 0] }] }
+                            },
+                            couponCost: {
+                                $sum: { $ifNull: ['$platform_coupon_cost', { $ifNull: ['$coupon_discount', { $ifNull: ['$discount_amount', 0] }] }] }
+                            },
+                            orderValue: {
+                                $sum: {
+                                    $ifNull: [
+                                        '$subtotal',
+                                        { $add: ['$total_amount', { $ifNull: ['$coupon_discount', { $ifNull: ['$discount_amount', 0] }] }] }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    { $sort: { usageCount: -1 } },
+                    { $limit: 10 }
+                ])
+            ]);
+
+            const totalUsage = usageSummaryAgg[0]?.totalUsage || 0;
+            const totalDiscountGiven = Math.round(((usageSummaryAgg[0]?.totalDiscountGiven || 0) + Number.EPSILON) * 100) / 100;
+            const totalCouponCost = totalDiscountGiven; // Zyvento bears 100% platform coupon cost
+
+            // 3. Paginated Coupon Table Records with Filters
+            const couponQuery = {};
+            if (status && status !== 'all') {
+                if (status === 'active') {
+                    couponQuery.status = 'active';
+                    couponQuery.expiry_date = { $gte: now };
+                } else if (status === 'expired') {
+                    couponQuery.$or = [{ status: 'expired' }, { expiry_date: { $lt: now } }];
+                } else {
+                    couponQuery.status = status;
+                }
+            }
+            const resolvedDiscountType = discountType || discount_type;
+            if (resolvedDiscountType && resolvedDiscountType !== 'all') {
+                couponQuery.discount_type = resolvedDiscountType;
+            }
+            const searchCode = coupon_code || code || search;
+            if (searchCode && searchCode.trim()) {
+                const regex = new RegExp(searchCode.trim(), 'i');
+                couponQuery.$or = [{ coupon_code: regex }, { description: regex }];
+            }
+
+            const pageNum = parseInt(page) || 1;
+            const limitNum = parseInt(limit) || 10;
+
+            const [couponsList, totalCouponsCount] = await Promise.all([
+                Coupon.find(couponQuery)
+                    .sort({ created_at: -1 })
+                    .skip((pageNum - 1) * limitNum)
+                    .limit(limitNum)
+                    .lean(),
+                Coupon.countDocuments(couponQuery)
+            ]);
+
+            // For each coupon, get usage stats from Order collection (source of truth)
+            const couponCodes = couponsList.map(c => c.coupon_code);
+            const couponOrderStats = await Order.aggregate([
+                {
+                    $match: {
+                        coupon_code: { $in: couponCodes },
+                        order_status: { $ne: 'cancelled' },
+                        payment_status: { $nin: ['failed', 'refunded'] }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$coupon_code',
+                        usageCount: { $sum: 1 },
+                        totalDiscount: {
+                            $sum: { $ifNull: ['$coupon_discount', { $ifNull: ['$discount_amount', 0] }] }
+                        },
+                        totalOrderAmount: {
+                            $sum: {
+                                $ifNull: [
+                                    '$subtotal',
+                                    { $add: ['$total_amount', { $ifNull: ['$coupon_discount', { $ifNull: ['$discount_amount', 0] }] }] }
+                                ]
+                            }
+                        }
+                    }
+                }
+            ]);
+
+            const statsMap = {};
+            couponOrderStats.forEach(s => {
+                statsMap[s._id] = s;
+            });
+
+            const tableRows = couponsList.map(c => {
+                const s = statsMap[c.coupon_code] || {};
+                const usage = s.usageCount !== undefined ? s.usageCount : (c.used_count || 0);
+                const discountGiven = s.totalDiscount || 0;
+                const orderAmount = s.totalOrderAmount || 0;
+                const couponCost = discountGiven;
+
+                return {
+                    id: c._id,
+                    code: c.coupon_code,
+                    description: c.description || '',
+                    discountType: c.discount_type,
+                    discountValue: c.discount_value,
+                    totalUsage: usage,
+                    totalOrderAmount: Math.round(orderAmount * 100) / 100,
+                    totalDiscountGiven: Math.round(discountGiven * 100) / 100,
+                    zyventoCouponCost: Math.round(couponCost * 100) / 100,
+                    status: (new Date(c.expiry_date) < now && c.status === 'active') ? 'expired' : c.status,
+                    startDate: c.start_date,
+                    expiryDate: c.expiry_date,
+                    minOrderAmount: c.minimum_order_amount || 0,
+                    maxDiscountAmount: c.maximum_discount || null,
+                    usageLimit: c.usage_limit,
+                    perUserLimit: c.per_user_limit,
+                    createdAt: c.created_at
+                };
+            });
+
+            data = {
+                // Scalar values for automatic PDF Summary Cards:
+                totalCoupons,
+                activeCoupons,
+                expiredCoupons,
+                totalCouponUsage: totalUsage,
+                totalDiscountGiven,
+                totalCouponCost,
+                // Structured summary object for UI components:
+                summary: {
+                    totalCoupons,
+                    activeCoupons,
+                    expiredCoupons,
+                    totalCouponUsage: totalUsage,
+                    totalDiscountGiven,
+                    totalCouponCost
+                },
+                // Array for PDF table:
+                coupons: tableRows.map(r => ({
+                    code: r.code,
+                    discountType: r.discountType,
+                    discountValue: r.discountType === 'percentage' ? `${r.discountValue}%` : `₹${r.discountValue}`,
+                    totalUsage: r.totalUsage,
+                    totalOrderAmount: `₹${r.totalOrderAmount}`,
+                    totalDiscountGiven: `₹${r.totalDiscountGiven}`,
+                    zyventoCouponCost: `₹${r.zyventoCouponCost}`,
+                    status: r.status
+                })),
+                records: tableRows,
+                trend: trendAgg.map(t => ({
+                    date: t._id,
+                    usageCount: t.usageCount,
+                    discountGiven: Math.round(t.discountGiven * 100) / 100,
+                    couponCost: Math.round(t.couponCost * 100) / 100,
+                    orderValue: Math.round(t.orderValue * 100) / 100
+                })),
+                topCoupons: topCouponsAgg.map(t => ({
+                    code: t._id,
+                    usageCount: t.usageCount,
+                    discountGiven: Math.round(t.discountGiven * 100) / 100,
+                    couponCost: Math.round(t.couponCost * 100) / 100,
+                    orderValue: Math.round(t.orderValue * 100) / 100
+                })),
+                pagination: {
+                    page: pageNum,
+                    limit: limitNum,
+                    total: totalCouponsCount,
+                    totalPages: Math.ceil(totalCouponsCount / limitNum) || 1
+                }
+            };
+        }
+
         return { type: reportType, dateQuery, data };
+    }
+
+    // ============ COUPON REPORT DETAIL (DRILL-DOWN) ============
+    async getCouponReportDetail(code) {
+        if (!code) throw ApiError.badRequest('Coupon code is required');
+        const coupon = await Coupon.findOne({ coupon_code: code.toUpperCase() }).lean();
+        if (!coupon) throw ApiError.notFound('Coupon not found');
+
+        const orders = await Order.find({
+            coupon_code: coupon.coupon_code,
+            order_status: { $ne: 'cancelled' },
+            payment_status: { $nin: ['failed', 'refunded'] }
+        })
+            .populate('user_id', 'first_name last_name email')
+            .sort({ created_at: -1 })
+            .lean();
+
+        let totalOrderValue = 0;
+        let totalDiscountProvided = 0;
+
+        const formattedOrders = orders.map(ord => {
+            const orderVal = Number(ord.subtotal) || (Number(ord.total_amount) + Number(ord.coupon_discount || ord.discount_amount || 0));
+            const disc = Number(ord.coupon_discount) || Number(ord.discount_amount) || 0;
+            totalOrderValue += orderVal;
+            totalDiscountProvided += disc;
+
+            return {
+                order_id: ord._id,
+                order_number: ord.order_number,
+                customer_name: ord.user_id ? `${ord.user_id.first_name || ''} ${ord.user_id.last_name || ''}`.trim() || ord.user_id.email : 'Customer',
+                customer_email: ord.user_id?.email || '',
+                order_date: ord.created_at,
+                order_total: Math.round(orderVal * 100) / 100,
+                customer_paid: ord.total_amount,
+                discount_applied: Math.round(disc * 100) / 100,
+                zyvento_cost: Math.round(disc * 100) / 100,
+                order_status: ord.order_status,
+                payment_status: ord.payment_status
+            };
+        });
+
+        // Date-wise breakdown
+        const dailyMap = {};
+        formattedOrders.forEach(o => {
+            const d = new Date(o.order_date).toISOString().split('T')[0];
+            if (!dailyMap[d]) {
+                dailyMap[d] = { date: d, count: 0, discount: 0, orderValue: 0 };
+            }
+            dailyMap[d].count += 1;
+            dailyMap[d].discount += o.discount_applied;
+            dailyMap[d].orderValue += o.order_total;
+        });
+
+        const dailyBreakdown = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
+
+        const now = new Date();
+        const derivedStatus = (new Date(coupon.expiry_date) < now && coupon.status === 'active') ? 'expired' : coupon.status;
+
+        const config = {
+            code: coupon.coupon_code,
+            description: coupon.description || '',
+            discount_type: coupon.discount_type,
+            discount_value: coupon.discount_value,
+            min_order_amount: coupon.minimum_order_amount || 0,
+            max_discount_amount: coupon.maximum_discount || null,
+            start_date: coupon.start_date,
+            expiry_date: coupon.expiry_date,
+            usage_limit: coupon.usage_limit,
+            per_user_limit: coupon.per_user_limit || 1,
+            status: derivedStatus,
+            created_at: coupon.created_at
+        };
+
+        const summary = {
+            total_usage: coupon.used_count || formattedOrders.length,
+            orders_count: formattedOrders.length,
+            total_order_value: Math.round(totalOrderValue * 100) / 100,
+            total_discount_provided: Math.round(totalDiscountProvided * 100) / 100,
+            zyvento_cost_borne: Math.round(totalDiscountProvided * 100) / 100
+        };
+
+        return {
+            config,
+            summary,
+            code: coupon.coupon_code,
+            description: coupon.description || '',
+            discountType: coupon.discount_type,
+            discountValue: coupon.discount_value,
+            minOrderAmount: coupon.minimum_order_amount || 0,
+            maxDiscountAmount: coupon.maximum_discount || null,
+            startDate: coupon.start_date,
+            expiryDate: coupon.expiry_date,
+            usageLimit: coupon.usage_limit,
+            perUserLimit: coupon.per_user_limit || 1,
+            usedCount: coupon.used_count || 0,
+            status: derivedStatus,
+            totalUsage: formattedOrders.length,
+            totalOrderValue: Math.round(totalOrderValue * 100) / 100,
+            totalDiscountProvided: Math.round(totalDiscountProvided * 100) / 100,
+            totalCostBorne: Math.round(totalDiscountProvided * 100) / 100,
+            orders: formattedOrders,
+            daily_breakdown: dailyBreakdown,
+            dailyBreakdown,
+            related_order_ids: formattedOrders.map(o => o.order_id || o.order_number),
+            relatedOrderIds: formattedOrders.map(o => o.order_id || o.order_number)
+        };
     }
 
     // ============ SYSTEM SETTINGS ============

@@ -419,16 +419,37 @@ const Header = () => {
                                 </Link>
                             )}
 
+                            {/* Mobile backdrop for account dropdown */}
+                            {accountMenuOpen && (
+                                <div
+                                    className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-[2px] sm:hidden"
+                                    onClick={() => setAccountMenuOpen(false)}
+                                    aria-hidden="true"
+                                />
+                            )}
+
                             {/* Account Dropdown Modal */}
                             {accountMenuOpen && isAuthenticated && (
-                                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl border border-sky-100 shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                                <div className="fixed sm:absolute top-16 sm:top-full left-3 right-3 sm:left-auto sm:right-0 mt-1 sm:mt-2 max-w-sm sm:max-w-none sm:w-72 mx-auto sm:mx-0 bg-white rounded-2xl border border-sky-100 shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[calc(100vh-5rem)] overflow-y-auto">
                                     {/* User Greeting & Badges */}
-                                    <div className="p-3 bg-gradient-to-br from-sky-50 to-blue-50/50 rounded-xl mb-2">
-                                        <p className="text-xs text-slate-400 font-medium">Signed in as</p>
-                                        <p className="text-sm font-bold text-slate-900 truncate">
-                                            {user?.first_name} {user?.last_name}
-                                        </p>
-                                        <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                                    <div className="p-3 bg-gradient-to-br from-sky-50 to-blue-50/50 rounded-xl mb-2 relative">
+                                        <div className="flex items-start justify-between">
+                                            <div className="min-w-0 flex-1 pr-2">
+                                                <p className="text-xs text-slate-400 font-medium">Signed in as</p>
+                                                <p className="text-sm font-bold text-slate-900 truncate">
+                                                    {user?.first_name} {user?.last_name}
+                                                </p>
+                                                <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setAccountMenuOpen(false)}
+                                                className="sm:hidden p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-white/80 transition"
+                                                aria-label="Close menu"
+                                            >
+                                                <FiX className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                         <span className="inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-white text-blue-700 shadow-sm border border-sky-100">
                                             {userType.replace(/_/g, ' ')}
                                         </span>

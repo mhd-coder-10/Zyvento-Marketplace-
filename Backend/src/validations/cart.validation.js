@@ -52,12 +52,13 @@ const cartValidation = {
 
     // Apply coupon
     applyCoupon: Joi.object({
-        coupon_code: Joi.string()
-            .required()
-            .messages({
-                'string.empty': 'Coupon code is required'
-            })
-    })
+        coupon_code: Joi.string().trim().messages({
+            'string.empty': 'Coupon code is required'
+        }),
+        code: Joi.string().trim().messages({
+            'string.empty': 'Coupon code is required'
+        })
+    }).or('coupon_code', 'code')
 };
 
 module.exports = cartValidation;

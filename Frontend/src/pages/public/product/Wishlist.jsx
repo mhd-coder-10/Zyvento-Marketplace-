@@ -111,7 +111,7 @@ const Wishlist = () => {
 
                 {/* ============ WISHLIST GRID ============ */}
                 {loading ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                    <div className="grid grid-cols-1 min-[480px]:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6 gap-4 sm:gap-6">
                         {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                             <div key={i} className="bg-white rounded-3xl p-4 border border-slate-200/80 animate-pulse space-y-3">
                                 <div className="aspect-square bg-slate-200 rounded-2xl" />
@@ -140,7 +140,7 @@ const Wishlist = () => {
                     </div>
                 ) : (
                     <>
-                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                        <div className="grid grid-cols-1 min-[480px]:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6 gap-4 sm:gap-6">
                             {wishlist.map(item => {
                                 const pid = item.productId || item.product?._id || item._id;
                                 const name = item.productName || item.product?.product_name || item.name || 'Product';

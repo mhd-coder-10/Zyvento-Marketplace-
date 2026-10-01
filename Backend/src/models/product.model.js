@@ -64,8 +64,12 @@ const product_schema = new mongoose.Schema(
             min: 0
         },
 
-        // ============ IMAGES ============
+        // ============ IMAGES & VIDEOS ============
         images: [{
+            type: String
+        }],
+
+        videos: [{
             type: String
         }],
 

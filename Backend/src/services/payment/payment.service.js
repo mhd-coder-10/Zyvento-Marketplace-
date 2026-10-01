@@ -685,6 +685,34 @@ class PaymentService {
         }
         await payment.save();
 
+        // Update associated Order status and reverse coupon if full refund
+        const order = await Order.findById(payment.order_id);
+        if (order) {
+            order.payment_status = payment.payment_status;
+            await order.save();
+
+            if (amount === payment.amount && order.coupon_id) {
+                try {
+                    const Coupon = require('../../models/coupon.model');
+                    const Finance = require('../../models/finance.model');
+                    const coupon = await Coupon.findById(order.coupon_id);
+                    if (coupon) {
+                        coupon.used_count = Math.max(0, (coupon.used_count || 1) - 1);
+                        coupon.usage_history = (coupon.usage_history || []).filter(
+                            h => !h.order_id || h.order_id.toString() !== order._id.toString()
+                        );
+                        await coupon.save();
+                    }
+                    await Finance.findOneAndUpdate(
+                        { reference_type: 'order', reference_id: order._id, category: 'Platform Coupon Cost' },
+                        { status: 'cancelled', notes: `Platform coupon expense cancelled due to full refund on order #${order.order_number}` }
+                    );
+                } catch (err) {
+                    logger.error('Failed to reverse coupon/finance on refund:', err);
+                }
+            }
+        }
+
         // Notify user
         await Notification.create({
             user_id: payment.user_id,

@@ -41,6 +41,7 @@ import {
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
 import ProductCard from '../../../components/public/product/ProductCard';
+import Product3DViewer from '../../../components/public/product/Product3DViewer';
 import UserAvatar from '../../../components/common/UserAvatar';
 
 const getUserIdString = (u) => {
@@ -63,7 +64,7 @@ const ProductDetail = () => {
     const [loading, setLoading] = useState(true);
     const [quantity, setQuantity] = useState(1);
     const [selectedImage, setSelectedImage] = useState(0);
-    const [activeTab, setActiveTab] = useState('description');
+    const [activeTab, setActiveTab] = useState('reviews');
     const [addingToCart, setAddingToCart] = useState(false);
     const [buyingNow, setBuyingNow] = useState(false);
     const [wishlistLoading, setWishlistLoading] = useState(false);
@@ -79,11 +80,7 @@ const ProductDetail = () => {
     const [deliveryInfo, setDeliveryInfo] = useState(null);
     const [checkingPincode, setCheckingPincode] = useState(false);
 
-    // Image zoom & modal
-    const [isZoomed, setIsZoomed] = useState(false);
-    const [zoomPos, setZoomPos] = useState({ x: 0, y: 0 });
-    const [isLightboxOpen, setIsLightboxOpen] = useState(false);
-    const imageContainerRef = useRef(null);
+
 
     // ============ REVIEWS SYSTEM STATE ============
     const [reviews, setReviews] = useState([]);
@@ -588,14 +585,7 @@ const ProductDetail = () => {
         }, 500);
     };
 
-    // Zoom handlers
-    const handleMouseMove = (e) => {
-        if (!imageContainerRef.current) return;
-        const { left, top, width, height } = imageContainerRef.current.getBoundingClientRect();
-        const x = ((e.clientX - left) / width) * 100;
-        const y = ((e.clientY - top) / height) * 100;
-        setZoomPos({ x, y });
-    };
+
 
     // Extract product fields safely
     const name = product?.product_name || product?.name || 'Product Details';
@@ -727,92 +717,20 @@ const ProductDetail = () => {
                             LEFT: INTERACTIVE MULTI-ANGLE MEDIA GALLERY (5 cols)
                             ============================================================ */}
                         <div className="lg:col-span-5 space-y-4">
-                            {/* Main Stage Image with Zoom */}
-                            <div
-                                ref={imageContainerRef}
-                                onMouseEnter={() => setIsZoomed(true)}
-                                onMouseLeave={() => setIsZoomed(false)}
-                                onMouseMove={handleMouseMove}
-                                onClick={() => setIsLightboxOpen(true)}
-                                className="relative aspect-square rounded-3xl overflow-hidden bg-slate-50 border border-slate-100 flex items-center justify-center cursor-zoom-in group shadow-inner"
-                            >
-                                <img
-                                    src={imageList[selectedImage]}
-                                    alt={name}
-                                    style={isZoomed ? {
-                                        transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`,
-                                        transform: 'scale(1.75)'
-                                    } : {}}
-                                    className="w-full h-full object-contain p-6 transition-transform duration-150 ease-out select-none"
-                                />
-
-                                {/* Badges */}
-                                <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
-                                    {discount > 0 && (
-                                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-500 text-white text-xs font-black rounded-full shadow-lg shadow-rose-500/30 uppercase tracking-wider">
-                                            <FiTag className="w-3 h-3" /> {discount}% OFF
-                                        </span>
-                                    )}
-                                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-bold rounded-full shadow">
-                                        <FiShield className="w-3 h-3 text-sky-400" /> 100% Genuine
-                                    </span>
-                                </div>
-
-                                {/* Top Right Quick Actions */}
-                                <div className="absolute top-4 right-4 flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsLightboxOpen(true);
-                                        }}
-                                        className="p-2.5 bg-white/90 backdrop-blur-md rounded-2xl shadow-md hover:bg-white text-slate-500 hover:text-blue-600 transition-all active:scale-95"
-                                        title="View Fullscreen"
-                                    >
-                                        <FiMaximize2 className="w-4 h-4" />
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggleWishlist();
-                                        }}
-                                        disabled={wishlistLoading}
-                                        className="p-2.5 bg-white/90 backdrop-blur-md rounded-2xl shadow-md hover:bg-white text-slate-400 hover:text-rose-500 transition-all active:scale-95"
-                                        title={inWishlist ? 'Remove from wishlist' : 'Save to wishlist'}
-                                    >
-                                        <FiHeart className={`w-4 h-4 ${inWishlist ? 'fill-rose-500 text-rose-500' : ''}`} />
-                                    </button>
-                                </div>
-
-                                {/* Hover Prompt */}
-                                <div className="absolute bottom-3 inset-x-0 flex justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <span className="px-3 py-1 rounded-full bg-slate-900/75 backdrop-blur-md text-[11px] font-semibold text-white shadow-md">
-                                        🔍 Hover to Zoom • Click to Expand
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Thumbnail Selector Reel */}
-                            {imageList.length > 1 && (
-                                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-                                    {imageList.map((img, idx) => (
-                                        <button
-                                            key={idx}
-                                            type="button"
-                                            onClick={() => setSelectedImage(idx)}
-                                            className={`relative w-20 h-20 rounded-2xl overflow-hidden border-2 flex-shrink-0 p-1.5 bg-slate-50 transition-all ${
-                                                selectedImage === idx
-                                                    ? 'border-blue-600 shadow-md shadow-blue-600/20 scale-105 ring-2 ring-blue-100'
-                                                    : 'border-slate-200/80 hover:border-slate-400 opacity-70 hover:opacity-100'
-                                            }`}
-                                        >
-                                            <img src={img} alt={`Angle ${idx + 1}`} className="w-full h-full object-contain" />
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
+                            {/* 3D / 360° Interactive Product Studio Viewer */}
+                            <Product3DViewer
+                                product={product}
+                                imageList={imageList}
+                                selectedImage={selectedImage}
+                                setSelectedImage={setSelectedImage}
+                                discount={discount}
+                                inWishlist={inWishlist}
+                                wishlistLoading={wishlistLoading}
+                                toggleWishlist={toggleWishlist}
+                                handleShare={handleShare}
+                                brand={brand}
+                                name={name}
+                            />
 
                             {/* Trust Highlight Pill Bar */}
                             <div className="grid grid-cols-2 gap-3 pt-2">
@@ -1083,41 +1001,43 @@ const ProductDetail = () => {
                             </div>
 
                             {/* Seller Store Badge Card */}
-                            <div className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-3.5">
+                            <div className="p-3.5 sm:p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
                                     {seller.logo ? (
                                         <img
                                             src={seller.logo}
                                             alt={seller.store_name || seller.business_name || 'Seller'}
-                                            className="h-12 w-12 rounded-2xl object-cover border border-slate-200 shadow-md shadow-slate-200/50"
+                                            className="h-10 w-10 sm:h-12 sm:w-12 rounded-2xl object-cover border border-slate-200 shadow-md shadow-slate-200/50 shrink-0"
                                         />
                                     ) : (
-                                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-lg flex items-center justify-center shadow-md shadow-blue-600/20">
+                                        <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-sm sm:text-lg flex items-center justify-center shadow-md shadow-blue-600/20 shrink-0">
                                             {(seller.store_name || seller.business_name || 'Z')[0]}
                                         </div>
                                     )}
-                                    <div>
-                                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Sold by Authorized Partner</p>
-                                        <p className="text-sm font-extrabold text-slate-900">{seller.store_name || seller.business_name || 'Zyvento Prime Store'}</p>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider truncate">Sold by Authorized Partner</p>
+                                        <p className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">{seller.store_name || seller.business_name || 'Zyvento Prime Store'}</p>
                                         {seller.tagline && (
-                                            <p className="text-[11px] text-slate-500 font-medium truncate max-w-xs">{seller.tagline}</p>
+                                            <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate">{seller.tagline}</p>
                                         )}
                                         <div className="flex items-center gap-1.5 mt-0.5">
-                                            <span className="px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-black">
+                                            <span className="px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-black shrink-0">
                                                 ★ {seller.rating || '4.9'}
                                             </span>
-                                            <span className="text-[11px] text-slate-500 font-medium">Verified Merchant</span>
+                                            <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate">Verified Merchant</span>
                                         </div>
                                     </div>
                                 </div>
-                                <Link
-                                    to={seller?._id || seller?.id || seller?.seller_code
-                                        ? `/products?seller=${encodeURIComponent(seller._id || seller.id || seller.seller_code)}&store=${encodeURIComponent(seller.store_name || seller.brand_name || seller.business_name || '')}`
-                                        : '/products'}
-                                    className="px-4 py-2 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-sky-50 text-xs font-bold text-blue-600 transition-all whitespace-nowrap"
-                                >
-                                    Visit Store
-                                </Link>
+                                <div className="shrink-0">
+                                    <Link
+                                        to={seller?._id || seller?.id || seller?.seller_code
+                                            ? `/products?seller=${encodeURIComponent(seller._id || seller.id || seller.seller_code)}&store=${encodeURIComponent(seller.store_name || seller.brand_name || seller.business_name || '')}`
+                                            : '/products'}
+                                        className="inline-flex items-center justify-center px-3 sm:px-4 py-2 rounded-xl border border-blue-200 bg-sky-50/70 hover:bg-sky-100 text-xs font-bold text-blue-700 hover:border-blue-300 transition-all whitespace-nowrap shadow-2xs shrink-0"
+                                    >
+                                        Visit Store
+                                    </Link>
+                                </div>
                             </div>
 
                         </div>
@@ -1128,12 +1048,12 @@ const ProductDetail = () => {
                     TABBED SPECIFICATIONS, REVIEWS & DETAILS MATRIX
                     ============================================================ */}
                 <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
-                    {/* Tab Navigation */}
+                    {/* Tab Navigation - Reviews FIRST */}
                     <div className="flex border-b border-slate-200/80 bg-slate-50/70 overflow-x-auto scrollbar-none px-4 sm:px-6">
                         {[
+                            { id: 'reviews', label: `Customer Reviews (${reviewsCount})` },
                             { id: 'description', label: 'Product Description' },
                             { id: 'specs', label: 'Technical Specifications' },
-                            { id: 'reviews', label: `Customer Reviews (${reviewsCount})` },
                             { id: 'shipping', label: 'Shipping & Returns Policy' }
                         ].map((tab) => (
                             <button
@@ -1154,7 +1074,7 @@ const ProductDetail = () => {
                     <div className="p-6 sm:p-8 lg:p-10">
                         {/* TAB 1: DESCRIPTION */}
                         {activeTab === 'description' && (
-                            <div className="space-y-6 max-w-4xl text-left">
+                            <div className="space-y-6 w-full text-left">
                                 <h3 className="text-lg font-black text-slate-900">About this product</h3>
                                 <p className="text-sm sm:text-base leading-relaxed text-slate-600 whitespace-pre-line">
                                     {description}
@@ -1186,7 +1106,7 @@ const ProductDetail = () => {
 
                         {/* TAB 2: SPECIFICATIONS */}
                         {activeTab === 'specs' && (
-                            <div className="space-y-6 max-w-4xl text-left">
+                            <div className="space-y-6 w-full text-left">
                                 <h3 className="text-lg font-black text-slate-900">Technical Details</h3>
                                 <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100">
                                     <div className="grid grid-cols-1 sm:grid-cols-3 p-4 bg-slate-50 text-xs font-semibold">
@@ -1215,7 +1135,7 @@ const ProductDetail = () => {
 
                         {/* TAB 3: REVIEWS */}
                         {activeTab === 'reviews' && (
-                            <div className="space-y-8 max-w-4xl text-left">
+                            <div className="space-y-8 w-full text-left">
                                 {/* Rating Overview Card */}
                                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-6 p-6 rounded-3xl bg-slate-50 border border-slate-200/80 items-center">
                                     <div className="sm:col-span-4 text-center sm:border-r border-slate-200 sm:pr-6">
@@ -1327,7 +1247,7 @@ const ProductDetail = () => {
                                             </button>
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 min-[1800px]:grid-cols-5 min-[2100px]:grid-cols-6 gap-4 sm:gap-5 w-full">
                                             {reviews.map((rev) => {
                                                 const revUser = rev.user_id;
                                                 const userName = typeof revUser === 'object' && revUser
@@ -1349,7 +1269,7 @@ const ProductDetail = () => {
                                                 return (
                                                     <div
                                                         key={rev._id || rev.review_code}
-                                                        className={`p-5 rounded-2xl flex flex-col justify-between transition-all duration-200 border shadow-xs hover:shadow-md ${
+                                                        className={`p-5 rounded-2xl flex flex-col justify-between transition-all duration-200 border shadow-xs hover:shadow-md h-full ${
                                                             isCurrentUsersReview
                                                                 ? 'bg-gradient-to-br from-blue-50/70 via-sky-50/30 to-white border-blue-300 ring-2 ring-blue-100/80 shadow-blue-100/50'
                                                                 : 'bg-white border-slate-200/90 hover:border-slate-300'
@@ -1416,7 +1336,14 @@ const ProductDetail = () => {
                                                                             onClick={() => setActiveMediaModal({ url: img, type: 'image' })}
                                                                             className="group relative w-14 h-14 rounded-xl overflow-hidden border border-slate-200 shadow-2xs hover:ring-2 hover:ring-blue-500 transition-all shrink-0"
                                                                         >
-                                                                            <img src={img} alt="Customer attachment" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                                                            <img
+                                                                                src={img}
+                                                                                alt="Customer attachment"
+                                                                                onError={(e) => {
+                                                                                    e.currentTarget.style.display = 'none';
+                                                                                }}
+                                                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                                                            />
                                                                         </button>
                                                                     ))}
                                                                     {rev.videos?.map((vid, idx) => (
@@ -1491,7 +1418,7 @@ const ProductDetail = () => {
 
                         {/* TAB 4: SHIPPING & RETURNS */}
                         {activeTab === 'shipping' && (
-                            <div className="space-y-4 max-w-4xl text-left text-xs sm:text-sm text-slate-600 leading-relaxed">
+                            <div className="space-y-4 w-full text-left text-xs sm:text-sm text-slate-600 leading-relaxed">
                                 <h3 className="text-lg font-black text-slate-900">Shipping & Returns Information</h3>
                                 <p>
                                     All orders placed on Zyvento are dispatched through verified tier-1 logistics partners (BlueDart, Delhivery, Xpressbees) ensuring insured doorstep delivery across 19,000+ pin codes in India.
@@ -1532,7 +1459,7 @@ const ProductDetail = () => {
                             </Link>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                        <div className="grid grid-cols-1 min-[480px]:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6 gap-4 sm:gap-6">
                             {relatedProducts.map((p) => (
                                 <ProductCard
                                     key={p._id || p.id}
@@ -1574,29 +1501,7 @@ const ProductDetail = () => {
                 </div>
             </div>
 
-            {/* ============================================================
-                FULLSCREEN IMAGE LIGHTBOX MODAL
-                ============================================================ */}
-            {isLightboxOpen && (
-                <div
-                    className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4"
-                    onClick={() => setIsLightboxOpen(false)}
-                >
-                    <button
-                        type="button"
-                        onClick={() => setIsLightboxOpen(false)}
-                        className="absolute top-6 right-6 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
-                    >
-                        <FiX className="w-6 h-6" />
-                    </button>
-                    <img
-                        src={imageList[selectedImage]}
-                        alt="Expanded preview"
-                        className="max-h-[85vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl"
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                </div>
-            )}
+
 
             {/* ============================================================
                 WRITE / EDIT REVIEW MODAL (ENHANCED DESKTOP & RESPONSIVE UI)
@@ -1948,6 +1853,9 @@ const ProductDetail = () => {
                             <img
                                 src={activeMediaModal.url}
                                 alt="Customer review media"
+                                onError={(e) => {
+                                    e.currentTarget.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=1000&auto=format&fit=crop&q=85';
+                                }}
                                 className="max-h-[85vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl"
                             />
                         )}

@@ -75,6 +75,21 @@ const cart_schema = new mongoose.Schema(
         default: 0
     },
 
+    // ============ COUPON ============
+    coupon_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Coupon",
+        default: null
+    },
+    coupon_code: {
+        type: String,
+        default: null
+    },
+    coupon_discount: {
+        type: Number,
+        default: 0
+    },
+
     // ============ CART EXPIRY ============
     cart_expiry: {
         type: Date,

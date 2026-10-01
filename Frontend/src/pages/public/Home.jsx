@@ -306,7 +306,7 @@ const Home = () => {
                 </div>
 
                 {loading ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-6">
+                    <div className="grid grid-cols-1 min-[480px]:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6 gap-3.5 sm:gap-6">
                         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                             <div key={i} className="p-4 bg-white rounded-2xl border border-slate-200 animate-pulse space-y-3">
                                 <div className="aspect-square bg-slate-100 rounded-xl" />
@@ -317,7 +317,7 @@ const Home = () => {
                         ))}
                     </div>
                 ) : featuredProducts.length > 0 ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-6">
+                    <div className="grid grid-cols-1 min-[480px]:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6 gap-3.5 sm:gap-6">
                         {featuredProducts.map((prod) => (
                             <ProductCard
                                 key={prod._id || prod.id}

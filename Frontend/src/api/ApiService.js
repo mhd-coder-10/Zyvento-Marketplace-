@@ -1006,6 +1006,11 @@ const ApiService = {
         return axios.get(`${API_URL}/admin/reports/${reportType}/export/pdf`, { params, responseType: 'blob' });
     },
 
+    getCouponReportDetail: (code) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/reports/coupons/${code}`);
+    },
+
     // ===== SETTINGS APIs  =========
 
     get: (url, config = {}) => {
