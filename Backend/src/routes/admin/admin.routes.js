@@ -589,12 +589,102 @@ router.post(
     adminController.sendBroadcastNotification
 );
 
+router.post(
+    '/notifications/broadcast',
+    checkPermission('NOTIFICATIONS_CREATE'),
+    adminController.sendBroadcastNotification
+);
+
 router.patch(
     '/notifications/read-all',
     checkPermission('NOTIFICATIONS_READ'),
     adminController.markAllNotificationsAsRead
 );
 
+// Analytics
+router.get(
+    '/notifications/analytics',
+    checkPermission('NOTIFICATIONS_READ'),
+    adminController.getNotificationAnalytics
+);
+
+// Delivery Logs
+router.get(
+    '/notifications/delivery-logs',
+    checkPermission('NOTIFICATIONS_READ'),
+    adminController.getDeliveryLogs
+);
+
+router.post(
+    '/notifications/delivery-logs/:logId/retry',
+    checkPermission('NOTIFICATIONS_CREATE'),
+    adminController.retryDeliveryLog
+);
+
+// Templates
+router.get(
+    '/notifications/templates',
+    checkPermission('NOTIFICATIONS_READ'),
+    adminController.getNotificationTemplates
+);
+
+router.post(
+    '/notifications/templates',
+    checkPermission('NOTIFICATIONS_CREATE'),
+    adminController.createNotificationTemplate
+);
+
+router.get(
+    '/notifications/templates/:code',
+    checkPermission('NOTIFICATIONS_READ'),
+    adminController.getNotificationTemplateByCode
+);
+
+router.put(
+    '/notifications/templates/:code',
+    checkPermission('NOTIFICATIONS_CREATE'),
+    adminController.updateNotificationTemplate
+);
+
+router.delete(
+    '/notifications/templates/:code',
+    checkPermission('NOTIFICATIONS_DELETE'),
+    adminController.deleteNotificationTemplate
+);
+
+// System Alerts
+router.get(
+    '/notifications/system-alerts',
+    checkPermission('NOTIFICATIONS_READ'),
+    adminController.getSystemAlerts
+);
+
+router.patch(
+    '/notifications/system-alerts/:alertCode/acknowledge',
+    checkPermission('NOTIFICATIONS_CREATE'),
+    adminController.acknowledgeSystemAlert
+);
+
+router.patch(
+    '/notifications/system-alerts/:alertCode/resolve',
+    checkPermission('NOTIFICATIONS_CREATE'),
+    adminController.resolveSystemAlert
+);
+
+// Preferences
+router.get(
+    '/notifications/preferences',
+    checkPermission('NOTIFICATIONS_READ'),
+    adminController.getNotificationPreferences
+);
+
+router.put(
+    '/notifications/preferences/:userId',
+    checkPermission('NOTIFICATIONS_CREATE'),
+    adminController.updateNotificationPreferences
+);
+
+// Specific Notification by Code (must come after specific route paths)
 router.get(
     '/notifications/:notificationCode',
     checkPermission('NOTIFICATIONS_READ'),
@@ -605,6 +695,24 @@ router.patch(
     '/notifications/:notificationCode/read',
     checkPermission('NOTIFICATIONS_READ'),
     adminController.markNotificationAsRead
+);
+
+router.put(
+    '/notifications/:notificationCode',
+    checkPermission('NOTIFICATIONS_CREATE'),
+    adminController.updateNotification
+);
+
+router.post(
+    '/notifications/:notificationCode/cancel',
+    checkPermission('NOTIFICATIONS_CREATE'),
+    adminController.cancelBroadcast
+);
+
+router.post(
+    '/notifications/:notificationCode/send-now',
+    checkPermission('NOTIFICATIONS_CREATE'),
+    adminController.sendNow
 );
 
 router.delete(
@@ -698,6 +806,12 @@ router.put(
     '/settings/group/:group',
     checkPermission('SETTINGS_UPDATE'),
     adminController.updateSettingsByGroup
+);
+
+router.put(
+    '/settings/:key',
+    checkPermission('SETTINGS_UPDATE'),
+    adminController.updateSystemSetting
 );
 
 // ============ COMPANY FINANCE / AMAZON-GRADE ACCOUNTING HUB ============

@@ -38,6 +38,13 @@ const Checkout = () => {
     const [paymentMethod, setPaymentMethod] = useState(settings?.cod_enabled !== false ? 'cod' : 'upi');
     const [editingAddress, setEditingAddress] = useState(null);
 
+    // Auto switch off COD if disabled by platform settings
+    useEffect(() => {
+        if (settings?.cod_enabled === false && paymentMethod === 'cod') {
+            setPaymentMethod('upi');
+        }
+    }, [settings?.cod_enabled, paymentMethod]);
+
     const [addressForm, setAddressForm] = useState({
         full_name: '',
         phone: '',
@@ -173,11 +180,24 @@ const Checkout = () => {
             return;
         }
 
+        const subtotal = Number(cart?.subtotal || cart?.total_amount || 0);
+        const minOrderAmount = Number(settings?.min_order_amount) || 0;
+        if (minOrderAmount > 0 && subtotal < minOrderAmount) {
+            toast.error(`Minimum order amount of ${settings?.currency_symbol || '₹'}${minOrderAmount} is required.`);
+            navigate('/cart');
+            return;
+        }
+
         setPlacingOrder(true);
         try {
+            let normalizedMethod = 'COD';
+            if (paymentMethod === 'upi') normalizedMethod = 'UPI';
+            else if (paymentMethod === 'card') normalizedMethod = 'Debit_Card';
+            else if (paymentMethod === 'netbanking') normalizedMethod = 'Net_Banking';
+
             const orderData = {
                 address_id: selectedAddress._id,
-                payment_method: paymentMethod,
+                payment_method: normalizedMethod,
                 coupon_code: cart?.coupon_code || undefined,
             };
 

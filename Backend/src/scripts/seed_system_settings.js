@@ -38,7 +38,18 @@ const defaultSettings = [
 
     // SECURITY & SYSTEM
     { key: 'user_registration_enabled', value: true, group: 'security', data_type: 'boolean', is_public: true, description: 'Allow new customer registrations' },
+    { key: 'seller_registration_enabled', value: true, group: 'security', data_type: 'boolean', is_public: true, description: 'Allow new merchant registrations' },
     { key: 'guest_checkout_enabled', value: true, group: 'security', data_type: 'boolean', is_public: true, description: 'Allow unauthenticated cart additions' },
+
+    // PAYMENT GATEWAYS & OPTIONS
+    { key: 'razorpay_enabled', value: true, group: 'payment', data_type: 'boolean', is_public: true, description: 'Enable Razorpay payment gateway' },
+    { key: 'stripe_enabled', value: false, group: 'payment', data_type: 'boolean', is_public: true, description: 'Enable Stripe international payment gateway' },
+
+    // EMAIL & NOTIFICATIONS
+    { key: 'email_from_name', value: 'Zyvento Marketplace', group: 'email', data_type: 'string', is_public: true, description: 'Outgoing sender display name' },
+    { key: 'email_from_address', value: 'notifications@zyvento.com', group: 'email', data_type: 'string', is_public: true, description: 'Outgoing sender email address' },
+    { key: 'order_confirmation_email', value: true, group: 'email', data_type: 'boolean', is_public: false, description: 'Send email receipt when customer places an order' },
+    { key: 'allow_returns', value: true, group: 'order', data_type: 'boolean', is_public: true, description: 'Enable customer product return requests' },
 ];
 
 async function seedSettings() {
@@ -50,7 +61,7 @@ async function seedSettings() {
             await SystemSetting.findOneAndUpdate(
                 { key: item.key },
                 { ...item, status: 'active' },
-                { upsert: true, new: true }
+                { upsert: true, returnDocument: 'after' }
             );
         }
 

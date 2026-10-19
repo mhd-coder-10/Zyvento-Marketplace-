@@ -37,6 +37,13 @@ class AuthService {
             terms_accepted
         } = userData;
 
+        // Check System Settings for public registration permission
+        const adminService = require('./admin/admin.service');
+        const sysSettings = await adminService.getAllSettingsDictionary();
+        if (user_type === 'customer' && sysSettings.user_registration_enabled === false) {
+            throw ApiError.badRequest('Customer account registration is temporarily paused by platform administration.');
+        }
+
         // Check if user already exists
         const existingUser = await User.findOne({
             $or: [

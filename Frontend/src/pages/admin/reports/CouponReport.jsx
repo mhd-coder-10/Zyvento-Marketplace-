@@ -470,7 +470,7 @@ const CouponReport = ({ dateRange }) => {
             {/* ========================================================= */}
             {/* 3. FILTERS CONTAINER                                      */}
             {/* ========================================================= */}
-            <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 sm:p-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
                 <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     {/* Search by Coupon Code */}
                     <div className="relative flex-1 min-w-[200px]">
@@ -551,108 +551,174 @@ const CouponReport = ({ dateRange }) => {
                         </p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-50 border-b border-blue-100">
-                                    <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider">Coupon Code</th>
-                                    <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider">Discount Type</th>
-                                    <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider">Discount Value</th>
-                                    <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider text-center">Total Usage</th>
-                                    <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider text-right">Total Order Amount</th>
-                                    <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider text-right">Total Discount Given</th>
-                                    <th className="px-4 py-3.5 text-xs font-bold text-sky-900 uppercase tracking-wider text-right bg-sky-100/40">Zyvento Cost</th>
-                                    <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider text-center">Status</th>
-                                    <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider">Created Date</th>
-                                    <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider text-right">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
-                                {records.map((c) => {
-                                    const isPerc = c.discountType === 'percentage';
-                                    return (
-                                        <tr key={c.id || c.code} className="hover:bg-blue-50/40 transition-colors group">
-                                            {/* Coupon Code */}
-                                            <td className="px-4 py-3.5">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-mono font-bold text-slate-900 bg-slate-100 group-hover:bg-white px-2 py-0.5 rounded border border-slate-200">
-                                                        {c.code}
+                    <>
+                        {/* Desktop Table View (lg and above) */}
+                        <div className="hidden lg:block overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-50 border-b border-blue-100">
+                                        <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider">Coupon Code</th>
+                                        <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider">Discount Type</th>
+                                        <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider">Discount Value</th>
+                                        <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider text-center">Total Usage</th>
+                                        <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider text-right">Total Order Amount</th>
+                                        <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider text-right">Total Discount Given</th>
+                                        <th className="px-4 py-3.5 text-xs font-bold text-sky-900 uppercase tracking-wider text-right bg-sky-100/40">Zyvento Cost</th>
+                                        <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider text-center">Status</th>
+                                        <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider">Created Date</th>
+                                        <th className="px-4 py-3.5 text-xs font-bold text-blue-900 uppercase tracking-wider text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+                                    {records.map((c) => {
+                                        const isPerc = c.discountType === 'percentage';
+                                        return (
+                                            <tr key={c.id || c.code} className="hover:bg-blue-50/40 transition-colors group">
+                                                {/* Coupon Code */}
+                                                <td className="px-4 py-3.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-mono font-bold text-slate-900 bg-slate-100 group-hover:bg-white px-2 py-0.5 rounded border border-slate-200">
+                                                            {c.code}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCopyCode(c.code)}
+                                                            className="text-slate-400 hover:text-blue-600 p-1"
+                                                            title="Copy Code"
+                                                        >
+                                                            {copiedCode === c.code ? <FiCheck className="w-3.5 h-3.5 text-emerald-600" /> : <FiCopy className="w-3.5 h-3.5" />}
+                                                        </button>
+                                                    </div>
+                                                </td>
+
+                                                {/* Discount Type */}
+                                                <td className="px-4 py-3.5 capitalize font-medium text-slate-700">
+                                                    {isPerc ? 'Percentage (%)' : 'Fixed Amount (₹)'}
+                                                </td>
+
+                                                {/* Discount Value */}
+                                                <td className="px-4 py-3.5 font-bold text-slate-800">
+                                                    {isPerc ? `${c.discountValue}%` : `₹${c.discountValue}`}
+                                                    {c.maxDiscountAmount ? (
+                                                        <span className="block text-[10px] text-slate-400 font-normal">
+                                                            Capped at ₹{c.maxDiscountAmount}
+                                                        </span>
+                                                    ) : null}
+                                                </td>
+
+                                                {/* Total Usage */}
+                                                <td className="px-4 py-3.5 text-center font-bold text-slate-900">
+                                                    <span className="inline-block px-2.5 py-0.5 bg-slate-100 rounded-full text-xs">
+                                                        {c.totalUsage || 0}
                                                     </span>
+                                                </td>
+
+                                                {/* Total Order Amount */}
+                                                <td className="px-4 py-3.5 text-right font-medium text-slate-700">
+                                                    {formatCurrency(c.totalOrderAmount)}
+                                                </td>
+
+                                                {/* Total Discount Given */}
+                                                <td className="px-4 py-3.5 text-right font-bold text-amber-600">
+                                                    {formatCurrency(c.totalDiscountGiven)}
+                                                </td>
+
+                                                {/* Zyvento Coupon Cost */}
+                                                <td className="px-4 py-3.5 text-right font-extrabold text-sky-700 bg-sky-50/40">
+                                                    {formatCurrency(c.zyventoCouponCost)}
+                                                </td>
+
+                                                {/* Status */}
+                                                <td className="px-4 py-3.5 text-center">
+                                                    {getStatusBadge(c.status)}
+                                                </td>
+
+                                                {/* Created Date */}
+                                                <td className="px-4 py-3.5 text-slate-500 whitespace-nowrap text-xs">
+                                                    {formatDate(c.createdAt)}
+                                                </td>
+
+                                                {/* Action / View Details */}
+                                                <td className="px-4 py-3.5 text-right">
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleCopyCode(c.code)}
-                                                        className="text-slate-400 hover:text-blue-600 p-1"
-                                                        title="Copy Code"
+                                                        onClick={() => handleViewDetails(c.code)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 transition-all shadow-sm"
                                                     >
-                                                        {copiedCode === c.code ? <FiCheck className="w-3.5 h-3.5 text-emerald-600" /> : <FiCopy className="w-3.5 h-3.5" />}
+                                                        <FiEye className="w-3.5 h-3.5" />
+                                                        View Details
                                                     </button>
-                                                </div>
-                                            </td>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
 
-                                            {/* Discount Type */}
-                                            <td className="px-4 py-3.5 capitalize font-medium text-slate-700">
-                                                {isPerc ? 'Percentage (%)' : 'Fixed Amount (₹)'}
-                                            </td>
-
-                                            {/* Discount Value */}
-                                            <td className="px-4 py-3.5 font-bold text-slate-800">
-                                                {isPerc ? `${c.discountValue}%` : `₹${c.discountValue}`}
-                                                {c.maxDiscountAmount ? (
-                                                    <span className="block text-[10px] text-slate-400 font-normal">
-                                                        Capped at ₹{c.maxDiscountAmount}
-                                                    </span>
-                                                ) : null}
-                                            </td>
-
-                                            {/* Total Usage */}
-                                            <td className="px-4 py-3.5 text-center font-bold text-slate-900">
-                                                <span className="inline-block px-2.5 py-0.5 bg-slate-100 rounded-full text-xs">
-                                                    {c.totalUsage || 0}
+                        {/* Mobile Cards View (below lg) */}
+                        <div className="lg:hidden divide-y divide-slate-100">
+                            {records.map((c) => {
+                                const isPerc = c.discountType === 'percentage';
+                                return (
+                                    <div key={c.id || c.code} className="p-4 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                                    {c.code}
                                                 </span>
-                                            </td>
-
-                                            {/* Total Order Amount */}
-                                            <td className="px-4 py-3.5 text-right font-medium text-slate-700">
-                                                {formatCurrency(c.totalOrderAmount)}
-                                            </td>
-
-                                            {/* Total Discount Given */}
-                                            <td className="px-4 py-3.5 text-right font-bold text-amber-600">
-                                                {formatCurrency(c.totalDiscountGiven)}
-                                            </td>
-
-                                            {/* Zyvento Coupon Cost */}
-                                            <td className="px-4 py-3.5 text-right font-extrabold text-sky-700 bg-sky-50/40">
-                                                {formatCurrency(c.zyventoCouponCost)}
-                                            </td>
-
-                                            {/* Status */}
-                                            <td className="px-4 py-3.5 text-center">
-                                                {getStatusBadge(c.status)}
-                                            </td>
-
-                                            {/* Created Date */}
-                                            <td className="px-4 py-3.5 text-slate-500 whitespace-nowrap text-xs">
-                                                {formatDate(c.createdAt)}
-                                            </td>
-
-                                            {/* Action / View Details */}
-                                            <td className="px-4 py-3.5 text-right">
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleViewDetails(c.code)}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 transition-all shadow-sm"
+                                                    onClick={() => handleCopyCode(c.code)}
+                                                    className="text-slate-400 hover:text-blue-600 p-1"
                                                 >
-                                                    <FiEye className="w-3.5 h-3.5" />
-                                                    View Details
+                                                    {copiedCode === c.code ? <FiCheck className="w-3.5 h-3.5 text-emerald-600" /> : <FiCopy className="w-3.5 h-3.5" />}
                                                 </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                                            </div>
+                                            {getStatusBadge(c.status)}
+                                        </div>
+
+                                        <div className="bg-slate-50 p-3 rounded-xl space-y-1.5 text-xs text-slate-600">
+                                            <div className="flex justify-between">
+                                                <span>Discount:</span>
+                                                <span className="font-bold text-slate-800">
+                                                    {isPerc ? `${c.discountValue}%` : `₹${c.discountValue}`}
+                                                    {c.maxDiscountAmount ? ` (Cap ₹${c.maxDiscountAmount})` : ''}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span>Usage Count:</span>
+                                                <span className="font-semibold text-slate-800">{c.totalUsage || 0} times</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span>Total Orders:</span>
+                                                <span className="font-semibold text-slate-800">{formatCurrency(c.totalOrderAmount)}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span>Discount Given:</span>
+                                                <span className="font-bold text-amber-600">{formatCurrency(c.totalDiscountGiven)}</span>
+                                            </div>
+                                            <div className="flex justify-between font-bold pt-1 border-t border-slate-200/60 text-slate-800">
+                                                <span>Zyvento Cost:</span>
+                                                <span className="text-sky-700">{formatCurrency(c.zyventoCouponCost)}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-1">
+                                            <span className="text-[11px] text-slate-400">{formatDate(c.createdAt)}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleViewDetails(c.code)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 transition shadow-xs"
+                                            >
+                                                <FiEye className="w-3.5 h-3.5" /> View Details
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
                 )}
 
                 {/* Pagination Footer */}

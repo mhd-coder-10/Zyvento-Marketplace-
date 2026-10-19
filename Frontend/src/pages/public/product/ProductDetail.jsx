@@ -43,6 +43,7 @@ import ApiService from '../../../api/ApiService';
 import ProductCard from '../../../components/public/product/ProductCard';
 import Product3DViewer from '../../../components/public/product/Product3DViewer';
 import UserAvatar from '../../../components/common/UserAvatar';
+import { useSystemSettings } from '../../../context/SettingsContext';
 
 const getUserIdString = (u) => {
     if (!u) return null;
@@ -58,6 +59,7 @@ const ProductDetail = () => {
     const { productId } = useParams();
     const navigate = useNavigate();
     const { isAuthenticated, user } = useSelector((state) => state.auth);
+    const { settings } = useSystemSettings();
 
     const [product, setProduct] = useState(null);
     const [relatedProducts, setRelatedProducts] = useState([]);
@@ -749,7 +751,7 @@ const ProductDetail = () => {
                                         <FiRefreshCw className="w-5 h-5" />
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="text-xs font-bold text-slate-800">7-Day Replacement</p>
+                                        <p className="text-xs font-bold text-slate-800">{settings?.return_window_days || 7}-Day Replacement</p>
                                         <p className="text-[10px] text-slate-500 truncate">Hassle-free return</p>
                                     </div>
                                 </div>
@@ -818,7 +820,7 @@ const ProductDetail = () => {
                                 <p className="text-xs font-medium text-slate-500 flex items-center gap-2">
                                     <FiCheck className="text-emerald-500" /> Inclusive of all taxes and import fees
                                     <span className="text-slate-300">•</span>
-                                    <span className="text-blue-600 font-bold">Free Shipping on orders above ₹499</span>
+                                    <span className="text-blue-600 font-bold">Free Shipping on orders above {settings?.currency_symbol || '₹'}{settings?.free_shipping_threshold || 499}</span>
                                 </p>
                             </div>
 

@@ -1,6 +1,7 @@
 
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useSystemSettings } from "../../context/SettingsContext";
 
 // Fallback categories used until a real category API is connected.
 const FALLBACK_CATEGORIES = [
@@ -285,6 +286,7 @@ export default function Footer2() {
   );
 
   const year = new Date().getFullYear();
+  const { settings } = useSystemSettings();
 
   return (
     <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 pb-8 sm:pb-12 pt-2">
@@ -306,10 +308,10 @@ export default function Footer2() {
               </span>
               <span>
                 <span className="block text-xl font-semibold leading-tight text-white">
-                  Zyvento
+                  {settings?.site_name || 'Zyvento'}
                 </span>
                 <span className="block text-[0.7rem] uppercase tracking-[0.26em] text-slate-500">
-                  Shopping
+                  {settings?.site_tagline || 'Shopping'}
                 </span>
               </span>
             </a>
@@ -441,7 +443,7 @@ export default function Footer2() {
         className={`${CONTAINER} flex flex-col gap-4 py-6 sm:py-8 lg:flex-row lg:items-center lg:justify-between`}
       >
         <p className="text-[13px] leading-6 text-slate-500 text-center sm:text-left">
-          © {year} Zyvento Shopping. All rights reserved.
+          © {year} {settings?.site_name || 'Zyvento Shopping'}. All rights reserved.
         </p>
         <nav aria-label="Legal">
           <ul className="flex flex-wrap items-center justify-center sm:justify-start gap-x-6 gap-y-2">

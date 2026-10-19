@@ -3,13 +3,14 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logoutUser } from '../../store/slices/authSlice';
 import {
-    FiSearch, FiShoppingBag, FiHeart, FiShoppingCart, FiUser, FiMenu,
+    FiSearch, FiShoppingBag, FiHeart, FiShoppingCart, FiUser,
     FiX, FiChevronDown, FiChevronRight, FiGrid, FiPackage, FiMapPin,
     FiSettings, FiHelpCircle, FiLogOut, FiLogIn, FiSliders, FiTrendingUp,
-    FiClock, FiShield, FiBriefcase, FiLayers
+    FiClock, FiShield, FiBriefcase, FiLayers, FiBell
 } from 'react-icons/fi';
 import ApiService from '../../api/ApiService';
 import UserAvatar from './UserAvatar';
+import NotificationBell from './NotificationBell';
 import { useSystemSettings } from '../../context/SettingsContext';
 
 const Header = () => {
@@ -181,11 +182,10 @@ const Header = () => {
 
     return (
         <header
-            className={`sticky top-0 z-50 transition-all duration-300 ${
-                scrolled
-                    ? 'bg-white/95 backdrop-blur-md shadow-[0_4px_20px_-4px_rgba(2,132,199,0.12)] border-b border-sky-100'
-                    : 'bg-white border-b border-slate-100 shadow-sm'
-            }`}
+            className={`sticky top-0 z-50 transition-all duration-300 ${scrolled
+                ? 'bg-white/95 backdrop-blur-md shadow-[0_4px_20px_-4px_rgba(2,132,199,0.12)] border-b border-sky-100'
+                : 'bg-white border-b border-slate-100 shadow-sm'
+                }`}
         >
             {/* Top Bar / Announcement (Desktop only) */}
             <div className="hidden lg:block bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-700 text-white text-[12px] font-medium py-1.5 px-4 sm:px-6 lg:px-8 xl:px-10">
@@ -214,29 +214,53 @@ const Header = () => {
 
             {/* Main Header Container */}
             <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10">
-                <div className="flex items-center justify-between h-16 sm:h-20 gap-3 sm:gap-6">
-                    
-                    {/* Left: Mobile Drawer Trigger + Brand Logo */}
-                    <div className="flex items-center gap-3">
+                <div className="relative flex items-center justify-between h-16 sm:h-20 gap-2 sm:gap-6">
+
+                    {/* Left: Mobile Profile / Login circle (opens drawer) */}
+                    <div className="flex items-center lg:hidden z-10">
                         <button
                             type="button"
                             onClick={() => setMobileMenuOpen(true)}
-                            className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-sky-50 hover:text-sky-600 transition"
-                            aria-label="Open menu"
+                            className="flex-shrink-0 rounded-full transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2"
+                            aria-label={isAuthenticated ? 'Open account menu' : 'Login / Open menu'}
                         >
-                            <FiMenu className="h-6 w-6" />
+                            {isAuthenticated ? (
+                                user?.profile_image ? (
+                                    <UserAvatar
+                                        src={user.profile_image}
+                                        name={user?.first_name || 'User'}
+                                        size="h-[38px] w-[38px] text-xs"
+                                        shape="circle"
+                                        className="ring-2 ring-sky-100"
+                                    />
+                                ) : (
+                                    <span className="h-[38px] w-[38px] rounded-full bg-slate-100 border border-slate-200 ring-2 ring-sky-50 flex items-end justify-center overflow-hidden text-slate-400">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" className="h-8 w-8 translate-y-1" aria-hidden="true">
+                                            <circle cx="12" cy="8" r="4.2" />
+                                            <path d="M3.5 22c0-4.7 3.8-8 8.5-8s8.5 3.3 8.5 8z" />
+                                        </svg>
+                                    </span>
+                                )
+                            ) : (
+                                <span className="h-[38px] w-[38px] rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                                    <FiLogIn className="h-4 w-4" />
+                                </span>
+                            )}
                         </button>
+                    </div>
 
-                        <Link to="/" className="flex items-center gap-2.5 group">
-                            <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-2xl bg-gradient-to-tr from-sky-500 via-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
+                    {/* Brand Logo - Centered on Mobile, Left-aligned on Desktop */}
+                    <div className="absolute left-1/2 -translate-x-1/2 lg:static lg:translate-x-0 flex items-center z-0">
+                        <Link to="/" className="flex items-center gap-2 sm:gap-2.5 group">
+                            <div className="h-9 w-9 sm:h-11 sm:w-11 flex-shrink-0 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-sky-500 via-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
                                 <FiShoppingBag className="h-5 w-5" />
                             </div>
                             <div className="leading-tight">
-                                <span className="block text-lg sm:text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
-                                    Zyvento
+                                <span className="block text-base sm:text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
+                                    {settings?.site_name || 'Zyvento'}
                                 </span>
-                                <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-sky-600">
-                                    Marketplace
+                                <span className="block text-[8px] sm:text-[10px] font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-sky-600 truncate max-w-[120px]">
+                                    {settings?.site_tagline || 'Marketplace'}
                                 </span>
                             </div>
                         </Link>
@@ -380,19 +404,19 @@ const Header = () => {
                     </div>
 
                     {/* Right: Actions (Account, Wishlist, Cart) */}
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                        
-                        {/* Account Menu Dropdown */}
-                        <div className="relative" ref={accountRef}>
+                    <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+
+                        {/* Account Menu Dropdown (Desktop only — mobile uses left profile circle) */}
+                        <div className="relative hidden lg:block" ref={accountRef}>
                             {isAuthenticated ? (
                                 <button
                                     type="button"
                                     onClick={() => setAccountMenuOpen(!accountMenuOpen)}
-                                    className={`flex items-center gap-2.5 p-1.5 sm:px-3 sm:py-2 rounded-2xl border transition-all ${
-                                        accountMenuOpen
-                                            ? 'border-sky-400 bg-sky-50/70 text-blue-700 shadow-sm'
-                                            : 'border-transparent hover:border-slate-200 hover:bg-slate-50 text-slate-700'
-                                    }`}
+                                    className={`flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border transition-all ${accountMenuOpen
+                                        ? 'border-sky-400 bg-sky-50/70 text-blue-700 shadow-sm'
+                                        : 'border-transparent hover:border-slate-200 hover:bg-slate-50 text-slate-700'
+                                        }`}
+                                    aria-label="Account menu"
                                 >
                                     <UserAvatar
                                         src={user?.profile_image}
@@ -401,13 +425,10 @@ const Header = () => {
                                         shape="square"
                                         className="rounded-xl shadow-sm"
                                     />
-                                    <div className="hidden lg:block text-left leading-tight">
-                                        <p className="text-xs text-slate-400 font-medium">Hello,</p>
-                                        <p className="text-xs font-bold text-slate-800 truncate max-w-[100px]">
-                                            {user?.first_name || 'Account'}
-                                        </p>
-                                    </div>
-                                    <FiChevronDown className={`h-4 w-4 text-slate-400 transition-transform hidden sm:block ${accountMenuOpen ? 'rotate-180 text-blue-600' : ''}`} />
+                                    <span className="text-xs font-bold text-slate-800 max-w-[120px] truncate">
+                                        {(user?.first_name || user?.name || 'Account').trim().split(/\s+/)[0]}
+                                    </span>
+                                    <FiChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${accountMenuOpen ? 'rotate-180 text-blue-600' : ''}`} />
                                 </button>
                             ) : (
                                 <Link
@@ -525,6 +546,14 @@ const Header = () => {
                                             <span>Saved Addresses</span>
                                         </Link>
                                         <Link
+                                            to="/notifications"
+                                            onClick={() => setAccountMenuOpen(false)}
+                                            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-sky-50 hover:text-blue-700 transition"
+                                        >
+                                            <FiBell className="h-4 w-4 text-sky-600" />
+                                            <span>Notifications</span>
+                                        </Link>
+                                        <Link
                                             to="/settings"
                                             onClick={() => setAccountMenuOpen(false)}
                                             className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-sky-50 hover:text-blue-700 transition"
@@ -558,10 +587,15 @@ const Header = () => {
                             )}
                         </div>
 
+                        {/* Customer Notification Bell */}
+                        {isAuthenticated && (
+                            <NotificationBell variant="customer" mobileFilled={true} />
+                        )}
+
                         {/* Wishlist Icon */}
                         <Link
                             to="/wishlist"
-                            className="relative p-2.5 sm:px-3 sm:py-2 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-200 text-slate-700 hover:text-rose-600 transition flex items-center gap-1.5"
+                            className="relative hidden sm:flex px-3 py-2 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-200 text-slate-700 hover:text-rose-600 transition items-center gap-1.5"
                             aria-label="Wishlist"
                         >
                             <FiHeart className="h-5 w-5" />
@@ -576,12 +610,12 @@ const Header = () => {
                         {/* Cart Button */}
                         <Link
                             to="/cart"
-                            className="relative flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 transition active:scale-95"
+                            className="relative flex-shrink-0 flex items-center justify-center gap-2 h-[38px] w-[38px] sm:h-auto sm:w-auto sm:px-3.5 sm:py-3 rounded-xl sm:rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 transition active:scale-95"
                             aria-label="Shopping Cart"
                         >
-                            <FiShoppingCart className="h-5 w-5" />
+                            <FiShoppingCart className="h-5 w-5 sm:h-6 sm:w-6 sm:mr-1" />
                             <span className="hidden sm:inline">Cart</span>
-                            <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-white text-blue-700 text-xs font-extrabold flex items-center justify-center">
+                            <span className="absolute -top-1 -right-1 sm:static h-4 sm:h-5 min-w-[16px] sm:min-w-[20px] px-1 sm:px-1.5 rounded-full bg-white text-blue-700 text-[9px] sm:text-xs font-extrabold flex items-center justify-center ring-[1.5px] ring-blue-500 sm:ring-0 shadow-sm sm:shadow-none">
                                 {cartCount > 99 ? '99+' : cartCount}
                             </span>
                         </Link>
@@ -621,11 +655,10 @@ const Header = () => {
                             <button
                                 type="button"
                                 onClick={() => setCategoryMenuOpen(!categoryMenuOpen)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                                    categoryMenuOpen
-                                        ? 'bg-blue-600 text-white shadow-sm'
-                                        : 'bg-white border border-slate-200 text-slate-800 hover:border-sky-300 hover:bg-sky-50 hover:text-blue-700'
-                                }`}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition ${categoryMenuOpen
+                                    ? 'bg-blue-600 text-white shadow-sm'
+                                    : 'bg-white border border-slate-200 text-slate-800 hover:border-sky-300 hover:bg-sky-50 hover:text-blue-700'
+                                    }`}
                             >
                                 <FiGrid className="h-3.5 w-3.5" />
                                 <span>All Categories</span>
@@ -767,6 +800,16 @@ const Header = () => {
                                     >
                                         <FiUser className="h-4 w-4 text-sky-600" />
                                         <span>My Profile</span>
+                                    </Link>
+                                )}
+                                {isAuthenticated && (
+                                    <Link
+                                        to="/notifications"
+                                        onClick={() => setMobileMenuOpen(false)}
+                                        className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-sky-50 hover:text-blue-700"
+                                    >
+                                        <FiBell className="h-4 w-4 text-sky-600" />
+                                        <span>Notifications</span>
                                     </Link>
                                 )}
                                 <Link

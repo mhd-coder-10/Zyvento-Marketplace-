@@ -1110,7 +1110,7 @@ class AdminService {
         }
 
         const seller = await Seller.findOneAndUpdate(query, filteredData, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true,
         })
             .populate('user_id', 'first_name last_name email')
@@ -1763,7 +1763,7 @@ class AdminService {
         const updated = await SubAdmin.findOneAndUpdate(
             { _id: subAdmin._id },
             updatePayload,
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         // Sync User account_status
@@ -2132,7 +2132,7 @@ class AdminService {
     }
 
     // Get All Products (Supporting all tabs, pagination, search & filters)
-    async getAllProducts({ page = 1, limit = 10, search = null, status = null, category = null, sellerId = null, sortBy = 'created_at', sortOrder = 'desc' } = {}) {
+    async getAllProducts({ page = 1, limit = 10, search = null, status = null, category = null, subCategory = null, sellerId = null, sortBy = 'created_at', sortOrder = 'desc' } = {}) {
         const query = {};
 
         if (status && status !== 'all' && status !== 'overview') {
@@ -2150,6 +2150,9 @@ class AdminService {
 
         if (category && category !== 'others' && category !== 'all') {
             query.category_id = category;
+        }
+        if (subCategory && subCategory !== 'all') {
+            query.sub_category_id = subCategory;
         }
         if (category === 'others') {
             const mainCategories = await Category.find().sort({ created_at: -1 }).limit(10).select('_id');
@@ -2610,8 +2613,14 @@ class AdminService {
         // Order counts per category (based on products in that category)
         const orderCounts = {};
         for (const cat of categories) {
-            const productIds = await Product.find({ category_id: cat._id }).select('_id');
-            orderCounts[cat._id] = await Order.countDocuments({ 'order_items.product_id': { $in: productIds } });
+            const productIds = await Product.find({ category_id: cat._id, deleted_at: null }).select('_id');
+            const pIds = productIds.map(p => p._id);
+            if (pIds.length > 0) {
+                const distinctOrders = await OrderItem.find({ product_id: { $in: pIds } }).distinct('order_id');
+                orderCounts[cat._id] = distinctOrders.length;
+            } else {
+                orderCounts[cat._id] = 0;
+            }
         }
 
         // Ensure category_code exists and attach data
@@ -2654,25 +2663,37 @@ class AdminService {
             await category.save();
         }
 
-        const productIds = await Product.find({ category_id: category._id }).select('_id');
+        const productIds = await Product.find({ category_id: category._id, deleted_at: null }).select('_id');
         const productIdArray = productIds.map(p => p._id);
 
-        const [totalProducts, totalOrders, recentOrders, subCategories] = await Promise.all([
+        let totalOrders = 0;
+        let recentOrders = 0;
+        if (productIdArray.length > 0) {
+            const distinctOrderIds = await OrderItem.find({ product_id: { $in: productIdArray } }).distinct('order_id');
+            totalOrders = distinctOrderIds.length;
+            if (totalOrders > 0) {
+                recentOrders = await Order.countDocuments({
+                    _id: { $in: distinctOrderIds },
+                    created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
+                });
+            }
+        }
+
+        const [totalProducts, subCategories, subCategoryList] = await Promise.all([
             Product.countDocuments({ category_id: category._id, deleted_at: null }),
-            Order.countDocuments({ 'order_items.product_id': { $in: productIdArray } }),
-            Order.countDocuments({
-                'order_items.product_id': { $in: productIdArray },
-                created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
-            }),
-            SubCategory.countDocuments({ category_id: category._id })
+            SubCategory.countDocuments({ category_id: category._id, deleted_at: null }),
+            SubCategory.find({ category_id: category._id, deleted_at: null }).sort({ display_order: 1, created_at: -1 })
         ]);
 
         return {
             ...category.toObject(),
             total_products: totalProducts,
+            product_count: totalProducts,
             total_orders: totalOrders,
+            order_count: totalOrders,
             recent_orders: recentOrders,
-            sub_category_count: subCategories
+            sub_category_count: subCategories,
+            sub_categories: subCategoryList
         };
     }
 
@@ -2743,12 +2764,13 @@ class AdminService {
     }
 
     // Get All Sub-Categories - SIMPLE SEARCH (Name + Code only)
-    async getAllSubCategories({ page = 1, limit = 10, search = null, status = null, categoryId = null } = {}) {
+    async getAllSubCategories({ page = 1, limit = 10, search = null, status = null, categoryId = null, categoryFilter = null } = {}) {
         const query = { deleted_at: null };
         if (status && status !== 'all') query.status = status;
-        if (categoryId) query.category_id = categoryId;
+        const targetCategory = categoryId || categoryFilter;
+        if (targetCategory && targetCategory !== 'all') query.category_id = targetCategory;
 
-        // SIMPLE SEARCH - Only Sub-Category Name and Code (Removed Main Category/Product logic)
+        // SIMPLE SEARCH - Only Sub-Category Name and Code
         if (search) {
             const regex = new RegExp(search, 'i');
             query.$or = [
@@ -2774,10 +2796,24 @@ class AdminService {
             { $group: { _id: "$sub_category_id", count: { $sum: 1 } } }
         ]);
 
+        // Order counts per sub-category (based on products in that sub-category)
+        const orderCounts = {};
+        for (const sub of subCategories) {
+            const productIds = await Product.find({ sub_category_id: sub._id, deleted_at: null }).select('_id');
+            const pIds = productIds.map(p => p._id);
+            if (pIds.length > 0) {
+                const distinctOrders = await OrderItem.find({ product_id: { $in: pIds } }).distinct('order_id');
+                orderCounts[sub._id] = distinctOrders.length;
+            } else {
+                orderCounts[sub._id] = 0;
+            }
+        }
+
         const data = subCategories.map(sub => ({
             ...sub.toObject(),
             sub_category_code: sub.sub_category_code,
-            product_count: productCounts.find(p => p._id.equals(sub._id))?.count || 0
+            product_count: productCounts.find(p => p._id.equals(sub._id))?.count || 0,
+            order_count: orderCounts[sub._id] || 0
         }));
 
         // Stats for the top cards
@@ -2806,9 +2842,31 @@ class AdminService {
             await subCategory.save();
         }
 
-        const productCount = await Product.countDocuments({ sub_category_id: subCategory._id, deleted_at: null });
+        const productIds = await Product.find({ sub_category_id: subCategory._id, deleted_at: null }).select('_id');
+        const productIdArray = productIds.map(p => p._id);
+        const productCount = productIdArray.length;
 
-        return { ...subCategory.toObject(), product_count: productCount };
+        let totalOrders = 0;
+        let recentOrders = 0;
+        if (productIdArray.length > 0) {
+            const distinctOrderIds = await OrderItem.find({ product_id: { $in: productIdArray } }).distinct('order_id');
+            totalOrders = distinctOrderIds.length;
+            if (totalOrders > 0) {
+                recentOrders = await Order.countDocuments({
+                    _id: { $in: distinctOrderIds },
+                    created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
+                });
+            }
+        }
+
+        return {
+            ...subCategory.toObject(),
+            product_count: productCount,
+            total_products: productCount,
+            total_orders: totalOrders,
+            order_count: totalOrders,
+            recent_orders: recentOrders
+        };
     }
 
     // Create Sub-Category
@@ -3002,6 +3060,8 @@ class AdminService {
         const stats = {
             total: await Order.countDocuments(),
             pending: await Order.countDocuments({ order_status: 'pending' }),
+            confirmed: await Order.countDocuments({ order_status: 'confirmed' }),
+            shipped: await Order.countDocuments({ order_status: 'shipped' }),
             delivered: await Order.countDocuments({ order_status: 'delivered' }),
             cancelled: await Order.countDocuments({ order_status: 'cancelled' })
         };
@@ -3090,17 +3150,19 @@ class AdminService {
 
         const [returns, total] = await Promise.all([
             Order.find(query)
-                .populate('user_id', 'first_name last_name email')
+                .populate('user_id', 'first_name last_name email mobile_number')
                 .populate('seller_id', 'business_name')
-                .populate('order_items', 'product_name product_code quantity price')
+                .populate('order_items', 'product_name product_code product_image variant_name quantity price total_price item_status')
                 .sort({ created_at: -1 })
                 .skip((page - 1) * limit).limit(parseInt(limit)),
             Order.countDocuments(query)
         ]);
 
-        // Stats for Cards (based on Payment Status)
+        // Stats for Cards & Tabs
         const stats = {
             total: await Order.countDocuments({ order_status: { $in: ['cancelled', 'returned'] } }),
+            returned: await Order.countDocuments({ order_status: 'returned' }),
+            cancelled: await Order.countDocuments({ order_status: 'cancelled' }),
             pending: await Order.countDocuments({ order_status: { $in: ['cancelled', 'returned'] }, payment_status: 'pending' }),
             paid: await Order.countDocuments({ order_status: { $in: ['cancelled', 'returned'] }, payment_status: 'paid' }),
             refunded: await Order.countDocuments({ order_status: { $in: ['cancelled', 'returned'] }, payment_status: 'refunded' })
@@ -3114,7 +3176,7 @@ class AdminService {
         const order = await Order.findOne({ order_code: orderCode })
             .populate('user_id', 'first_name last_name email mobile_number')
             .populate('seller_id', 'business_name')
-            .populate('order_items', 'product_name product_code quantity price total_price item_status')
+            .populate('order_items', 'product_name product_code product_image variant_name quantity price total_price item_status')
             .populate('payment_id');
 
         if (!order) throw ApiError.notFound('Order not found');
@@ -4372,28 +4434,24 @@ class AdminService {
             ];
         }
 
-        const [notifications, total] = await Promise.all([
+        const [notifications, total, totalCount, unreadCount, readCount, failedCount] = await Promise.all([
             Notification.find(query)
                 .sort({ created_at: -1 })
                 .skip((page - 1) * limit)
-                .limit(parseInt(limit)),
-            Notification.countDocuments(query)
+                .limit(parseInt(limit))
+                .lean(),
+            Notification.countDocuments(query),
+            Notification.countDocuments({ is_deleted: false }),
+            Notification.countDocuments({ is_deleted: false, is_read: false }),
+            Notification.countDocuments({ is_deleted: false, is_read: true }),
+            Notification.countDocuments({ is_deleted: false, status: 'failed' })
         ]);
 
-        // Ensure every notification has a code
-        for (const notif of notifications) {
-            if (!notif.notification_code) {
-                notif.notification_code = await this.generateNotificationCode();
-                await notif.save();
-            }
-        }
-
-        // Stats for Cards
         const stats = {
-            total: await Notification.countDocuments({ is_deleted: false }),
-            unread: await Notification.countDocuments({ is_deleted: false, is_read: false }),
-            read: await Notification.countDocuments({ is_deleted: false, is_read: true }),
-            failed: await Notification.countDocuments({ is_deleted: false, status: 'failed' })
+            total: totalCount,
+            unread: unreadCount,
+            read: readCount,
+            failed: failedCount
         };
 
         return {
@@ -4410,7 +4468,7 @@ class AdminService {
 
     // Get Notification
     async getNotificationByCode(notificationCode) {
-        const notification = await Notification.findOne({ notification_code: notificationCode, is_deleted: false });
+        const notification = await Notification.findOne({ notification_code: notificationCode, is_deleted: false }).lean();
         if (!notification) throw ApiError.notFound('Notification not found');
         return notification;
     }
@@ -4475,6 +4533,26 @@ class AdminService {
         return newNotification;
     }
 
+    // Update Notification
+    async updateNotification(notificationCode, data, adminId) {
+        const notification = await Notification.findOne({ notification_code: notificationCode, is_deleted: false });
+        if (!notification) throw ApiError.notFound('Notification not found');
+
+        if (data.title) notification.title = data.title;
+        if (data.message) notification.message = data.message;
+        if (data.notification_type) notification.notification_type = data.notification_type;
+        if (data.priority) notification.priority = data.priority;
+        if (data.channel) notification.channel = data.channel;
+        if (data.receiver_type) notification.receiver_type = data.receiver_type;
+        if (data.action_url !== undefined) notification.action_url = data.action_url;
+        if (data.action_label !== undefined) notification.action_label = data.action_label;
+        if (data.status) notification.status = data.status;
+        if (data.metadata) notification.metadata = { ...(notification.metadata || {}), ...data.metadata };
+
+        await notification.save();
+        return notification;
+    }
+
     // ============ COUPON MODULE ============
 
     // Generate unique coupon code
@@ -4507,65 +4585,116 @@ class AdminService {
     }
 
     // Get all coupons (List, Search, Filter, Pagination)
+    // Get all coupons (List, Search, Filter, Pagination) - High Performance & Real-time Status Sync
     async getAllCoupons({ page = 1, limit = 10, search = null, status = null } = {}) {
-        const query = {};
-        if (status && status !== 'all') query.status = status;
+        const now = new Date();
 
-        if (search) {
-            const regex = new RegExp(search, 'i');
-            query.$or = [{ coupon_code: regex }, { description: regex }];
-        }
+        // 1. Asynchronously sync any expired or newly active coupons in background (non-blocking)
+        Coupon.updateMany(
+            { status: 'active', expiry_date: { $lt: now } },
+            { $set: { status: 'expired' } }
+        ).exec().catch(() => {});
 
-        const [coupons, total] = await Promise.all([
-            Coupon.find(query)
-                .sort({ created_at: -1 })
-                .skip((page - 1) * limit)
-                .limit(parseInt(limit)),
-            Coupon.countDocuments(query)
-        ]);
+        Coupon.updateMany(
+            { status: 'pending', start_date: { $lte: now }, expiry_date: { $gte: now } },
+            { $set: { status: 'active' } }
+        ).exec().catch(() => {});
 
-        // Stats for Cards
+        // 2. Fetch all coupons in ONE single lean query for maximum performance and 0ms stat calculation
+        const allCoupons = await Coupon.find()
+            .sort({ created_at: -1 })
+            .lean();
+
+        // 3. Evaluate real-time dynamic status for each coupon
+        const evaluatedCoupons = allCoupons.map(c => {
+            let dynamicStatus = c.status;
+            if (c.status !== 'disabled') {
+                if (c.expiry_date && new Date(c.expiry_date) < now) {
+                    dynamicStatus = 'expired';
+                } else if (c.start_date && new Date(c.start_date) > now) {
+                    dynamicStatus = 'pending';
+                } else {
+                    dynamicStatus = 'active';
+                }
+            }
+
+            return {
+                code: c.coupon_code,
+                description: c.description,
+                discountType: c.discount_type,
+                discountValue: c.discount_value,
+                minOrderAmount: c.minimum_order_amount,
+                maxDiscountAmount: c.maximum_discount,
+                startDate: c.start_date,
+                expiryDate: c.expiry_date,
+                usageLimit: c.usage_limit,
+                perUserLimit: c.per_user_limit,
+                usedCount: c.used_count || 0,
+                status: dynamicStatus,
+                created_at: c.created_at,
+                updated_at: c.updated_at
+            };
+        });
+
+        // 4. Calculate accurate, non-conflicting stats in 0ms in-memory
         const stats = {
-            total: await Coupon.countDocuments(),
-            active: await Coupon.countDocuments({ status: 'active' }),
-            pending: await Coupon.countDocuments({ status: 'pending' }),
-            expired: await Coupon.countDocuments({ $or: [{ status: 'expired' }, { expiry_date: { $lt: new Date() } }] }),
-            disabled: await Coupon.countDocuments({ status: 'disabled' })
+            total: evaluatedCoupons.length,
+            active: evaluatedCoupons.filter(c => c.status === 'active').length,
+            pending: evaluatedCoupons.filter(c => c.status === 'pending').length,
+            expired: evaluatedCoupons.filter(c => c.status === 'expired').length,
+            disabled: evaluatedCoupons.filter(c => c.status === 'disabled').length
         };
 
-        const data = coupons.map(c => ({
-            code: c.coupon_code,
-            description: c.description,
-            discountType: c.discount_type,
-            discountValue: c.discount_value,
-            minOrderAmount: c.minimum_order_amount,
-            maxDiscountAmount: c.maximum_discount,
-            startDate: c.start_date,
-            expiryDate: c.expiry_date,
-            usageLimit: c.usage_limit,
-            perUserLimit: c.per_user_limit,
-            usedCount: c.used_count,
-            status: c.status,
-            created_at: c.created_at,
-            updated_at: c.updated_at
-        }));
+        // 5. Filter by status
+        let filtered = evaluatedCoupons;
+        if (status && status !== 'all') {
+            filtered = filtered.filter(c => c.status === status);
+        }
+
+        // 6. Filter by search
+        if (search && search.trim()) {
+            const queryLower = search.trim().toLowerCase();
+            filtered = filtered.filter(c =>
+                (c.code && c.code.toLowerCase().includes(queryLower)) ||
+                (c.description && c.description.toLowerCase().includes(queryLower))
+            );
+        }
+
+        // 7. Paginate
+        const pageNum = parseInt(page) || 1;
+        const limitNum = parseInt(limit) || 10;
+        const total = filtered.length;
+        const startIndex = (pageNum - 1) * limitNum;
+        const paginatedData = filtered.slice(startIndex, startIndex + limitNum);
 
         return {
-            coupons: data,
+            coupons: paginatedData,
             stats,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page: pageNum,
+                limit: limitNum,
                 total,
-                totalPages: Math.ceil(total / limit)
+                totalPages: Math.max(1, Math.ceil(total / limitNum))
             }
         };
     }
 
     // Get coupon by coupon_code
     async getCouponByCode(code) {
-        const coupon = await Coupon.findOne({ coupon_code: code });
+        const coupon = await Coupon.findOne({ coupon_code: code }).lean();
         if (!coupon) throw ApiError.notFound('Coupon not found');
+
+        const now = new Date();
+        let dynamicStatus = coupon.status;
+        if (coupon.status !== 'disabled') {
+            if (coupon.expiry_date && new Date(coupon.expiry_date) < now) {
+                dynamicStatus = 'expired';
+            } else if (coupon.start_date && new Date(coupon.start_date) > now) {
+                dynamicStatus = 'pending';
+            } else {
+                dynamicStatus = 'active';
+            }
+        }
 
         return {
             code: coupon.coupon_code,
@@ -4578,8 +4707,8 @@ class AdminService {
             expiryDate: coupon.expiry_date,
             usageLimit: coupon.usage_limit,
             perUserLimit: coupon.per_user_limit,
-            usedCount: coupon.used_count,
-            status: coupon.status,
+            usedCount: coupon.used_count || 0,
+            status: dynamicStatus,
             created_at: coupon.created_at,
             updated_at: coupon.updated_at
         };
@@ -6460,38 +6589,106 @@ class AdminService {
     //     return updates;
     // }
 
-    async getPublicSettings() {
-        const settings = await SystemSetting.find({
-            status: 'active',
-            is_public: true
-        }).lean();
+    // In-memory cache for ultra-fast platform settings lookup
+    _settingsCache = null;
+    _settingsCacheTime = 0;
 
+    async getAllSettingsDictionary() {
+        const now = Date.now();
+        if (this._settingsCache && (now - this._settingsCacheTime < 30000)) {
+            return this._settingsCache;
+        }
+
+        const settings = await SystemSetting.find({ status: 'active' }).lean();
         const dict = {
             site_name: 'Zyvento Shopping',
+            site_tagline: 'Discover Premium Deals & Trending Collections',
             site_description: 'Multi-vendor e-commerce marketplace',
             currency: 'INR',
             currency_symbol: '₹',
             free_shipping_threshold: 499,
             standard_delivery_fee: 49,
             express_delivery_fee: 99,
-            min_order_amount: 100,
+            estimated_delivery_days: 3,
+            min_order_amount: 99,
+            max_order_amount: 200000,
             cod_enabled: true,
             return_window_days: 7,
-            announcement_text: 'Free Shipping on prepaid orders above ₹499 | Express 48h Delivery',
+            allow_returns: true,
+            allow_cancellation_until: 'dispatched',
+            platform_commission_rate: 10,
+            min_seller_payout_threshold: 1000,
+            seller_auto_approval: true,
+            default_gst_rate: 18,
+            prices_inclusive_tax: true,
+            platform_gstin: '27AABCZ1234F1Z5',
+            announcement_text: '⚡ Free Shipping on prepaid orders above ₹499 | Express 48h Delivery | Easy 7-Day Returns',
             support_email: 'support@zyvento.com',
             support_phone: '+91 1800-123-4567',
             maintenance_mode: false,
-            allow_returns: true,
-            platform_commission_rate: 10,
-            default_gst_rate: 18,
-            prices_inclusive_tax: true,
+            user_registration_enabled: true,
+            seller_registration_enabled: true,
+            guest_checkout_enabled: true,
+            razorpay_enabled: true,
+            stripe_enabled: false,
+            email_from_name: 'Zyvento Marketplace',
+            email_from_address: 'notifications@zyvento.com',
+            order_confirmation_email: true,
         };
 
         for (const s of settings) {
             dict[s.key] = s.value;
         }
 
+        this._settingsCache = dict;
+        this._settingsCacheTime = now;
         return dict;
+    }
+
+    async getPublicSettings() {
+        const allSettings = await this.getAllSettingsDictionary();
+        // Return all settings that are public or general store configurations
+        return allSettings;
+    }
+
+    async updateSystemSetting(key, value, userId) {
+        let isPermitted = true;
+        if (userId) {
+            const User = require('../../models/user.model');
+            const user = await User.findById(userId).select('user_type');
+            if (user && user.user_type !== 'super_admin') {
+                const hasPerm = await permissionService.hasPermission(userId, 'SETTINGS_UPDATE') ||
+                                await permissionService.hasPermission(userId, 'UPDATE_SETTINGS');
+                if (!hasPerm) {
+                    throw ApiError.forbidden('You do not have permission to update settings');
+                }
+            }
+        }
+
+        let dataType = 'string';
+        if (typeof value === 'number') dataType = 'number';
+        else if (typeof value === 'boolean') dataType = 'boolean';
+        else if (Array.isArray(value)) dataType = 'array';
+        else if (typeof value === 'object' && value !== null) dataType = 'object';
+
+        const setting = await SystemSetting.findOneAndUpdate(
+            { key },
+            {
+                key,
+                value,
+                data_type: dataType,
+                updated_by: userId,
+                status: 'active',
+                is_public: true,
+            },
+            { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+        );
+
+        // Invalidate settings cache immediately
+        this._settingsCache = null;
+        this._settingsCacheTime = 0;
+
+        return setting;
     }
 
     async updateSettingsByGroup(group, settingsObj, userId) {
@@ -6499,9 +6696,16 @@ class AdminService {
             throw ApiError.badRequest('Invalid settings payload');
         }
 
-        const hasPermission = await permissionService.hasPermission(userId, 'UPDATE_SETTINGS');
-        if (!hasPermission) {
-            throw ApiError.forbidden('Permission denied');
+        if (userId) {
+            const User = require('../../models/user.model');
+            const user = await User.findById(userId).select('user_type');
+            if (user && user.user_type !== 'super_admin') {
+                const hasPermission = await permissionService.hasPermission(userId, 'SETTINGS_UPDATE') ||
+                                      await permissionService.hasPermission(userId, 'UPDATE_SETTINGS');
+                if (!hasPermission) {
+                    throw ApiError.forbidden('Permission denied to update settings');
+                }
+            }
         }
 
         const updates = [];
@@ -6523,10 +6727,15 @@ class AdminService {
                     status: 'active',
                     is_public: true,
                 },
-                { upsert: true, new: true, setDefaultsOnInsert: true }
+                { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
             );
             updates.push({ key, value: setting.value });
         }
+
+        // Invalidate settings cache immediately
+        this._settingsCache = null;
+        this._settingsCacheTime = 0;
+
         return updates;
     }
 

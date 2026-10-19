@@ -13,7 +13,8 @@ import {
     FiTruck,
     FiShield,
     FiCheckCircle,
-    FiArrowRight
+    FiArrowRight,
+    FiAlertCircle
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
 import { useSystemSettings } from '../../../context/SettingsContext';
@@ -122,21 +123,27 @@ const Cart = () => {
         }
     };
 
-    const handleCheckout = () => {
-        if (!cart?.items || cart.items.length === 0) {
-            toast.error('Your cart is empty');
-            return;
-        }
-        navigate('/checkout');
-    };
-
     const subtotal = Number(cart?.subtotal || cart?.total_amount || 0);
+    const minOrderAmount = Number(settings?.min_order_amount) || 0;
+    const isBelowMinOrder = minOrderAmount > 0 && subtotal < minOrderAmount;
     const freeDeliveryThreshold = Number(settings?.free_shipping_threshold) || 499;
     const standardDeliveryFee = Number(settings?.standard_delivery_fee) || 49;
     const deliveryFee = subtotal >= freeDeliveryThreshold ? 0 : standardDeliveryFee;
     const progressToFreeDelivery = Math.min(100, Math.round((subtotal / freeDeliveryThreshold) * 100));
     const amountLeftForFreeDelivery = Math.max(0, freeDeliveryThreshold - subtotal);
     const totalPayable = Math.max(0, subtotal + deliveryFee - Number(cart?.discount || 0));
+
+    const handleCheckout = () => {
+        if (!cart?.items || cart.items.length === 0) {
+            toast.error('Your cart is empty');
+            return;
+        }
+        if (isBelowMinOrder) {
+            toast.warning(`Minimum order amount of ${settings?.currency_symbol || '₹'}${minOrderAmount} is required to checkout.`);
+            return;
+        }
+        navigate('/checkout');
+    };
 
     if (loading) {
         return (
@@ -404,10 +411,25 @@ const Cart = () => {
                                 )}
                             </form>
 
+                            {/* Min order alert if applicable */}
+                            {isBelowMinOrder && (
+                                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 font-semibold flex items-center gap-2.5">
+                                    <FiAlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                                    <span>
+                                        Minimum order amount is <strong>{settings?.currency_symbol || '₹'}{minOrderAmount}</strong>. Please add <strong>{settings?.currency_symbol || '₹'}{(minOrderAmount - subtotal).toFixed(2)}</strong> more to checkout.
+                                    </span>
+                                </div>
+                            )}
+
                             {/* Checkout CTA */}
                             <button
                                 onClick={handleCheckout}
-                                className="w-full py-4 rounded-2xl bg-blue-600 text-white font-bold text-sm shadow-xl shadow-blue-600/25 hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                                disabled={isBelowMinOrder}
+                                className={`w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                                    isBelowMinOrder
+                                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                                        : 'bg-blue-600 text-white shadow-xl shadow-blue-600/25 hover:bg-blue-700 active:scale-[0.98]'
+                                }`}
                             >
                                 Proceed to Checkout
                                 <FiArrowRight className="w-4 h-4" />

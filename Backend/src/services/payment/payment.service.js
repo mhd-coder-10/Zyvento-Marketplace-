@@ -12,6 +12,7 @@ const ApiError = require('../../utils/apiError');
 const Helpers = require('../../utils/helpers');
 const logger = require('../../utils/logger');
 const constants = require('../../config/constants');
+const notificationEngine = require('../notification/notificationEngine');
 
 class PaymentService {
 
@@ -117,28 +118,40 @@ class PaymentService {
             });
             await transaction.save();
 
-            // Notify user
-            await Notification.create({
-                user_id: userId,
-                receiver_type: 'customer',
-                title: 'Payment Successful',
-                message: `Payment of ₹${payment.amount} for order #${order.order_number} was successful.`,
-                notification_type: 'payment',
-                reference_id: payment._id,
-                reference_model: 'Payment',
-                channel: 'in_app'
+            // Notify user via NotificationEngine
+            await notificationEngine.sendEvent({
+                event: 'PAYMENT_SUCCESSFUL',
+                recipientId: userId,
+                category: 'FINANCE',
+                notificationType: 'payment_successful',
+                priority: 'high',
+                referenceId: payment._id,
+                referenceModel: 'Payment',
+                actionUrl: `/orders/${order.order_number}`,
+                actionLabel: 'View Order',
+                variables: {
+                    amount: payment.amount,
+                    order_id: order.order_number
+                },
+                channels: ['in_app', 'email']
             });
 
-            // Notify seller
-            await Notification.create({
-                user_id: order.seller_id,
-                receiver_type: 'seller',
-                title: 'New Payment Received',
-                message: `Payment received for order #${order.order_number}`,
-                notification_type: 'payment',
-                reference_id: payment._id,
-                reference_model: 'Payment',
-                channel: 'in_app'
+            // Notify seller via NotificationEngine
+            await notificationEngine.sendEvent({
+                event: 'PAYMENT_RECEIVED',
+                recipientId: order.seller_id,
+                category: 'FINANCE',
+                notificationType: 'payment_received',
+                priority: 'normal',
+                referenceId: payment._id,
+                referenceModel: 'Payment',
+                actionUrl: `/seller/orders/${order.order_number}`,
+                actionLabel: 'View Order',
+                variables: {
+                    amount: payment.amount,
+                    order_id: order.order_number
+                },
+                channels: ['in_app', 'email']
             });
         }
 

@@ -4,17 +4,14 @@ import { useDispatch } from 'react-redux';
 import { logoutUser } from '../../store/slices/authSlice';
 import {
     FiMenu,
-    FiBell,
     FiUser,
     FiLogOut,
     FiSettings,
     FiChevronDown,
     FiX,
-    FiExternalLink,
-    FiShoppingBag,
-    FiAlertTriangle,
-    FiStar,
+    FiExternalLink
 } from 'react-icons/fi';
+import NotificationBell from '../common/NotificationBell';
 
 const SellerHeader = ({
     sidebarOpen,
@@ -27,23 +24,12 @@ const SellerHeader = ({
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
-    const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const profileRef = useRef(null);
-    const notificationRef = useRef(null);
-
-    const [notifications, setNotifications] = useState([
-        { id: 1, title: 'New order received', time: '10 min ago', read: false, type: 'order' },
-        { id: 2, title: 'Stock low on top product', time: '1 hour ago', read: false, type: 'stock' },
-        { id: 3, title: 'Customer left a 5-star review', time: 'Yesterday', read: true, type: 'review' },
-    ]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (profileRef.current && !profileRef.current.contains(event.target)) {
                 setIsProfileOpen(false);
-            }
-            if (notificationRef.current && !notificationRef.current.contains(event.target)) {
-                setIsNotificationsOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -57,18 +43,6 @@ const SellerHeader = ({
 
     const fullName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.name || user?.business_name || 'Seller';
     const initial = (user?.first_name?.[0] || user?.business_name?.[0] || 'S').toUpperCase();
-
-    const unreadCount = notifications.filter((n) => !n.read).length;
-
-    const markAllAsRead = () => {
-        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    };
-
-    const toggleNotificationRead = (id) => {
-        setNotifications((prev) =>
-            prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-        );
-    };
 
     return (
         <header
@@ -101,108 +75,8 @@ const SellerHeader = ({
 
                 {/* Right side: Notifications & Profile Dropdown */}
                 <div className="flex items-center gap-2 sm:gap-4">
-                    {/* Notifications */}
-                    <div className="relative" ref={notificationRef}>
-                        <button
-                            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                            className={`relative p-2.5 rounded-xl transition-all active:scale-95 ${
-                                isNotificationsOpen
-                                    ? 'bg-sky-100/70 text-sky-600 ring-2 ring-sky-300'
-                                    : 'text-slate-600 hover:bg-sky-50 hover:text-sky-600'
-                            }`}
-                            aria-label="Notifications"
-                        >
-                            <FiBell className="w-5 h-5" />
-                            {unreadCount > 0 && (
-                                <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white animate-pulse" />
-                            )}
-                        </button>
-
-                        {/* Mobile Backdrop to catch outside clicks nicely */}
-                        {isNotificationsOpen && (
-                            <div
-                                className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[1px] sm:hidden"
-                                onClick={() => setIsNotificationsOpen(false)}
-                            />
-                        )}
-
-                        {isNotificationsOpen && (
-                            <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-[4.25rem] sm:top-full sm:mt-2 max-w-sm sm:w-80 md:w-88 mx-auto sm:mx-0 bg-white rounded-2xl shadow-2xl border border-sky-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-sky-50/50 to-white">
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-bold text-slate-800 text-sm">Notifications</span>
-                                        {unreadCount > 0 && (
-                                            <span className="text-[11px] font-bold text-sky-600 bg-sky-100/70 px-2 py-0.5 rounded-full">
-                                                {unreadCount} new
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {unreadCount > 0 && (
-                                            <button
-                                                type="button"
-                                                onClick={markAllAsRead}
-                                                className="text-[11px] font-semibold text-sky-600 hover:text-sky-700 hover:underline"
-                                            >
-                                                Mark all read
-                                            </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsNotificationsOpen(false)}
-                                            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 sm:hidden"
-                                            aria-label="Close"
-                                        >
-                                            <FiX className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="max-h-[65vh] sm:max-h-80 overflow-y-auto divide-y divide-slate-100">
-                                    {notifications.length === 0 ? (
-                                        <div className="p-6 text-center text-slate-400 text-xs">
-                                            No notifications right now
-                                        </div>
-                                    ) : (
-                                        notifications.map((item) => (
-                                            <div
-                                                key={item.id}
-                                                onClick={() => toggleNotificationRead(item.id)}
-                                                className={`px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer flex items-start gap-3 ${
-                                                    !item.read ? 'bg-sky-50/40' : 'bg-white'
-                                                }`}
-                                            >
-                                                <div className="mt-0.5 shrink-0">
-                                                    {item.type === 'order' ? (
-                                                        <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                                                            <FiShoppingBag className="w-3.5 h-3.5" />
-                                                        </div>
-                                                    ) : item.type === 'stock' ? (
-                                                        <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
-                                                            <FiAlertTriangle className="w-3.5 h-3.5" />
-                                                        </div>
-                                                    ) : (
-                                                        <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-600 flex items-center justify-center">
-                                                            <FiStar className="w-3.5 h-3.5" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className={`text-xs leading-snug ${!item.read ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
-                                                        {item.title}
-                                                    </p>
-                                                    <p className="text-[11px] text-slate-400 mt-0.5">{item.time}</p>
-                                                </div>
-                                                {!item.read && (
-                                                    <span className="w-2 h-2 rounded-full bg-sky-500 mt-1.5 shrink-0" />
-                                                )}
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    {/* Live Seller Notifications Dropdown */}
+                    <NotificationBell variant="seller" />
 
                     {/* Profile Dropdown */}
                     <div className="relative" ref={profileRef}>

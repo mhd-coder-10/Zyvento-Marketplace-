@@ -12,12 +12,18 @@ const emailHelper = require('../../utils/emailHelper');
 const logger = require('../../utils/logger');
 const constants = require('../../config/constants');
 const bcrypt = require('bcryptjs');
+const adminService = require('../admin/admin.service');
 
 
 class SellerRegistrationService {
 
     // ============ STEP 1: SEND OTP ============
     async sendOTP({ email, purpose }) {
+        const sysSettings = await adminService.getAllSettingsDictionary();
+        if (sysSettings.seller_registration_enabled === false) {
+            throw ApiError.badRequest('Merchant registrations are temporarily closed by platform administration.');
+        }
+
         // Check if email already registered as seller
         const existingSeller = await Seller.findOne({ email: email.toLowerCase() });
         if (existingSeller) {
@@ -136,7 +142,17 @@ class SellerRegistrationService {
             }
         }
 
-        // If user doesn't exist, create a new user with pending status
+        const sysSettings = await adminService.getAllSettingsDictionary();
+        if (sysSettings.seller_registration_enabled === false) {
+            throw ApiError.badRequest('Merchant registrations are temporarily closed by platform administration.');
+        }
+
+        const isAutoApprove = Boolean(sysSettings.seller_auto_approval);
+        const sellerAccountStatus = isAutoApprove ? constants.ACCOUNT_STATUS.ACTIVE : constants.ACCOUNT_STATUS.INACTIVE;
+        const sellerVerificationStatus = isAutoApprove ? constants.VERIFICATION_STATUS.APPROVED : constants.VERIFICATION_STATUS.PENDING;
+        const userAccountStatus = isAutoApprove ? constants.ACCOUNT_STATUS.ACTIVE : constants.ACCOUNT_STATUS.PENDING;
+
+        // If user doesn't exist, create a new user with proper status
         if (!user) {
             // Generate temporary password (user will set password later)
             const tempPassword = otpHelper.generateRandomToken(10);
@@ -149,7 +165,7 @@ class SellerRegistrationService {
                 mobile_number: mobile_number,
                 password: hashedPassword,
                 user_type: constants.USER_TYPES.SELLER,
-                account_status: constants.ACCOUNT_STATUS.PENDING,
+                account_status: userAccountStatus,
                 is_email_verified: true
             });
 
@@ -157,7 +173,7 @@ class SellerRegistrationService {
         } else {
             // Update existing user to seller type
             user.user_type = constants.USER_TYPES.SELLER;
-            user.account_status = constants.ACCOUNT_STATUS.PENDING;
+            user.account_status = userAccountStatus;
             await user.save();
         }
 
@@ -178,10 +194,10 @@ class SellerRegistrationService {
             documents: documents.map(doc => ({
                 ...doc,
                 uploaded_at: new Date(),
-                verified: false
+                verified: isAutoApprove
             })),
-            verification_status: constants.VERIFICATION_STATUS.PENDING,
-            account_status: constants.ACCOUNT_STATUS.INACTIVE
+            verification_status: sellerVerificationStatus,
+            account_status: sellerAccountStatus
         });
 
         await seller.save();

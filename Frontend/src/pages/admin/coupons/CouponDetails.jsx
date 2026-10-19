@@ -2,20 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
-    FiArrowLeft,
-    FiRefreshCw,
-    FiTag,
-    FiCalendar,
-    FiUsers,
-    FiDollarSign,
-    FiPercent,
-    FiShoppingBag,
-    FiCheckCircle,
-    FiAlertCircle,
-    FiClock,
-    FiEdit2,
-    FiInfo,
-    FiTrendingUp
+    FiArrowLeft, FiRefreshCw, FiTag, FiCalendar, FiUsers,
+    FiDollarSign, FiPercent, FiShoppingBag, FiCheckCircle,
+    FiAlertCircle, FiClock, FiEdit2, FiInfo, FiTrendingUp,
+    FiCopy, FiCheck, FiChevronRight, FiShield
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
 import AdminTopbar from '../../../components/admin/AdminTopbar';
@@ -25,6 +15,7 @@ const CouponDetails = () => {
     const navigate = useNavigate();
     const [couponData, setCouponData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [copiedCode, setCopiedCode] = useState(false);
 
     useEffect(() => {
         fetchDetails();
@@ -67,9 +58,9 @@ const CouponDetails = () => {
                     summary: {
                         total_usage: c.usedCount || c.used_count || 0,
                         orders_count: (c.usageHistory || []).length,
-                        total_order_value: 0,
-                        total_discount_provided: 0,
-                        zyvento_cost_borne: 0
+                        total_order_value: (c.usageHistory || []).reduce((acc, u) => acc + (u.orderAmount || 0), 0),
+                        total_discount_provided: (c.usageHistory || []).reduce((acc, u) => acc + (u.discountAmount || 0), 0),
+                        zyvento_cost_borne: (c.usageHistory || []).reduce((acc, u) => acc + (u.discountAmount || 0), 0)
                     },
                     orders: (c.usageHistory || []).map((u, i) => ({
                         order_id: u.orderId || u.order_id || `ORD-${i + 1}`,
@@ -99,6 +90,14 @@ const CouponDetails = () => {
         }
     };
 
+    const handleCopy = () => {
+        if (!code) return;
+        navigator.clipboard.writeText(code);
+        setCopiedCode(true);
+        toast.info(`Coupon code "${code}" copied to clipboard!`);
+        setTimeout(() => setCopiedCode(false), 2000);
+    };
+
     const formatDate = (date) => {
         if (!date) return '-';
         return new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -110,10 +109,10 @@ const CouponDetails = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-white flex items-center justify-center">
-                <div className="flex flex-col items-center gap-3">
-                    <FiRefreshCw className="animate-spin !text-blue-600 w-8 h-8" />
-                    <span className="text-slate-500 font-medium">Loading coupon details...</span>
+            <div className="min-h-screen bg-slate-50/50 flex items-center justify-center">
+                <div className="text-center space-y-3">
+                    <FiRefreshCw className="animate-spin text-blue-600 w-8 h-8 mx-auto" />
+                    <span className="text-slate-500 font-medium text-sm">Loading coupon details...</span>
                 </div>
             </div>
         );
@@ -121,14 +120,14 @@ const CouponDetails = () => {
 
     if (!couponData || !couponData.config) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-white flex items-center justify-center">
-                <div className="text-center p-8 bg-white rounded-2xl shadow-sm border border-slate-100 max-w-md">
+            <div className="min-h-screen bg-slate-50/50 flex items-center justify-center p-4">
+                <div className="text-center p-8 bg-white rounded-2xl shadow-xs border border-slate-200 max-w-md w-full">
                     <FiAlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-                    <h2 className="text-xl font-bold text-slate-800 mb-2">Coupon Not Found</h2>
-                    <p className="text-slate-500 mb-4">The coupon code "{code}" does not exist or has been removed.</p>
+                    <h2 className="text-lg font-bold text-slate-800 mb-1">Coupon Not Found</h2>
+                    <p className="text-slate-500 text-xs mb-5">The coupon code "{code}" does not exist or has been removed from the platform.</p>
                     <button
                         onClick={() => navigate('/admin/coupons')}
-                        className="px-5 py-2.5 bg-blue-600 !text-white rounded-xl font-semibold shadow hover:bg-blue-700"
+                        className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-xs shadow-xs hover:bg-blue-700 transition"
                     >
                         Back to Coupons
                     </button>
@@ -139,176 +138,218 @@ const CouponDetails = () => {
 
     const { config, summary, orders = [], daily_breakdown = [], related_order_ids = [] } = couponData;
     const isExpired = new Date(config.expiry_date) < new Date();
-    const effectiveStatus = isExpired ? 'expired' : config.status;
+    const effectiveStatus = (config.status === 'disabled') ? 'disabled' : (isExpired ? 'expired' : config.status);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-white overflow-x-hidden pb-12">
+        <div className="min-h-screen bg-slate-50/50 pb-12">
             <AdminTopbar
-                title="Coupon Details & Performance"
-                subtitle={`Overview for coupon code: ${config.code}`}
+                title={`Coupon: ${config.code}`}
+                subtitle="Overview of coupon configuration, redemption analytics, and platform settlement"
                 actions={
-                    <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={() => navigate(`/admin/coupons/edit/${config.code}`)}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 !text-white rounded-xl shadow-sm text-sm font-semibold transition-all"
-                        >
-                            <FiEdit2 className="w-4 h-4" /> Edit Coupon
-                        </button>
+                    <div className="flex items-center gap-2">
                         <button
                             type="button"
                             onClick={() => navigate('/admin/coupons')}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl shadow-sm text-sm font-medium transition-all"
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition shadow-xs text-xs sm:text-sm"
                         >
-                            <FiArrowLeft className="w-4 h-4" /> Back to Coupons
+                            <FiArrowLeft className="w-4 h-4 text-blue-600" /> Back
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/admin/coupons/edit/${config.code}`)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-xs text-xs sm:text-sm"
+                        >
+                            <FiEdit2 className="w-4 h-4" /> Edit Coupon
                         </button>
                     </div>
                 }
             />
 
-            <div className="max-w-7xl mx-auto px-4 md:px-6 space-y-6">
-                {/* Platform-Funded Banner */}
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 sm:p-5 text-white shadow-md flex items-start gap-4">
-                    <div className="p-2.5 bg-white/20 rounded-xl shrink-0 mt-0.5">
-                        <FiInfo className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="font-bold text-base sm:text-lg">Zyvento Platform-Funded Coupon</span>
-                            <span className="px-2.5 py-0.5 bg-emerald-400/20 border border-emerald-300/40 text-emerald-100 rounded-full text-xs font-semibold uppercase tracking-wider">
-                                100% Platform Borne
-                            </span>
+            <div className="w-full space-y-6 px-4 md:px-6">
+
+                {/* Top Voucher Hero Banner */}
+                <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-xs">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/10 border border-white/20 backdrop-blur-xs font-mono font-bold text-lg text-white">
+                                    <FiTag className="w-4 h-4 text-blue-300" />
+                                    <span>{config.code}</span>
+                                    <button
+                                        type="button"
+                                        onClick={handleCopy}
+                                        className="p-1 hover:bg-white/20 rounded text-slate-300 hover:text-white transition ml-1"
+                                        title="Copy code"
+                                    >
+                                        {copiedCode ? <FiCheck className="w-4 h-4 text-emerald-400" /> : <FiCopy className="w-4 h-4" />}
+                                    </button>
+                                </div>
+
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                                    effectiveStatus === 'active'
+                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                                        : effectiveStatus === 'expired'
+                                        ? 'bg-rose-500/20 text-rose-300 border border-rose-400/30'
+                                        : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                                }`}>
+                                    {effectiveStatus}
+                                </span>
+
+                                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                                    {config.discount_type === 'percentage' ? `${config.discount_value}% OFF` : `₹${config.discount_value} OFF`}
+                                </span>
+                            </div>
+
+                            <p className="text-slate-300 text-xs sm:text-sm max-w-2xl leading-relaxed">
+                                {config.description || 'Promotional discount voucher configured for eligible marketplace shopping carts.'}
+                            </p>
                         </div>
-                        <p className="text-blue-100 text-xs sm:text-sm mt-1 leading-relaxed">
-                            Sellers are paid on their full original product price. All discounts applied via <span className="font-mono font-bold text-white bg-white/10 px-1.5 py-0.5 rounded">{config.code}</span> are borne entirely by Zyvento and recorded as a separate platform expense in Finance.
-                        </p>
+
+                        <div className="flex items-center gap-3 bg-white/5 border border-white/10 p-4 rounded-xl backdrop-blur-xs self-start md:self-auto shrink-0">
+                            <div className="p-2.5 bg-emerald-500/20 border border-emerald-400/30 rounded-xl text-emerald-300">
+                                <FiShield className="w-5 h-5" />
+                            </div>
+                            <div className="text-xs">
+                                <span className="font-bold text-white block">100% Platform Funded</span>
+                                <span className="text-slate-400">Sellers receive full listing price</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* 4 Summary Performance Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white rounded-2xl p-5 border border-blue-100 shadow-sm flex items-center justify-between">
-                        <div>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Usage</p>
-                            <p className="text-2xl font-bold text-slate-900 mt-1">
-                                {summary.total_usage || 0}
-                                {config.usage_limit ? (
-                                    <span className="text-xs font-medium text-slate-400 ml-1">/ {config.usage_limit}</span>
-                                ) : (
-                                    <span className="text-xs font-medium text-slate-400 ml-1">uses</span>
-                                )}
-                            </p>
-                            <p className="text-xs text-slate-500 mt-1">
-                                Per-user limit: <strong className="text-slate-700">{config.per_user_limit || 1}</strong>
-                            </p>
-                        </div>
-                        <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                            <FiUsers className="w-6 h-6" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-2xl p-5 border border-blue-100 shadow-sm flex items-center justify-between">
-                        <div>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Order Value</p>
-                            <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(summary.total_order_value)}</p>
-                            <p className="text-xs text-emerald-600 font-medium mt-1">
-                                Across {summary.orders_count || 0} orders
-                            </p>
-                        </div>
-                        <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                            <FiShoppingBag className="w-6 h-6" />
+                {/* 4 Performance KPI Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 transition hover:shadow-sm">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Usage</p>
+                                <p className="text-2xl font-bold text-slate-900 mt-1">
+                                    {summary.total_usage || 0}
+                                    {config.usage_limit ? (
+                                        <span className="text-xs font-medium text-slate-400 ml-1">/ {config.usage_limit}</span>
+                                    ) : (
+                                        <span className="text-xs font-medium text-slate-400 ml-1">uses</span>
+                                    )}
+                                </p>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    Per-user limit: <strong>{config.per_user_limit || 1}</strong>
+                                </p>
+                            </div>
+                            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl shrink-0">
+                                <FiUsers className="w-5 h-5" />
+                            </div>
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-2xl p-5 border border-blue-100 shadow-sm flex items-center justify-between">
-                        <div>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Discount Provided</p>
-                            <p className="text-2xl font-bold text-amber-600 mt-1">{formatCurrency(summary.total_discount_provided)}</p>
-                            <p className="text-xs text-slate-500 mt-1">Saved by customers</p>
-                        </div>
-                        <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                            <FiTag className="w-6 h-6" />
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 transition hover:shadow-sm">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Order GMV Driven</p>
+                                <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(summary.total_order_value)}</p>
+                                <p className="text-[11px] text-emerald-600 font-semibold mt-1">
+                                    Across {summary.orders_count || 0} orders
+                                </p>
+                            </div>
+                            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
+                                <FiShoppingBag className="w-5 h-5" />
+                            </div>
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-2xl p-5 border border-blue-100 shadow-sm flex items-center justify-between">
-                        <div>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Zyvento Cost Borne</p>
-                            <p className="text-2xl font-bold text-rose-600 mt-1">{formatCurrency(summary.zyvento_cost_borne)}</p>
-                            <p className="text-xs text-slate-500 mt-1">Recorded in Finance GL</p>
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 transition hover:shadow-sm">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Discount Provided</p>
+                                <p className="text-2xl font-bold text-amber-600 mt-1">{formatCurrency(summary.total_discount_provided)}</p>
+                                <p className="text-[11px] text-slate-500 mt-1">Saved by customers</p>
+                            </div>
+                            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl shrink-0">
+                                <FiTag className="w-5 h-5" />
+                            </div>
                         </div>
-                        <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                            <FiDollarSign className="w-6 h-6" />
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 transition hover:shadow-sm">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Zyvento Cost Borne</p>
+                                <p className="text-2xl font-bold text-rose-600 mt-1">{formatCurrency(summary.zyvento_cost_borne)}</p>
+                                <p className="text-[11px] text-slate-500 mt-1">Settled via Platform GL</p>
+                            </div>
+                            <div className="p-3 bg-rose-50 text-rose-600 rounded-xl shrink-0">
+                                <FiDollarSign className="w-5 h-5" />
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Configuration and Validity Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Discount Configuration */}
-                    <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-6 space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    {/* Discount Configuration Card */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-7 space-y-4">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                             <div className="flex items-center gap-3">
                                 <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
                                     <FiTag className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-slate-900">Discount Configuration</h3>
-                                    <p className="text-xs text-slate-500">Rules applied at checkout</p>
+                                    <h3 className="font-bold text-slate-900 text-sm sm:text-base">Discount Configuration</h3>
+                                    <p className="text-xs text-slate-500">Rules applied at customer checkout</p>
                                 </div>
                             </div>
-                            <span className="font-mono font-bold text-lg text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
+                            <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
                                 {config.code}
                             </span>
                         </div>
 
-                        <div className="space-y-3 text-sm">
-                            <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                        <div className="space-y-3 text-xs sm:text-sm">
+                            <div className="flex items-center justify-between py-2 border-b border-slate-50">
                                 <span className="text-slate-500">Discount Type</span>
                                 <span className="font-semibold text-slate-800 capitalize">
                                     {config.discount_type === 'percentage' ? 'Percentage (%)' : 'Fixed Amount (₹)'}
                                 </span>
                             </div>
-                            <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                            <div className="flex items-center justify-between py-2 border-b border-slate-50">
                                 <span className="text-slate-500">Discount Value</span>
                                 <span className="font-bold text-blue-600">
                                     {config.discount_type === 'percentage' ? `${config.discount_value}% OFF` : `₹${config.discount_value} OFF`}
                                 </span>
                             </div>
-                            <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                            <div className="flex items-center justify-between py-2 border-b border-slate-50">
                                 <span className="text-slate-500">Minimum Order Amount</span>
                                 <span className="font-semibold text-slate-800">
                                     {config.min_order_amount ? `₹${config.min_order_amount}` : 'None (₹0)'}
                                 </span>
                             </div>
-                            <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                            <div className="flex items-center justify-between py-2 border-b border-slate-50">
                                 <span className="text-slate-500">Maximum Discount Cap</span>
                                 <span className="font-semibold text-slate-800">
                                     {config.max_discount_amount ? `₹${config.max_discount_amount}` : 'No cap'}
                                 </span>
                             </div>
                             <div className="pt-2">
-                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Description</span>
-                                <p className="text-slate-600 text-xs italic bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Campaign Description</span>
+                                <p className="text-slate-600 text-xs italic bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed">
                                     {config.description || 'No public description provided for this coupon.'}
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Validity & Usage Limits */}
-                    <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-6 space-y-4">
+                    {/* Validity & Usage Limits Card */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-7 space-y-4">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                             <div className="flex items-center gap-3">
                                 <div className="p-2.5 bg-sky-50 text-sky-600 rounded-xl">
                                     <FiCalendar className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-slate-900">Validity & Limits</h3>
-                                    <p className="text-xs text-slate-500">Lifecycle and threshold controls</p>
+                                    <h3 className="font-bold text-slate-900 text-sm sm:text-base">Validity & Limits</h3>
+                                    <p className="text-xs text-slate-500">Lifecycle and customer threshold controls</p>
                                 </div>
                             </div>
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
                                 effectiveStatus === 'active'
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                     : effectiveStatus === 'expired'
@@ -319,30 +360,30 @@ const CouponDetails = () => {
                             </span>
                         </div>
 
-                        <div className="space-y-3 text-sm">
-                            <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                        <div className="space-y-3 text-xs sm:text-sm">
+                            <div className="flex items-center justify-between py-2 border-b border-slate-50">
                                 <span className="text-slate-500">Start Date</span>
                                 <span className="font-semibold text-slate-800">{formatDate(config.start_date)}</span>
                             </div>
-                            <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                            <div className="flex items-center justify-between py-2 border-b border-slate-50">
                                 <span className="text-slate-500">Expiry Date</span>
                                 <span className={`font-semibold ${isExpired ? 'text-rose-600' : 'text-slate-800'}`}>
                                     {formatDate(config.expiry_date)} {isExpired && '(Expired)'}
                                 </span>
                             </div>
-                            <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
-                                <span className="text-slate-500">Total Usage Limit</span>
+                            <div className="flex items-center justify-between py-2 border-b border-slate-50">
+                                <span className="text-slate-500">Total Pool Limit</span>
                                 <span className="font-semibold text-slate-800">
                                     {config.usage_limit ? `${config.usage_limit} uses max` : 'Unlimited'}
                                 </span>
                             </div>
-                            <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                            <div className="flex items-center justify-between py-2 border-b border-slate-50">
                                 <span className="text-slate-500">Per User Usage Limit</span>
                                 <span className="font-semibold text-slate-800">
                                     {config.per_user_limit || 1} {config.per_user_limit === 1 ? 'time per customer' : 'times per customer'}
                                 </span>
                             </div>
-                            <div className="flex items-center justify-between py-1.5">
+                            <div className="flex items-center justify-between py-2">
                                 <span className="text-slate-500">Created On</span>
                                 <span className="font-semibold text-slate-800">{formatDate(config.created_at)}</span>
                             </div>
@@ -350,13 +391,13 @@ const CouponDetails = () => {
                     </div>
                 </div>
 
-                {/* Daily Usage Breakdown */}
+                {/* Daily Usage Breakdown (if present) */}
                 {daily_breakdown && daily_breakdown.length > 0 && (
-                    <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-6">
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
                                 <FiTrendingUp className="w-5 h-5 text-blue-600" />
-                                <h3 className="font-bold text-slate-900">Usage / Date-wise Breakdown</h3>
+                                <h3 className="font-bold text-slate-900 text-sm sm:text-base">Date-wise Usage Breakdown</h3>
                             </div>
                             <span className="text-xs text-slate-500">{daily_breakdown.length} active day(s)</span>
                         </div>
@@ -373,7 +414,7 @@ const CouponDetails = () => {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {daily_breakdown.map((row, idx) => (
-                                        <tr key={idx} className="hover:bg-blue-50/40 transition-colors">
+                                        <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
                                             <td className="py-3 px-4 font-medium text-slate-800">{row.date}</td>
                                             <td className="py-3 px-4 text-center font-semibold text-slate-700">{row.usage_count}</td>
                                             <td className="py-3 px-4 text-right font-medium text-slate-700">{formatCurrency(row.order_amount)}</td>
@@ -387,19 +428,21 @@ const CouponDetails = () => {
                     </div>
                 )}
 
-                {/* Orders Using This Coupon */}
-                <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                {/* Orders Using This Coupon Section */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
                         <div className="flex items-center gap-2">
                             <FiShoppingBag className="w-5 h-5 text-blue-600" />
-                            <h3 className="font-bold text-slate-900">Orders Using This Coupon ({orders.length})</h3>
+                            <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                                Orders Redeeming This Coupon ({orders.length})
+                            </h3>
                         </div>
                         {related_order_ids.length > 0 && (
                             <div className="text-xs text-slate-500">
                                 <span>Related IDs: </span>
                                 <span className="font-mono font-medium text-slate-700">
-                                    {related_order_ids.slice(0, 5).join(', ')}
-                                    {related_order_ids.length > 5 ? ` +${related_order_ids.length - 5} more` : ''}
+                                    {related_order_ids.slice(0, 4).join(', ')}
+                                    {related_order_ids.length > 4 ? ` +${related_order_ids.length - 4} more` : ''}
                                 </span>
                             </div>
                         )}
@@ -409,72 +452,114 @@ const CouponDetails = () => {
                         <div className="text-center py-12 border border-dashed border-slate-200 rounded-xl">
                             <FiShoppingBag className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                             <p className="text-sm font-semibold text-slate-600">No orders have applied this coupon yet</p>
-                            <p className="text-xs text-slate-400 mt-1">Once customers redeem this coupon at checkout, order records will appear here.</p>
+                            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                                Once customers redeem this promo code at checkout, order details and platform subsidy costs will appear here.
+                            </p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead>
-                                    <tr className="bg-slate-50 text-slate-600 font-semibold text-xs border-b border-slate-100">
-                                        <th className="py-3 px-4">Order #</th>
-                                        <th className="py-3 px-4">Date</th>
-                                        <th className="py-3 px-4">Customer</th>
-                                        <th className="py-3 px-4 text-center">Status</th>
-                                        <th className="py-3 px-4 text-center">Payment</th>
-                                        <th className="py-3 px-4 text-right">Order Value</th>
-                                        <th className="py-3 px-4 text-right">Platform Discount</th>
-                                        <th className="py-3 px-4 text-right">Zyvento Cost</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {orders.map((ord, idx) => (
-                                        <tr key={idx} className="hover:bg-blue-50/40 transition-colors">
-                                            <td className="py-3 px-4 font-mono font-semibold text-blue-600">
-                                                {ord.order_number || ord.order_id || '-'}
-                                            </td>
-                                            <td className="py-3 px-4 text-slate-600 text-xs">
-                                                {formatDate(ord.date)}
-                                            </td>
-                                            <td className="py-3 px-4">
-                                                <div className="font-medium text-slate-800 text-xs">{ord.customer_name || 'Customer'}</div>
-                                                {ord.customer_email && (
-                                                    <div className="text-[11px] text-slate-400">{ord.customer_email}</div>
-                                                )}
-                                            </td>
-                                            <td className="py-3 px-4 text-center">
-                                                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase ${
-                                                    ord.order_status === 'delivered' ? 'bg-emerald-50 text-emerald-700' :
-                                                    ord.order_status === 'cancelled' ? 'bg-rose-50 text-rose-700' :
-                                                    'bg-blue-50 text-blue-700'
-                                                }`}>
-                                                    {ord.order_status || 'placed'}
-                                                </span>
-                                            </td>
-                                            <td className="py-3 px-4 text-center">
-                                                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase ${
-                                                    ord.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-700' :
-                                                    ord.payment_status === 'refunded' ? 'bg-amber-50 text-amber-700' :
-                                                    'bg-slate-100 text-slate-700'
-                                                }`}>
-                                                    {ord.payment_status || 'pending'}
-                                                </span>
-                                            </td>
-                                            <td className="py-3 px-4 text-right font-medium text-slate-800">
-                                                {formatCurrency(ord.total_amount)}
-                                            </td>
-                                            <td className="py-3 px-4 text-right font-bold text-amber-600">
-                                                -{formatCurrency(ord.coupon_discount)}
-                                            </td>
-                                            <td className="py-3 px-4 text-right font-bold text-rose-600">
-                                                {formatCurrency(ord.platform_coupon_cost || ord.coupon_discount)}
-                                            </td>
+                        <>
+                            {/* Desktop Table */}
+                            <div className="hidden md:block overflow-x-auto">
+                                <table className="w-full text-left text-sm">
+                                    <thead>
+                                        <tr className="bg-slate-50 text-slate-600 font-semibold text-xs border-b border-slate-100">
+                                            <th className="py-3 px-4">Order #</th>
+                                            <th className="py-3 px-4">Date</th>
+                                            <th className="py-3 px-4">Customer</th>
+                                            <th className="py-3 px-4 text-center">Status</th>
+                                            <th className="py-3 px-4 text-center">Payment</th>
+                                            <th className="py-3 px-4 text-right">Order Value</th>
+                                            <th className="py-3 px-4 text-right">Platform Discount</th>
+                                            <th className="py-3 px-4 text-right">Zyvento Cost</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {orders.map((ord, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                                                <td className="py-3 px-4 font-mono font-semibold text-blue-600">
+                                                    {ord.order_number || ord.order_id || '-'}
+                                                </td>
+                                                <td className="py-3 px-4 text-slate-600 text-xs">
+                                                    {formatDate(ord.date)}
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <div className="font-medium text-slate-800 text-xs">{ord.customer_name || 'Customer'}</div>
+                                                    {ord.customer_email && (
+                                                        <div className="text-[11px] text-slate-400">{ord.customer_email}</div>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase ${
+                                                        ord.order_status === 'delivered' ? 'bg-emerald-50 text-emerald-700' :
+                                                        ord.order_status === 'cancelled' ? 'bg-rose-50 text-rose-700' :
+                                                        'bg-blue-50 text-blue-700'
+                                                    }`}>
+                                                        {ord.order_status || 'placed'}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase ${
+                                                        ord.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-700' :
+                                                        ord.payment_status === 'refunded' ? 'bg-amber-50 text-amber-700' :
+                                                        'bg-slate-100 text-slate-700'
+                                                    }`}>
+                                                        {ord.payment_status || 'pending'}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-medium text-slate-800">
+                                                    {formatCurrency(ord.total_amount)}
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-bold text-amber-600">
+                                                    -{formatCurrency(ord.coupon_discount)}
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-bold text-rose-600">
+                                                    {formatCurrency(ord.platform_coupon_cost || ord.coupon_discount)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Mobile Cards View */}
+                            <div className="md:hidden space-y-3">
+                                {orders.map((ord, idx) => (
+                                    <div key={idx} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-mono font-bold text-blue-600 text-xs">
+                                                {ord.order_number || ord.order_id || '-'}
+                                            </span>
+                                            <span className="text-[11px] text-slate-400">
+                                                {formatDate(ord.date)}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="font-medium text-slate-800">{ord.customer_name || 'Customer'}</span>
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
+                                                ord.order_status === 'delivered' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
+                                            }`}>
+                                                {ord.order_status || 'placed'}
+                                            </span>
+                                        </div>
+
+                                        <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between text-xs">
+                                            <div>
+                                                <span className="text-slate-400 block text-[10px]">Order Value</span>
+                                                <span className="font-medium text-slate-800">{formatCurrency(ord.total_amount)}</span>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-slate-400 block text-[10px]">Platform Discount</span>
+                                                <span className="font-bold text-amber-600">-{formatCurrency(ord.coupon_discount)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
                     )}
                 </div>
+
             </div>
         </div>
     );

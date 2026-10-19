@@ -16,16 +16,30 @@ const defaultSettings = {
     estimated_delivery_days: 3,
     cod_enabled: true,
     min_order_amount: 99,
+    max_order_amount: 200000,
     return_window_days: 7,
+    allow_returns: true,
+    allow_cancellation_until: 'dispatched',
     platform_commission_rate: 10,
+    min_seller_payout_threshold: 1000,
+    seller_auto_approval: true,
     default_gst_rate: 18,
     prices_inclusive_tax: true,
+    platform_gstin: '27AABCZ1234F1Z5',
+    user_registration_enabled: true,
+    seller_registration_enabled: true,
+    guest_checkout_enabled: true,
+    razorpay_enabled: true,
+    stripe_enabled: false,
 };
 
 const SettingsContext = createContext({
     settings: defaultSettings,
     loading: false,
     refreshSettings: async () => {},
+    formatCurrency: (val) => `₹${Number(val || 0).toLocaleString('en-IN')}`,
+    calcShipping: (subtotal) => 0,
+    isFreeShipping: (subtotal) => false,
 });
 
 export const SettingsProvider = ({ children }) => {
@@ -36,10 +50,20 @@ export const SettingsProvider = ({ children }) => {
         try {
             const res = await ApiService.getPublicSettings();
             if (res?.data?.success && res?.data?.data) {
-                setSettings((prev) => ({
-                    ...prev,
+                const merged = {
+                    ...defaultSettings,
                     ...res.data.data,
-                }));
+                };
+                setSettings(merged);
+
+                // Dynamically update document title based on platform settings
+                if (typeof document !== 'undefined') {
+                    if (merged.site_name && merged.site_tagline) {
+                        document.title = `${merged.site_name} - ${merged.site_tagline}`;
+                    } else if (merged.site_name) {
+                        document.title = merged.site_name;
+                    }
+                }
             }
         } catch (err) {
             console.warn('Failed to load public settings, using defaults:', err?.message);
@@ -50,10 +74,60 @@ export const SettingsProvider = ({ children }) => {
 
     useEffect(() => {
         fetchSettings();
+
+        // Cross-tab synchronization via storage event
+        const handleStorageChange = (e) => {
+            if (e.key === 'zyvento_settings_updated') {
+                fetchSettings();
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
     }, [fetchSettings]);
 
+    const refreshSettings = useCallback(async () => {
+        await fetchSettings();
+        try {
+            localStorage.setItem('zyvento_settings_updated', Date.now().toString());
+        } catch {}
+    }, [fetchSettings]);
+
+    // Format money using dynamic currency settings
+    const formatCurrency = useCallback((val) => {
+        const num = Number(val) || 0;
+        const sym = settings.currency_symbol || '₹';
+        const formatted = new Intl.NumberFormat('en-IN', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+        }).format(num);
+        return `${sym}${formatted}`;
+    }, [settings.currency_symbol]);
+
+    // Calculate delivery charge dynamically
+    const calcShipping = useCallback((subtotal) => {
+        const sub = Number(subtotal) || 0;
+        const threshold = Number(settings.free_shipping_threshold) || 499;
+        const fee = Number(settings.standard_delivery_fee) || 49;
+        return sub >= threshold ? 0 : fee;
+    }, [settings.free_shipping_threshold, settings.standard_delivery_fee]);
+
+    const isFreeShipping = useCallback((subtotal) => {
+        const sub = Number(subtotal) || 0;
+        const threshold = Number(settings.free_shipping_threshold) || 499;
+        return sub >= threshold;
+    }, [settings.free_shipping_threshold]);
+
     return (
-        <SettingsContext.Provider value={{ settings, loading, refreshSettings: fetchSettings }}>
+        <SettingsContext.Provider
+            value={{
+                settings,
+                loading,
+                refreshSettings,
+                formatCurrency,
+                calcShipping,
+                isFreeShipping,
+            }}
+        >
             {children}
         </SettingsContext.Provider>
     );

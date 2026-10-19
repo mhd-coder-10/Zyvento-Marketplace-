@@ -161,7 +161,13 @@ import AdminCouponDetails from '../pages/admin/coupons/CouponDetails';
 // Admin - Notifications
 import AdminNotifications from '../pages/admin/notifications/Notifications';
 import AdminSendNotification from '../pages/admin/notifications/SendNotification';
+import AdminEditNotification from '../pages/admin/notifications/EditNotification';
 import AdminNotificationDetails from '../pages/admin/notifications/NotificationDetails';
+import AdminNotificationTemplates from '../pages/admin/notifications/NotificationTemplates';
+import AdminDeliveryLogs from '../pages/admin/notifications/DeliveryLogs';
+import AdminNotificationAnalytics from '../pages/admin/notifications/NotificationAnalytics';
+import AdminSystemAlerts from '../pages/admin/notifications/SystemAlerts';
+import AdminNotificationPreferences from '../pages/admin/notifications/NotificationPreferences';
 
 
 // Admin - Reports
@@ -319,6 +325,12 @@ const AppRoutes = () => {
                 {/* Notifications */}
                 <Route path="notifications" element={<AdminNotifications />} />
                 <Route path="notifications/send" element={<AdminSendNotification />} />
+                <Route path="notifications/templates" element={<AdminNotificationTemplates />} />
+                <Route path="notifications/delivery-logs" element={<AdminDeliveryLogs />} />
+                <Route path="notifications/analytics" element={<AdminNotificationAnalytics />} />
+                <Route path="notifications/system-alerts" element={<AdminSystemAlerts />} />
+                <Route path="notifications/preferences" element={<AdminNotificationPreferences />} />
+                <Route path="notifications/edit/:notificationCode" element={<AdminEditNotification />} />
                 <Route path="notifications/:notificationCode" element={<AdminNotificationDetails />} />
 
                 {/* Reports */}

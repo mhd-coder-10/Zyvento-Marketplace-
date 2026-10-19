@@ -11,8 +11,7 @@ export const useSettings = (group) => {
     const fetchSettings = async () => {
         setLoading(true);
         try {
-            // ✅ Full path: /admin/settings/group/:group
-            const res = await ApiService.get(`/admin/settings/group/${group}`);
+            const res = await ApiService.getSettingsByGroup(group);
             if (res.data.success) {
                 const mapped = {};
                 res.data.data.forEach(item => {
@@ -33,10 +32,7 @@ export const useSettings = (group) => {
 
     const updateSettings = async (newSettings) => {
         try {
-            // ✅ Bulk update endpoint
-            const res = await ApiService.put(`/admin/settings/group/${group}`, {
-                settings: newSettings
-            });
+            const res = await ApiService.updateSettingsByGroup(group, newSettings);
             if (res.data.success) {
                 setSettings(newSettings);
                 return true;

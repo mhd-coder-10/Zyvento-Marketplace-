@@ -925,40 +925,166 @@ const ApiService = {
 
     // NOTIFICATION MANAGEMENT APIs ----------
 
-    // All Notifications
+    // All Notifications (Admin Center)
     getAllNotifications: (params) => {
         setAuthHeaders();
-        return axios.get(`${API_URL}/admin/notifications`, { params });
+        return axios.get(`${API_URL}/admin/notifications`, { params, headers });
     },
 
     // Get Notification by Code
     getNotificationByCode: (notificationCode) => {
         setAuthHeaders();
-        return axios.get(`${API_URL}/admin/notifications/${notificationCode}`);
+        return axios.get(`${API_URL}/admin/notifications/${notificationCode}`, { headers });
     },
 
-    // Mark Notification as a read
+    // Mark Notification as read (Admin)
     markNotificationAsRead: (notificationCode) => {
         setAuthHeaders();
-        return axios.patch(`${API_URL}/admin/notifications/${notificationCode}/read`);
+        return axios.patch(`${API_URL}/admin/notifications/${notificationCode}/read`, {}, { headers });
     },
 
-    // Mark all Notification as a read
+    // Mark all Notifications as read (Admin)
     markAllNotificationsAsRead: () => {
         setAuthHeaders();
-        return axios.patch(`${API_URL}/admin/notifications/read-all`);
+        return axios.patch(`${API_URL}/admin/notifications/read-all`, {}, { headers });
     },
 
-    // Delele Notifications
+    // Delete Notification
     deleteNotification: (notificationCode) => {
         setAuthHeaders();
-        return axios.delete(`${API_URL}/admin/notifications/${notificationCode}`);
+        return axios.delete(`${API_URL}/admin/notifications/${notificationCode}`, { headers });
     },
 
-    // Sent / create Notification
+    // Send / Broadcast Notification
     sendBroadcastNotification: (data) => {
         setAuthHeaders();
-        return axios.post(`${API_URL}/admin/notifications/send`, data);
+        return axios.post(`${API_URL}/admin/notifications/send`, data, { headers });
+    },
+
+    // Cancel Scheduled Notification
+    cancelScheduledNotification: (notificationCode) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/admin/notifications/${notificationCode}/cancel`, {}, { headers });
+    },
+
+    // Send Scheduled/Draft Notification Now
+    sendNotificationNow: (notificationCode) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/admin/notifications/${notificationCode}/send-now`, {}, { headers });
+    },
+
+    // Update Notification
+    updateNotification: (notificationCode, data) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/admin/notifications/${notificationCode}`, data, { headers });
+    },
+
+    // Notification Analytics (Real MongoDB aggregations)
+    getNotificationAnalytics: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/notifications/analytics`, { params, headers });
+    },
+
+    // Delivery Tracking Logs
+    getDeliveryLogs: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/notifications/delivery-logs`, { params, headers });
+    },
+
+    // Retry Failed Delivery Log
+    retryDeliveryLog: (logId) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/admin/notifications/delivery-logs/${logId}/retry`, {}, { headers });
+    },
+
+    // Notification Templates CRUD
+    getNotificationTemplates: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/notifications/templates`, { params, headers });
+    },
+
+    getNotificationTemplateByCode: (templateCode) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/notifications/templates/${templateCode}`, { headers });
+    },
+
+    createNotificationTemplate: (data) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/admin/notifications/templates`, data, { headers });
+    },
+
+    updateNotificationTemplate: (templateCode, data) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/admin/notifications/templates/${templateCode}`, data, { headers });
+    },
+
+    deleteNotificationTemplate: (templateCode) => {
+        setAuthHeaders();
+        return axios.delete(`${API_URL}/admin/notifications/templates/${templateCode}`, { headers });
+    },
+
+    // System Alerts (Automated technical incidents)
+    getSystemAlerts: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/notifications/system-alerts`, { params, headers });
+    },
+
+    acknowledgeSystemAlert: (alertCode) => {
+        setAuthHeaders();
+        return axios.patch(`${API_URL}/admin/notifications/system-alerts/${alertCode}/acknowledge`, {}, { headers });
+    },
+
+    resolveSystemAlert: (alertCode, data = {}) => {
+        setAuthHeaders();
+        return axios.patch(`${API_URL}/admin/notifications/system-alerts/${alertCode}/resolve`, data, { headers });
+    },
+
+    // User Notification Preferences
+    getNotificationPreferences: (userId) => {
+        setAuthHeaders();
+        const params = userId ? { user_id: userId } : {};
+        return axios.get(`${API_URL}/admin/notifications/preferences`, { params, headers });
+    },
+
+    updateNotificationPreferences: (userId, data) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/admin/notifications/preferences/${userId}`, data, { headers });
+    },
+
+    // User-Facing Notifications (Bell dropdown, customer notifications)
+    getUserNotifications: (params) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/notification`, { params, headers });
+    },
+
+    getUnreadNotificationCount: () => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/notification/unread-count`, { headers });
+    },
+
+    markUserNotificationAsRead: (notificationIdOrCode) => {
+        setAuthHeaders();
+        return axios.patch(`${API_URL}/notification/${notificationIdOrCode}/read`, {}, { headers });
+    },
+
+    markAllUserNotificationsAsRead: () => {
+        setAuthHeaders();
+        return axios.patch(`${API_URL}/notification/read-all`, {}, { headers });
+    },
+
+    deleteUserNotification: (notificationIdOrCode) => {
+        setAuthHeaders();
+        return axios.delete(`${API_URL}/notification/${notificationIdOrCode}`, { headers });
+    },
+
+    clearAllUserNotifications: () => {
+        setAuthHeaders();
+        return axios.delete(`${API_URL}/notification/clear/all`, { headers });
+    },
+
+    trackNotificationClick: (notificationCode) => {
+        setAuthHeaders();
+        return axios.post(`${API_URL}/notification/${notificationCode}/click`, {}, { headers });
     },
 
     // COUPON APIs -----------
@@ -2314,26 +2440,9 @@ const ApiService = {
         });
     },
 
-    // Get all admin system settings
     getSystemSettings: () => {
         setAuthHeaders();
         return axios.get(`${API_URL}/admin/settings`, {
-            headers: headers,
-        });
-    },
-
-    // Get admin settings by group
-    getSettingsByGroup: (group) => {
-        setAuthHeaders();
-        return axios.get(`${API_URL}/admin/settings/group/${group}`, {
-            headers: headers,
-        });
-    },
-
-    // Update admin settings by group
-    updateSettingsByGroup: (group, settingsData) => {
-        setAuthHeaders();
-        return axios.put(`${API_URL}/admin/settings/group/${group}`, { settings: settingsData }, {
             headers: headers,
         });
     },
@@ -2442,6 +2551,42 @@ const ApiService = {
     updateAdminSellerRequestStatus: (requestCode, data) => {
         setAuthHeaders();
         return axios.put(`${API_URL}/admin/seller-requests/${requestCode}/status`, data, {
+            headers: headers,
+        });
+    },
+
+    // ============ SYSTEM SETTINGS MODULE ============
+    getPublicSettings: () => {
+        return axios.get(`${API_URL}/settings/public`, {
+            headers: { 'Content-Type': 'application/json' },
+        });
+    },
+
+    getAdminSettings: (group = null) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/settings`, {
+            headers: headers,
+            params: group ? { group } : {},
+        });
+    },
+
+    getSettingsByGroup: (group) => {
+        setAuthHeaders();
+        return axios.get(`${API_URL}/admin/settings/group/${group}`, {
+            headers: headers,
+        });
+    },
+
+    updateSettingsByGroup: (group, settings) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/admin/settings/group/${group}`, { settings }, {
+            headers: headers,
+        });
+    },
+
+    updateSystemSetting: (key, value) => {
+        setAuthHeaders();
+        return axios.put(`${API_URL}/admin/settings/${key}`, { value }, {
             headers: headers,
         });
     },

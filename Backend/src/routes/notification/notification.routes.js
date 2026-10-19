@@ -98,6 +98,11 @@ router.get(
     notificationController.getUnreadNotifications
 );
 
+router.get(
+    '/unread-count',
+    notificationController.getUnreadCount
+);
+
 /**
  * @swagger
  * /notification/{notificationId}:
@@ -154,11 +159,9 @@ router.get(
  *       404:
  *         description: Notification not found
  */
-router.put(
-    '/:notificationId/read',
-    validate(notificationValidation.notificationIdParam),
-    notificationController.markAsRead
-);
+router.route('/:notificationId/read')
+    .put(validate(notificationValidation.notificationIdParam), notificationController.markAsRead)
+    .patch(validate(notificationValidation.notificationIdParam), notificationController.markAsRead);
 
 /**
  * @swagger
@@ -175,9 +178,13 @@ router.put(
  *       401:
  *         description: Unauthorized
  */
-router.put(
-    '/read-all',
-    notificationController.markAllAsRead
+router.route('/read-all')
+    .put(notificationController.markAllAsRead)
+    .patch(notificationController.markAllAsRead);
+
+router.post(
+    '/:notificationCode/click',
+    notificationController.trackClick
 );
 
 // ============ DELETE NOTIFICATIONS ============

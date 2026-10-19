@@ -259,7 +259,7 @@ seller_schema.pre('save', async function () {
     const counter = await Counter.findOneAndUpdate(
         { _id: 'seller_code' },
         { $inc: { seq: 1 } },
-        { new: true, upsert: true }
+        { returnDocument: 'after', upsert: true }
     );
 
     const seqNumber = String(counter.seq).padStart(2, '0');

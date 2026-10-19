@@ -259,7 +259,7 @@ async function seedFinance() {
             await Finance.findOneAndUpdate(
                 { entry_code: entry.entry_code },
                 { $set: entry },
-                { upsert: true, new: true }
+                { upsert: true, returnDocument: 'after' }
             );
         }
 

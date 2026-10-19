@@ -19,6 +19,8 @@ const Helpers = require('../../utils/helpers');
 const logger = require('../../utils/logger');
 const constants = require('../../config/constants');
 const auditService = require('../audit.service'); // ✅ ADDED
+const notificationEngine = require('../notification/notificationEngine');
+const adminService = require('../admin/admin.service');
 
 class OrderService {
 
@@ -48,6 +50,12 @@ class OrderService {
         const user = await User.findById(userId);
         if (!user) {
             throw ApiError.notFound('User not found');
+        }
+
+        // 1.0 Validate Platform System Settings (Maintenance Mode)
+        const sysSettings = await adminService.getAllSettingsDictionary();
+        if (sysSettings.maintenance_mode && user.user_type !== 'super_admin') {
+            throw ApiError.badRequest('Zyvento marketplace is currently under scheduled maintenance. Orders cannot be placed at this time.');
         }
 
         // 1.1 Address resolution if address_id passed
@@ -195,16 +203,34 @@ class OrderService {
             couponCodeApplied = coupon.coupon_code;
         }
 
-        // 6. Calculate totals
-        // Seller Sale Amount = subtotal (NEVER reduced by coupon)
-        // Zyvento bears the discountAmount as platform coupon cost
-        const deliveryCharge = 0; // Calculate based on delivery settings
+        // 6. Enforce Order Limits & Payment Policies from System Settings
+        if (sysSettings.min_order_amount && subtotal < Number(sysSettings.min_order_amount)) {
+            throw ApiError.badRequest(`Minimum order amount of ${sysSettings.currency_symbol || '₹'}${sysSettings.min_order_amount} is required to checkout.`);
+        }
+
+        if (sysSettings.max_order_amount && subtotal > Number(sysSettings.max_order_amount)) {
+            throw ApiError.badRequest(`Order total exceeds maximum allowable limit of ${sysSettings.currency_symbol || '₹'}${sysSettings.max_order_amount}.`);
+        }
+
+        const isCod = String(payment_method || '').toUpperCase() === 'COD';
+        if (isCod && sysSettings.cod_enabled === false) {
+            throw ApiError.badRequest('Cash on Delivery (COD) is currently disabled by store administration.');
+        }
+
+        // 7. Calculate dynamic freight / delivery charge based on Admin Settings
+        const freeShippingThreshold = Number(sysSettings.free_shipping_threshold) || 499;
+        const standardDeliveryFee = Number(sysSettings.standard_delivery_fee) || 49;
+        const deliveryCharge = subtotal >= freeShippingThreshold ? 0 : standardDeliveryFee;
         const totalAmount = Math.max(0, subtotal + deliveryCharge - discountAmount);
 
-        // 7. Generate order number
+        // 8. Calculate Marketplace Commission Snapshot from System Settings
+        const platformCommissionRate = Number(sysSettings.platform_commission_rate) || 10;
+        const commissionAmount = Math.round(((subtotal * platformCommissionRate) / 100) * 100) / 100;
+
+        // 9. Generate order number
         const orderNumber = Helpers.generateOrderNumber();
 
-        // 8. Create order
+        // 10. Create order
         const order = new Order({
             order_number: orderNumber,
             user_id: userId,
@@ -219,6 +245,13 @@ class OrderService {
             platform_coupon_cost: discountAmount,
             delivery_charge: deliveryCharge,
             total_amount: totalAmount,
+            commission_rate: platformCommissionRate,
+            commission_amount: commissionAmount,
+            commission_snapshot: {
+                rate: platformCommissionRate,
+                amount: commissionAmount,
+                recorded_at: new Date()
+            },
             payment_method: payment_method,
             payment_status: 'pending',
             order_status: 'pending',
@@ -308,30 +341,44 @@ class OrderService {
 
         // 12. Send notifications
         // To customer
-        await Notification.create({
-            user_id: userId,
-            receiver_type: 'customer',
-            title: 'Order Placed',
-            message: `Your order #${orderNumber} has been placed successfully.`,
-            notification_type: 'order',
-            reference_id: order._id,
-            reference_model: 'Order',
-            channel: 'in_app'
+        await notificationEngine.sendEvent({
+            event: 'ORDER_PLACED',
+            recipientId: userId,
+            category: 'ORDER',
+            notificationType: 'order_placed',
+            priority: 'high',
+            referenceId: order._id,
+            referenceModel: 'Order',
+            actionUrl: `/orders/${orderNumber}`,
+            variables: {
+                customer_name: `${user.first_name} ${user.last_name || ''}`.trim(),
+                order_id: orderNumber,
+                amount: totalAmount
+            },
+            channels: ['in_app', 'email', 'push']
         });
 
         // To seller
         const seller = await Seller.findById(sellerId);
-        await Notification.create({
-            user_id: seller.user_id,
-            receiver_type: 'seller',
-            title: 'New Order Received',
-            message: `New order #${orderNumber} received from ${user.first_name} ${user.last_name}`,
-            notification_type: 'order',
-            reference_id: order._id,
-            reference_model: 'Order',
-            channel: 'in_app',
-            priority: 'high'
-        });
+        if (seller) {
+            await notificationEngine.sendEvent({
+                event: 'ORDER_NEW_SELLER',
+                recipientId: seller.user_id,
+                category: 'ORDER',
+                notificationType: 'new_order_seller',
+                priority: 'high',
+                referenceId: order._id,
+                referenceModel: 'Order',
+                actionUrl: `/seller/orders/${orderNumber}`,
+                variables: {
+                    seller_name: seller.business_name || 'Seller',
+                    order_id: orderNumber,
+                    customer_name: `${user.first_name} ${user.last_name || ''}`.trim(),
+                    amount: totalAmount
+                },
+                channels: ['in_app', 'email', 'push']
+            });
+        }
 
         // ✅ AUDIT LOG - Order Placed (Service Level)
         await auditService.logOrderCreation(
@@ -471,17 +518,39 @@ class OrderService {
             { item_status: 'cancelled' }
         );
 
-        // Notify seller
+        // Notify seller and customer
         const seller = await Seller.findById(order.seller_id);
-        await Notification.create({
-            user_id: seller.user_id,
-            receiver_type: 'seller',
-            title: 'Order Cancelled',
-            message: `Order #${order.order_number} has been cancelled by customer. Reason: ${reason}`,
-            notification_type: 'order',
-            reference_id: order._id,
-            reference_model: 'Order',
-            channel: 'in_app'
+        if (seller) {
+            await notificationEngine.sendEvent({
+                event: 'ORDER_CANCELLED',
+                recipientId: seller.user_id,
+                category: 'ORDER',
+                notificationType: 'order_cancelled',
+                priority: 'high',
+                referenceId: order._id,
+                referenceModel: 'Order',
+                actionUrl: `/seller/orders/${order.order_number}`,
+                variables: {
+                    order_id: order.order_number,
+                    reason: reason
+                },
+                channels: ['in_app', 'email']
+            });
+        }
+
+        await notificationEngine.sendEvent({
+            event: 'ORDER_CANCELLED',
+            recipientId: order.user_id,
+            category: 'ORDER',
+            notificationType: 'order_cancelled',
+            priority: 'high',
+            referenceId: order._id,
+            referenceModel: 'Order',
+            actionUrl: `/orders/${order.order_number}`,
+            variables: {
+                order_id: order.order_number
+            },
+            channels: ['in_app', 'email']
         });
 
         // ✅ AUDIT LOG - Order Cancelled (Service Level)
@@ -664,15 +733,23 @@ class OrderService {
         }
 
         // Create notification for customer
-        await Notification.create({
-            user_id: order.user_id,
-            receiver_type: 'customer',
-            title: `Order Status Updated - #${order.order_number}`,
-            message: `Your order #${order.order_number} is now ${status}`,
-            notification_type: 'order',
-            reference_id: order._id,
-            reference_model: 'Order',
-            channel: 'in_app'
+        await notificationEngine.sendEvent({
+            event: `ORDER_${status.toUpperCase()}`,
+            recipientId: order.user_id,
+            category: 'ORDER',
+            notificationType: `order_${status.toLowerCase()}`,
+            priority: status === 'delivered' ? 'normal' : 'high',
+            referenceId: order._id,
+            referenceModel: 'Order',
+            actionUrl: `/orders/${order.order_number}`,
+            actionLabel: 'Track Order',
+            customTitle: `Order Status: ${status.charAt(0).toUpperCase() + status.slice(1)} - #${order.order_number}`,
+            customMessage: `Your order #${order.order_number} is now ${status}.`,
+            variables: {
+                order_id: order.order_number,
+                status: status
+            },
+            channels: ['in_app', 'email']
         });
 
         // ✅ AUDIT LOG - Order Status Update (Service Level)
@@ -749,28 +826,45 @@ class OrderService {
             { item_status: status }
         );
 
-        await Notification.create({
-            user_id: order.user_id,
-            receiver_type: 'customer',
-            title: `Order Status Updated - #${order.order_number}`,
-            message: `Your order #${order.order_number} is now ${status}`,
-            notification_type: 'order',
-            reference_id: order._id,
-            reference_model: 'Order',
-            channel: 'in_app'
+        await notificationEngine.sendEvent({
+            event: `ORDER_${status.toUpperCase()}`,
+            recipientId: order.user_id,
+            category: 'ORDER',
+            notificationType: `order_${status.toLowerCase()}`,
+            priority: status === 'delivered' ? 'normal' : 'high',
+            referenceId: order._id,
+            referenceModel: 'Order',
+            actionUrl: `/orders/${order.order_number}`,
+            actionLabel: 'Track Order',
+            customTitle: `Order Status: ${status.charAt(0).toUpperCase() + status.slice(1)} - #${order.order_number}`,
+            customMessage: `Your order #${order.order_number} is now ${status}.`,
+            variables: {
+                order_id: order.order_number,
+                status: status
+            },
+            channels: ['in_app', 'email']
         });
 
         const seller = await Seller.findById(order.seller_id);
-        await Notification.create({
-            user_id: seller.user_id,
-            receiver_type: 'seller',
-            title: `Order Status Updated - #${order.order_number}`,
-            message: `Order #${order.order_number} status updated to ${status}`,
-            notification_type: 'order',
-            reference_id: order._id,
-            reference_model: 'Order',
-            channel: 'in_app'
-        });
+        if (seller) {
+            await notificationEngine.sendEvent({
+                event: `ORDER_${status.toUpperCase()}`,
+                recipientId: seller.user_id,
+                category: 'ORDER',
+                notificationType: `order_${status.toLowerCase()}`,
+                priority: 'normal',
+                referenceId: order._id,
+                referenceModel: 'Order',
+                actionUrl: `/seller/orders/${order.order_number}`,
+                customTitle: `Order #${order.order_number} Status: ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+                customMessage: `Order #${order.order_number} status updated to ${status}.`,
+                variables: {
+                    order_id: order.order_number,
+                    status: status
+                },
+                channels: ['in_app', 'email']
+            });
+        }
 
         // ✅ AUDIT LOG - Admin Order Status Update (Service Level)
         await auditService.logOrderStatusUpdate(
@@ -821,28 +915,44 @@ class OrderService {
             { item_status: 'cancelled' }
         );
 
-        await Notification.create({
-            user_id: order.user_id,
-            receiver_type: 'customer',
-            title: `Order Cancelled - #${order.order_number}`,
-            message: `Your order #${order.order_number} has been cancelled by admin. Reason: ${reason}`,
-            notification_type: 'order',
-            reference_id: order._id,
-            reference_model: 'Order',
-            channel: 'in_app'
+        await notificationEngine.sendEvent({
+            event: 'ORDER_CANCELLED',
+            recipientId: order.user_id,
+            category: 'ORDER',
+            notificationType: 'order_cancelled',
+            priority: 'high',
+            referenceId: order._id,
+            referenceModel: 'Order',
+            actionUrl: `/orders/${order.order_number}`,
+            customTitle: `Order Cancelled - #${order.order_number}`,
+            customMessage: `Your order #${order.order_number} has been cancelled by admin. Reason: ${reason}`,
+            variables: {
+                order_id: order.order_number,
+                reason: reason
+            },
+            channels: ['in_app', 'email']
         });
 
         const seller = await Seller.findById(order.seller_id);
-        await Notification.create({
-            user_id: seller.user_id,
-            receiver_type: 'seller',
-            title: `Order Cancelled - #${order.order_number}`,
-            message: `Order #${order.order_number} has been cancelled by admin. Reason: ${reason}`,
-            notification_type: 'order',
-            reference_id: order._id,
-            reference_model: 'Order',
-            channel: 'in_app'
-        });
+        if (seller) {
+            await notificationEngine.sendEvent({
+                event: 'ORDER_CANCELLED',
+                recipientId: seller.user_id,
+                category: 'ORDER',
+                notificationType: 'order_cancelled',
+                priority: 'high',
+                referenceId: order._id,
+                referenceModel: 'Order',
+                actionUrl: `/seller/orders/${order.order_number}`,
+                customTitle: `Order Cancelled - #${order.order_number}`,
+                customMessage: `Order #${order.order_number} has been cancelled by admin. Reason: ${reason}`,
+                variables: {
+                    order_id: order.order_number,
+                    reason: reason
+                },
+                channels: ['in_app', 'email']
+            });
+        }
 
         // ✅ AUDIT LOG - Admin Order Cancelled (Service Level)
         await auditService.log({

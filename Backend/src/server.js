@@ -4,17 +4,26 @@
 
 const app = require('./app');
 const config = require('./config/environment');
+const notificationEngine = require('./services/notification/notificationEngine');
+const { seedDefaultTemplates } = require('./services/notification/defaultTemplates');
 
 const PORT = config.PORT || 5000;
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
     console.log(`\n🔗 API URL (SERVER) : http://localhost:${PORT}/api`);
-
+    // Seed default notification templates and start background scheduler
+    try {
+        await seedDefaultTemplates();
+        notificationEngine.startScheduler(60000);
+    } catch (e) {
+        console.error('Notification startup initialization error:', e);
+    }
 });
 
 // GRACEFUL SHUTDOWN 
 process.on('SIGTERM', () => {
     console.log('SIGTERM signal received: closing HTTP server');
+    notificationEngine.stopScheduler();
     server.close(() => {
         console.log('HTTP server closed');
         process.exit(0);
@@ -23,6 +32,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
     console.log('SIGINT signal received: closing HTTP server');
+    notificationEngine.stopScheduler();
     server.close(() => {
         console.log('HTTP server closed');
         process.exit(0);

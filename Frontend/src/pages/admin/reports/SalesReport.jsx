@@ -1,15 +1,15 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     FiDollarSign, FiCheckCircle, FiXCircle, FiShoppingBag,
-    FiRefreshCw, FiSearch, FiArrowUp, FiArrowDown, FiMoreHorizontal, FiCreditCard
+    FiRefreshCw, FiSearch, FiArrowUp, FiArrowDown, FiCreditCard,
+    FiPackage, FiUser, FiCalendar, FiChevronRight
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
 import MonthlySalesChart from '../../../components/admin/MonthlySalesChart';
 
-// Rank-based bar colors for "Sales by Category" (1st → greenest, then blue, amber, ...)
-const CATEGORY_BAR_COLORS = ['bg-green-500', 'bg-blue-500', 'bg-amber-400', 'bg-purple-500', 'bg-pink-500', 'bg-teal-500'];
+// Rank-based bar colors for "Sales by Category"
+const CATEGORY_BAR_COLORS = ['bg-emerald-500', 'bg-blue-500', 'bg-amber-500', 'bg-purple-500', 'bg-pink-500', 'bg-teal-500'];
 
 const SalesReport = ({ dateRange }) => {
     const navigate = useNavigate();
@@ -37,6 +37,7 @@ const SalesReport = ({ dateRange }) => {
         if (!value) return '₹0';
         return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
     };
+
     const formatPercent = (value) => {
         if (value === null || value === undefined || isNaN(value)) return '0%';
         return `${value > 0 ? '+' : ''}${value}%`;
@@ -46,9 +47,9 @@ const SalesReport = ({ dateRange }) => {
         const numeric = Number(value) || 0;
         const isPositive = numeric >= 0;
         const Icon = isPositive ? FiArrowUp : FiArrowDown;
-        const colorClass = isPositive ? 'text-green-600' : 'text-red-500';
+        const colorClass = isPositive ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : 'text-rose-600 bg-rose-50 border-rose-200';
         return (
-            <span className={`inline-flex items-center gap-1 font-medium ${size === 'sm' ? 'text-sm' : 'text-xs'} ${colorClass}`}>
+            <span className={`inline-flex items-center gap-1 font-semibold px-2 py-0.5 rounded-full border text-xs ${colorClass}`}>
                 <Icon className="w-3 h-3 shrink-0" />
                 {formatPercent(numeric)}
             </span>
@@ -87,104 +88,116 @@ const SalesReport = ({ dateRange }) => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center w-full h-64 bg-white rounded-2xl border border-blue-100 shadow-sm">
-                <FiRefreshCw className="animate-spin !text-blue-600 w-8 h-8" />
+            <div className="flex flex-col items-center justify-center w-full h-72 bg-white rounded-2xl border border-slate-200 shadow-xs gap-3">
+                <FiRefreshCw className="animate-spin text-blue-600 w-8 h-8" />
+                <p className="text-slate-500 font-medium text-sm">Loading Sales Performance Data...</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-4 sm:space-y-6">
-            {/* ==================== SUMMARY CARDS ==================== */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="w-full space-y-6">
+
+            {/* ==================== 4 SUMMARY CARDS ==================== */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Total Sales */}
-                <div className="bg-gradient-to-br from-blue-600 to-blue-500 rounded-2xl p-4 sm:p-5 text-white shadow-lg relative overflow-hidden">
+                <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-xs relative overflow-hidden flex flex-col justify-between">
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
-                    <div className="flex items-center justify-between">
-                        <div className="min-w-0">
-                            <p className="text-sm text-blue-100">Total Sales</p>
-                            <p className="text-2xl sm:text-3xl font-bold mt-1 truncate">{formatCurrency(data?.totalSales)}</p>
+                    <div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-blue-100 uppercase tracking-wider">Total Sales</span>
+                            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+                                <FiDollarSign className="w-5 h-5 text-white" />
+                            </div>
                         </div>
-                        <div className="p-3 bg-white/20 rounded-xl shrink-0"><FiDollarSign className="w-6 h-6" /></div>
+                        <p className="text-2xl sm:text-3xl font-extrabold mt-2 truncate tracking-tight">{formatCurrency(data?.totalSales)}</p>
                     </div>
-                    <div className="mt-4 flex items-center gap-1 text-sm flex-wrap">
-                        <FiArrowUp className={`w-3 h-3 ${salesGrowth < 0 ? 'rotate-180' : ''}`} />
-                        <span>{formatPercent(data?.salesGrowth)}</span>
-                        <span className="text-blue-200">vs last month</span>
+                    <div className="mt-4 pt-2 border-t border-white/20 flex items-center justify-between text-xs text-blue-100">
+                        <span>Growth: <strong>{formatPercent(data?.salesGrowth)}</strong></span>
+                        <span className="text-[11px] opacity-80">vs last month</span>
                     </div>
-                    <p className="text-xs text-blue-200 mt-1 truncate">Last month: {formatCurrency(data?.lastMonthSales)}</p>
                 </div>
 
                 {/* Number of Sales */}
-                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-blue-100 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <div className="min-w-0">
-                            <p className="text-sm text-gray-500">Number of Sales Products</p>
-                            <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{data?.totalOrders || 0}</p>
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-indigo-300 transition flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Orders Count</span>
+                            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
+                                <FiShoppingBag className="w-5 h-5" />
+                            </div>
                         </div>
-                        <div className="p-3 bg-indigo-50 rounded-xl shrink-0"><FiShoppingBag className="w-6 h-6 text-indigo-600" /></div>
+                        <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">{data?.totalOrders || 0}</p>
                     </div>
-                    <div className="mt-4"><GrowthBadge value={data?.orderGrowth} /></div>
-                    <p className="text-xs text-gray-400 mt-1">Last month: {data?.lastMonthOrders || 0}</p>
+                    <div className="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <GrowthBadge value={data?.orderGrowth} />
+                        <span className="text-[11px] text-slate-400">Past: {data?.lastMonthOrders || 0}</span>
+                    </div>
                 </div>
 
-                {/* Successfully Sales */}
-                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-blue-100 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <div className="min-w-0">
-                            <p className="text-sm text-gray-500">Successfully Sales</p>
-                            <p className="text-2xl sm:text-3xl font-bold text-green-600 mt-1">{data?.successfulSalesCount || 0}</p>
-                            <p className="text-xs text-gray-400 mt-1 truncate">Sales: {formatCurrency(data?.successfulSalesRevenue)}</p>
+                {/* Successfully Completed */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-emerald-300 transition flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Successful Sales</span>
+                            <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
+                                <FiCheckCircle className="w-5 h-5" />
+                            </div>
                         </div>
-                        <div className="p-3 bg-green-50 rounded-xl shrink-0"><FiCheckCircle className="w-6 h-6 text-green-600" /></div>
+                        <p className="text-2xl sm:text-3xl font-extrabold text-emerald-600 mt-2">{data?.successfulSalesCount || 0}</p>
                     </div>
-                    <div className="mt-4"><GrowthBadge value={data?.salesGrowth} /></div>
-                    <p className="text-xs text-gray-400 mt-1">Delivered + Paid</p>
+                    <div className="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <span>Revenue: <strong className="text-slate-800">{formatCurrency(data?.successfulSalesRevenue)}</strong></span>
+                        <span className="text-[11px] text-emerald-600 font-semibold">Delivered</span>
+                    </div>
                 </div>
 
-                {/* Return/Cancel Sales */}
-                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-blue-100 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <div className="min-w-0">
-                            <p className="text-sm text-gray-500">Return/Cancel Sales</p>
-                            <p className="text-2xl sm:text-3xl font-bold text-red-600 mt-1">{data?.returnCancelSalesCount || 0}</p>
-                            <p className="text-xs text-gray-400 mt-1 truncate">Sales Lost: {formatCurrency(data?.returnCancelSalesRevenue)}</p>
+                {/* Cancelled / Returns */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-rose-300 transition flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Returns & Cancelled</span>
+                            <div className="w-10 h-10 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center shrink-0">
+                                <FiXCircle className="w-5 h-5" />
+                            </div>
                         </div>
-                        <div className="p-3 bg-orange-50 rounded-xl shrink-0"><FiXCircle className="w-6 h-6 text-orange-600" /></div>
+                        <p className="text-2xl sm:text-3xl font-extrabold text-rose-600 mt-2">{data?.returnCancelSalesCount || 0}</p>
                     </div>
-                    <div className="mt-4"><GrowthBadge value={data?.returnRate ? -Math.abs(data.returnRate) : 0} /></div>
-                    <p className="text-xs text-gray-400 mt-1">Cancelled + Refunded</p>
+                    <div className="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <span>Lost: <strong className="text-rose-600">{formatCurrency(data?.returnCancelSalesRevenue)}</strong></span>
+                        <GrowthBadge value={data?.returnRate ? -Math.abs(data.returnRate) : 0} />
+                    </div>
                 </div>
             </div>
 
             {/* ==================== CHARTS SECTION ==================== */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                {/* ===== PERFORMANCE OVERVIEW (same fixed Jan–Dec chart as Revenue Report) ===== */}
+                {/* Performance Chart */}
                 <div className="lg:col-span-2">
-                    <MonthlySalesChart title="Performance Overview" />
+                    <MonthlySalesChart title="Sales Performance Velocity" />
                 </div>
 
-                {/* ===== SALES OVERVIEW ===== */}
-                <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 sm:p-6">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-lg font-bold text-gray-900">Sales Overview</h3>
+                {/* Sales Overview Gauge */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Sales Target Velocity</h3>
                     </div>
 
-                    <div className="flex justify-center mb-4">
-                        <div className="relative w-full max-w-[220px] aspect-[2/1.15]">
+                    <div className="flex justify-center my-4">
+                        <div className="relative w-full max-w-[200px] aspect-[2/1.15]">
                             <svg viewBox="0 0 200 115" className="w-full h-full">
                                 <path
                                     d="M 20 100 A 80 80 0 0 1 180 100"
                                     fill="none"
-                                    stroke="#e2e8f0"
+                                    stroke="#f1f5f9"
                                     strokeWidth="16"
                                     strokeLinecap="round"
                                 />
                                 <path
                                     d="M 20 100 A 80 80 0 0 1 180 100"
                                     fill="none"
-                                    stroke="url(#gaugeGradient)"
+                                    stroke="url(#gaugeGradientSales)"
                                     strokeWidth="16"
                                     strokeLinecap="round"
                                     strokeDasharray={GAUGE_CIRCUMFERENCE}
@@ -192,56 +205,56 @@ const SalesReport = ({ dateRange }) => {
                                     style={{ transition: 'stroke-dashoffset 0.6s ease' }}
                                 />
                                 <defs>
-                                    <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                        <stop offset="0%" stopColor="#93c5fd" />
+                                    <linearGradient id="gaugeGradientSales" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stopColor="#60a5fa" />
                                         <stop offset="100%" stopColor="#2563eb" />
                                     </linearGradient>
                                 </defs>
                             </svg>
-                            <div className="absolute inset-0 flex flex-col items-center justify-end pb-1 sm:pb-2">
-                                <span className="text-2xl sm:text-3xl font-bold text-gray-900">{Math.round(gaugePercent)}%</span>
-                                <span className="text-xs text-gray-500">Sales Growth</span>
+                            <div className="absolute inset-0 flex flex-col items-center justify-end pb-1">
+                                <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{Math.round(gaugePercent)}%</span>
+                                <span className="text-[11px] text-slate-400 font-medium">Growth Rate</span>
                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mt-6">
-                        <div className="bg-blue-50 rounded-xl p-3 relative overflow-hidden">
-                            <p className="text-xs text-gray-500">Number of Sales</p>
-                            <p className="text-lg sm:text-xl font-bold text-blue-700 mt-1">{data?.totalOrders || 0}</p>
+                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+                        <div className="bg-slate-50 rounded-xl p-3">
+                            <span className="text-[11px] text-slate-400">Total Volume</span>
+                            <p className="text-base sm:text-lg font-bold text-slate-800 mt-0.5">{data?.totalOrders || 0}</p>
                         </div>
-                        <div className="bg-green-50 rounded-xl p-3 relative overflow-hidden">
-                            <p className="text-xs text-gray-500">Total Sales</p>
-                            <p className="text-lg sm:text-xl font-bold text-green-700 mt-1 truncate">{formatCurrency(data?.totalSales)}</p>
+                        <div className="bg-slate-50 rounded-xl p-3">
+                            <span className="text-[11px] text-slate-400">Gross Sales</span>
+                            <p className="text-base sm:text-lg font-bold text-blue-600 mt-0.5 truncate">{formatCurrency(data?.totalSales)}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* ==================== SALES BY CATEGORY + PAYMENT METHODS ==================== */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                {/* ===== SALES BY CATEGORY ===== */}
-                <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 sm:p-6">
-                    <h3 className="text-lg font-bold text-gray-900 text-center mb-6">Sales by Category</h3>
+                {/* Sales by Category */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6">
+                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Sales by Category</h3>
 
                     {categoryData.length === 0 ? (
-                        <p className="text-center text-sm text-gray-400 py-8">No category data available</p>
+                        <p className="text-center text-xs text-slate-400 py-8">No category data recorded for this period</p>
                     ) : (
-                        <div className="space-y-5">
+                        <div className="space-y-4">
                             {categoryData.map((cat, idx) => {
                                 const widthPercent = maxCategoryRevenue > 0 ? (cat.revenue / maxCategoryRevenue) * 100 : 0;
                                 const barColor = CATEGORY_BAR_COLORS[idx % CATEGORY_BAR_COLORS.length];
                                 return (
                                     <div key={cat.category || idx}>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-sm font-semibold text-gray-800 truncate pr-2">{cat.category}</span>
-                                            <span className="text-sm font-bold text-gray-900 shrink-0">{formatCurrency(cat.revenue)}</span>
+                                        <div className="flex items-center justify-between mb-1.5 text-xs">
+                                            <span className="font-semibold text-slate-800 truncate pr-2">{cat.category}</span>
+                                            <span className="font-bold text-slate-900 shrink-0">{formatCurrency(cat.revenue)}</span>
                                         </div>
-                                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                                             <div
                                                 className={`h-full ${barColor} rounded-full transition-all duration-500`}
-                                                style={{ width: `${Math.max(widthPercent, 2)}%` }}
+                                                style={{ width: `${Math.max(widthPercent, 3)}%` }}
                                             />
                                         </div>
                                     </div>
@@ -251,24 +264,26 @@ const SalesReport = ({ dateRange }) => {
                     )}
                 </div>
 
-                {/* ===== PAYMENT METHODS ===== */}
-                <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 sm:p-6">
-                    <h3 className="text-lg font-bold text-gray-900 text-center mb-6">Payment Methods</h3>
+                {/* Payment Methods */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6">
+                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Revenue by Payment Gateway</h3>
 
                     {paymentMethods.length === 0 ? (
-                        <p className="text-center text-sm text-gray-400 py-8">No payment data available</p>
+                        <p className="text-center text-xs text-slate-400 py-8">No payment gateway data available</p>
                     ) : (
                         <div className="space-y-3">
                             {paymentMethods.map((pm, idx) => (
                                 <div
                                     key={pm.method || idx}
-                                    className="flex items-center justify-between bg-gray-100 rounded-xl px-4 py-3.5"
+                                    className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-3"
                                 >
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <FiCreditCard className="w-5 h-5 text-gray-500 shrink-0" />
-                                        <span className="text-sm font-semibold text-gray-800 truncate">{pm.method}</span>
+                                        <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-blue-600 shrink-0">
+                                            <FiCreditCard className="w-4 h-4" />
+                                        </div>
+                                        <span className="text-xs sm:text-sm font-semibold text-slate-800 truncate">{pm.method}</span>
                                     </div>
-                                    <span className="text-sm sm:text-base font-bold text-gray-900 shrink-0">{formatCurrency(pm.revenue)}</span>
+                                    <span className="text-xs sm:text-sm font-bold text-slate-900 shrink-0">{formatCurrency(pm.revenue)}</span>
                                 </div>
                             ))}
                         </div>
@@ -276,124 +291,112 @@ const SalesReport = ({ dateRange }) => {
                 </div>
             </div>
 
-            {/* ==================== TOP PRODUCTS BY SALES ==================== */}
-            <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 sm:p-6">
-                <h3 className="text-lg font-bold text-gray-900 text-center mb-6">Top Products by Sales</h3>
-
-                {topProducts.length === 0 ? (
-                    <p className="text-center text-sm text-gray-400 py-8">No product data available</p>
-                ) : (
-                    <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-                        <table className="w-full min-w-[560px]">
-                            <thead>
-                                <tr className="border-b border-gray-200">
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">#</th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Product</th>
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500">Category</th>
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500">Sold</th>
-                                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">Revenue</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {topProducts.map((p) => (
-                                    <tr key={p.rank} className="border-b border-gray-50 hover:bg-blue-50/30">
-                                        <td className="px-4 py-3 text-sm text-gray-400">{p.rank}</td>
-                                        <td className="px-4 py-3">
-                                            <p className="text-sm font-semibold text-gray-900">{p.productName}</p>
-                                            {p.productCode && (
-                                                <p className="text-xs text-gray-400 mt-0.5">{p.productCode}</p>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 text-center">
-                                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700">
-                                                {p.category}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-center text-sm text-gray-700">{p.sold}</td>
-                                        <td className="px-4 py-3 text-right text-sm font-bold text-teal-600">{formatCurrency(p.revenue)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+            {/* ==================== RECENT ORDERS TABLE (RESPONSIVE) ==================== */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div>
+                        <h3 className="text-base font-bold text-slate-900">Recent Customer Orders</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">Live transactions matching selected criteria</p>
                     </div>
-                )}
-            </div>
 
-            {/* ==================== RECENT ORDERS TABLE ==================== */}
-            <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 sm:p-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 mb-6">
-                    <h3 className="text-lg font-bold text-gray-900">Recent Orders</h3>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                        <div className="relative w-full sm:w-auto">
-                            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <div className="flex flex-col sm:flex-row gap-2.5">
+                        <div className="relative">
+                            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Search products, code, customer..."
+                                placeholder="Search product, order code..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full sm:w-64 pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                                className="w-full sm:w-60 pl-9 pr-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                             />
                         </div>
+
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="w-full sm:w-auto border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
                         >
-                            <option value="all">All Status</option>
+                            <option value="all">All Statuses</option>
                             <option value="pending">Pending</option>
                             <option value="confirmed">Confirmed</option>
                             <option value="shipped">Shipped</option>
-                            <option value="out_for_delivery">Out for Delivery</option>
                             <option value="delivered">Delivered</option>
                             <option value="cancelled">Cancelled</option>
                         </select>
                     </div>
                 </div>
 
-                <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-                    <table className="w-full min-w-[640px]">
+                {/* Desktop Table View (md and up) */}
+                <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="border-b border-gray-200">
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Product Info</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">Order ID</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">Date</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">Customer</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">Status</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">Total</th>
+                            <tr className="bg-slate-50/75 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                <th className="py-3 px-4">Product Info</th>
+                                <th className="py-3 px-4">Order Code</th>
+                                <th className="py-3 px-4">Date</th>
+                                <th className="py-3 px-4">Customer</th>
+                                <th className="py-3 px-4">Status</th>
+                                <th className="py-3 px-4 text-right">Total</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
                             {filteredOrders.length > 0 ? (
                                 filteredOrders.map((order, idx) => (
-                                    <tr key={idx} className="border-b border-gray-50 hover:bg-blue-50/30 text-center">
-                                        <td className="px-4 py-3 text-start text-sm font-medium text-gray-900">{order.product_name || 'Multiple Items'}</td>
-                                        <td className="px-4 py-3 text-sm font-mono text-blue-600">{order.order_code}</td>
-                                        <td className="px-4 py-3 text-sm text-gray-600">{new Date(order.created_at).toLocaleDateString('en-IN')}</td>
-                                        <td className="px-4 py-3 text-sm text-gray-700">{order.customer_name || 'Guest'}</td>
-                                        <td className="px-4 py-3">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${order.order_status === 'delivered' ? 'bg-green-50 text-green-700' : order.order_status === 'pending' ? 'bg-amber-50 text-amber-700' : order.order_status === 'shipped' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                                    <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
+                                        <td className="py-3 px-4 font-semibold text-slate-800">{order.product_name || 'Multiple Items'}</td>
+                                        <td className="py-3 px-4 font-mono font-bold text-blue-600">{order.order_code}</td>
+                                        <td className="py-3 px-4 text-slate-500 font-mono text-xs">{new Date(order.created_at).toLocaleDateString('en-IN')}</td>
+                                        <td className="py-3 px-4 text-slate-700">{order.customer_name || 'Guest'}</td>
+                                        <td className="py-3 px-4">
+                                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${
+                                                order.order_status === 'delivered' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                                order.order_status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                order.order_status === 'cancelled' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                                'bg-blue-50 text-blue-700 border border-blue-200'
+                                            }`}>
                                                 {order.order_status || 'Pending'}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-sm font-bold text-gray-900">{formatCurrency(order.total_amount)}</td>
+                                        <td className="py-3 px-4 text-right font-extrabold text-slate-900">{formatCurrency(order.total_amount)}</td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="6" className="px-4 py-8 text-center text-gray-500">No orders found matching your search</td>
+                                    <td colSpan="6" className="py-8 text-center text-slate-400 text-xs">No orders matching current filters</td>
                                 </tr>
                             )}
                         </tbody>
                     </table>
                 </div>
 
+                {/* Mobile Cards View (below md) */}
+                <div className="md:hidden divide-y divide-slate-100">
+                    {filteredOrders.length > 0 ? (
+                        filteredOrders.map((order, idx) => (
+                            <div key={idx} className="py-3 space-y-2">
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="font-mono font-bold text-blue-600">#{order.order_code}</span>
+                                    <span className="text-[11px] text-slate-400">{new Date(order.created_at).toLocaleDateString('en-IN')}</span>
+                                </div>
+                                <div className="text-xs font-semibold text-slate-800">{order.product_name || 'Multiple Items'}</div>
+                                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                                    <span className="text-slate-500">{order.customer_name || 'Guest'}</span>
+                                    <span className="font-bold text-slate-900">{formatCurrency(order.total_amount)}</span>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="py-6 text-center text-slate-400 text-xs">No orders found</div>
+                    )}
+                </div>
+
                 {data?.recentOrders?.length > 10 && (
-                    <div className="mt-6 text-center">
+                    <div className="pt-2 text-center">
                         <button
                             onClick={() => navigate('/admin/orders')}
-                            className="px-6 py-2.5 bg-blue-50 text-blue-600 font-semibold rounded-lg hover:bg-blue-100 transition-all"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition"
                         >
-                            More Orders (View All {data?.recentOrders?.length} Orders)
+                            View All Orders in Orders Module <FiChevronRight className="w-3.5 h-3.5" />
                         </button>
                     </div>
                 )}

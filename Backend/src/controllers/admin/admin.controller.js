@@ -9,6 +9,7 @@ const ApiError = require('../../utils/apiError');
 const asyncHandler = require('../../utils/asyncHandler');
 const constants = require('../../config/constants');
 const auditService = require('../../services/audit.service');
+const notificationService = require('../../services/notification/notification.service');
 
 
 // IMPORT MODELS
@@ -764,9 +765,9 @@ const adminController = {
     }),
 
     getAllProducts: asyncHandler(async (req, res) => {
-        const { page, limit, search, status, category, seller_id, sort_by, sort_order } = req.query;
+        const { page, limit, search, status, category, sub_category, seller_id, sort_by, sort_order } = req.query;
         const result = await adminService.getAllProducts({
-            page, limit, search, status, category, sellerId: seller_id,
+            page, limit, search, status, category, subCategory: sub_category, sellerId: seller_id,
             sortBy: sort_by, sortOrder: sort_order
         });
         res.status(200).json(ApiResponse.paginated(result.products, result.pagination, 'Products fetched successfully'));
@@ -974,8 +975,8 @@ const adminController = {
 
     // All Orders
     getAllOrders: asyncHandler(async (req, res) => {
-        const { page, limit, search, status } = req.query;
-        const result = await adminService.getAllOrders({ page, limit, search, status });
+        const { page, limit, search, status, paymentStatus } = req.query;
+        const result = await adminService.getAllOrders({ page, limit, search, status, paymentStatus });
         res.status(200).json({
             success: true,
             message: 'Orders fetched successfully',
@@ -1168,45 +1169,156 @@ const adminController = {
 
     // ============ NOTIFICATION CONTROLLER  ============
 
-    // Get All Notification
+    // Get All Notifications with KPI stats, tabs, filters, and pagination
     getAllNotifications: asyncHandler(async (req, res) => {
-        const result = await adminService.getAllNotifications(req.query);
+        const result = await notificationService.getAllNotificationsAdmin(req.query);
         res.status(200).json({
             success: true,
             data: result.notifications,
             stats: result.stats,
+            tabCounts: result.tabCounts,
             pagination: result.pagination
         });
     }),
 
-    // Get Notificaion by ID 
+    // Get Notification by Code with metrics, timeline, and delivery logs
     getNotificationByCode: asyncHandler(async (req, res) => {
-        const notification = await adminService.getNotificationByCode(req.params.notificationCode);
+        const notification = await notificationService.getNotificationByCode(req.params.notificationCode);
         res.status(200).json(ApiResponse.success(notification, 'Notification details fetched'));
     }),
 
     // Mark As Read
     markNotificationAsRead: asyncHandler(async (req, res) => {
-        const notification = await adminService.markNotificationAsRead(req.params.notificationCode);
+        const notification = await notificationService.markNotificationAsRead(req.params.notificationCode);
         res.status(200).json(ApiResponse.success(notification, 'Notification marked as read'));
     }),
 
     // Mark All As Read
     markAllNotificationsAsRead: asyncHandler(async (req, res) => {
-        const result = await adminService.markAllNotificationsAsRead();
+        const result = await notificationService.markAllNotificationsAsRead();
         res.status(200).json(ApiResponse.success(result, 'All notifications marked as read'));
     }),
 
     // Delete Notification
     deleteNotification: asyncHandler(async (req, res) => {
-        const result = await adminService.deleteNotification(req.params.notificationCode);
+        const result = await notificationService.deleteNotification(req.params.notificationCode);
         res.status(200).json(ApiResponse.success(result, 'Notification deleted successfully'));
     }),
 
-    // Sent/Create Notification
+    // Send/Create Broadcast Notification
     sendBroadcastNotification: asyncHandler(async (req, res) => {
-        const notification = await adminService.sendBroadcastNotification(req.body, req.userId);
-        res.status(201).json(ApiResponse.created(notification, 'Notification sent successfully'));
+        const adminId = req.user?.id || req.userId;
+        const notification = await notificationService.createBroadcast(req.body, adminId);
+        res.status(201).json(ApiResponse.created(notification, 'Broadcast notification created successfully'));
+    }),
+
+    // Update Notification
+    updateNotification: asyncHandler(async (req, res) => {
+        const adminId = req.user?.id || req.userId;
+        const notification = await notificationService.updateNotification(req.params.notificationCode, req.body, adminId);
+        res.status(200).json(ApiResponse.success(notification, 'Notification updated successfully'));
+    }),
+
+    // Cancel Scheduled Broadcast
+    cancelBroadcast: asyncHandler(async (req, res) => {
+        const adminId = req.user?.id || req.userId;
+        const result = await notificationService.cancelBroadcast(req.params.notificationCode, adminId);
+        res.status(200).json(ApiResponse.success(result.notification, result.message));
+    }),
+
+    // Trigger Immediate Send (Send Now)
+    sendNow: asyncHandler(async (req, res) => {
+        const adminId = req.user?.id || req.userId;
+        const result = await notificationService.sendNow(req.params.notificationCode, adminId);
+        res.status(200).json(ApiResponse.success(result.notification, result.message));
+    }),
+
+    // Notification Analytics (Real Data)
+    getNotificationAnalytics: asyncHandler(async (req, res) => {
+        const result = await notificationService.getAnalytics(req.query);
+        res.status(200).json(ApiResponse.success(result, 'Notification analytics fetched successfully'));
+    }),
+
+    // Delivery Logs
+    getDeliveryLogs: asyncHandler(async (req, res) => {
+        const result = await notificationService.getDeliveryLogs(req.query);
+        res.status(200).json(
+            ApiResponse.paginated(
+                result.logs,
+                result.pagination,
+                'Delivery logs fetched successfully'
+            )
+        );
+    }),
+
+    // Retry Delivery Log
+    retryDeliveryLog: asyncHandler(async (req, res) => {
+        const result = await notificationService.retryDeliveryLog(req.params.logId);
+        res.status(200).json(ApiResponse.success(result, 'Delivery retry completed'));
+    }),
+
+    // Templates Management
+    getNotificationTemplates: asyncHandler(async (req, res) => {
+        const templates = await notificationService.getTemplates(req.query);
+        res.status(200).json(ApiResponse.success(templates, 'Notification templates fetched successfully'));
+    }),
+
+    getNotificationTemplateByCode: asyncHandler(async (req, res) => {
+        const template = await notificationService.getTemplateByCode(req.params.code);
+        res.status(200).json(ApiResponse.success(template, 'Notification template fetched successfully'));
+    }),
+
+    createNotificationTemplate: asyncHandler(async (req, res) => {
+        const adminId = req.user?.id || req.userId;
+        const template = await notificationService.createTemplate(req.body, adminId);
+        res.status(201).json(ApiResponse.created(template, 'Notification template created successfully'));
+    }),
+
+    updateNotificationTemplate: asyncHandler(async (req, res) => {
+        const adminId = req.user?.id || req.userId;
+        const template = await notificationService.updateTemplate(req.params.code, req.body, adminId);
+        res.status(200).json(ApiResponse.success(template, 'Notification template updated successfully'));
+    }),
+
+    deleteNotificationTemplate: asyncHandler(async (req, res) => {
+        const result = await notificationService.deleteTemplate(req.params.code);
+        res.status(200).json(ApiResponse.success(null, result.message));
+    }),
+
+    // System Alerts Management
+    getSystemAlerts: asyncHandler(async (req, res) => {
+        const result = await notificationService.getSystemAlerts(req.query);
+        res.status(200).json({
+            success: true,
+            data: result.alerts,
+            stats: result.stats,
+            pagination: result.pagination
+        });
+    }),
+
+    acknowledgeSystemAlert: asyncHandler(async (req, res) => {
+        const adminId = req.user?.id || req.userId;
+        const alert = await notificationService.acknowledgeAlert(req.params.alertCode, adminId);
+        res.status(200).json(ApiResponse.success(alert, 'System alert acknowledged'));
+    }),
+
+    resolveSystemAlert: asyncHandler(async (req, res) => {
+        const adminId = req.user?.id || req.userId;
+        const alert = await notificationService.resolveAlert(req.params.alertCode, req.body.resolution_notes, adminId);
+        res.status(200).json(ApiResponse.success(alert, 'System alert resolved'));
+    }),
+
+    // Notification Preferences
+    getNotificationPreferences: asyncHandler(async (req, res) => {
+        const userId = req.query.user_id || req.user?.id || req.userId;
+        const preferences = await notificationService.getPreferences(userId);
+        res.status(200).json(ApiResponse.success(preferences, 'Notification preferences fetched successfully'));
+    }),
+
+    updateNotificationPreferences: asyncHandler(async (req, res) => {
+        const userId = req.params.userId || req.body.user_id || req.user?.id || req.userId;
+        const preferences = await notificationService.updatePreferences(userId, req.body);
+        res.status(200).json(ApiResponse.success(preferences, 'Notification preferences updated successfully'));
     }),
 
     // ============ COUPONS CONTROLLER  ============
@@ -1279,28 +1391,27 @@ const adminController = {
         );
     }),
 
-    // updateSystemSetting: asyncHandler(async (req, res) => {
+    updateSystemSetting: asyncHandler(async (req, res) => {
+        const { key } = req.params;
+        const { value } = req.body;
+        const setting = await adminService.updateSystemSetting(key, value, req.userId);
 
-    //     const { key } = req.params;
-    //     const { value } = req.body;
-    //     const setting = await adminService.updateSystemSetting(key, value, req.userId);
+        await auditService.log({
+            userId: req.userId,
+            action: 'update',
+            module: 'settings',
+            moduleId: setting._id,
+            description: `System setting ${key} updated`,
+            newData: { key, value },
+            ip: req.ip,
+            userAgent: req.get('user-agent'),
+            status: 'success'
+        });
 
-    //     await auditService.log({
-    //         userId: req.userId,
-    //         action: 'update',
-    //         module: 'settings',
-    //         moduleId: setting._id,
-    //         description: `System setting ${key} updated`,
-    //         newData: { key, value },
-    //         ip: req.ip,
-    //         userAgent: req.get('user-agent'),
-    //         status: 'success'
-    //     });
-
-    //     res.status(200).json(
-    //         ApiResponse.success(setting, 'Setting updated successfully')
-    //     );
-    // }),
+        res.status(200).json(
+            ApiResponse.success(setting, 'Setting updated successfully')
+        );
+    }),
 
     getSettingsByGroup: asyncHandler(async (req, res) => {
         const { group } = req.params;

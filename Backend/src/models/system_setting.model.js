@@ -32,7 +32,8 @@ const system_setting_schema = new mongoose.Schema(
             "email",
             "seller",
             "order",
-            "product"
+            "product",
+            "tax"
         ],
         required: true
     },

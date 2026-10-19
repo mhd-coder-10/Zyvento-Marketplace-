@@ -6,7 +6,8 @@ import {
     FiGrid, FiBox, FiLayers, FiShoppingCart, FiCreditCard,
     FiRefreshCw, FiStar, FiTag, FiBell, FiSettings, FiExternalLink,
     FiChevronLeft, FiChevronRight, FiShield, FiPieChart,
-    FiDollarSign, FiShoppingBag, FiTrendingUp
+    FiDollarSign, FiShoppingBag, FiTrendingUp, FiSend, FiClock,
+    FiFileText, FiSliders, FiList, FiBarChart2, FiAlertTriangle
 } from 'react-icons/fi';
 
 const AdminSidebar = ({
@@ -116,7 +117,20 @@ const AdminSidebar = ({
         },
 
         { name: "Coupons", path: "/admin/coupons", permission: "COUPONS_READ", icon: FiTag },
-        { name: 'Notifications', path: '/admin/notifications', permission: 'NOTIFICATIONS_READ', icon: FiBell },
+        {
+            name: 'Notifications',
+            icon: FiBell,
+            children: [
+                { name: 'Notification Center', path: '/admin/notifications', permission: 'NOTIFICATIONS_READ', icon: FiBell },
+                { name: 'Broadcasts', path: '/admin/notifications/send', permission: 'NOTIFICATIONS_CREATE', icon: FiSend },
+                { name: 'Scheduled', path: '/admin/notifications?tab=scheduled', permission: 'NOTIFICATIONS_READ', icon: FiClock },
+                { name: 'Templates', path: '/admin/notifications/templates', permission: 'NOTIFICATIONS_TEMPLATES_READ', icon: FiFileText },
+                { name: 'Preferences', path: '/admin/notifications/preferences', permission: 'NOTIFICATIONS_READ', icon: FiSliders },
+                { name: 'Delivery Logs', path: '/admin/notifications/delivery-logs', permission: 'NOTIFICATIONS_LOGS_READ', icon: FiList },
+                { name: 'Analytics', path: '/admin/notifications/analytics', permission: 'NOTIFICATIONS_ANALYTICS_READ', icon: FiBarChart2 },
+                { name: 'System Alerts', path: '/admin/notifications/system-alerts', permission: 'SYSTEM_ALERTS_READ', icon: FiAlertTriangle },
+            ],
+        },
         { name: 'Reports', path: '/admin/reports', permission: 'REPORTS_READ', icon: FiPieChart },
         { name: 'Settings', icon: FiSettings, path: '/admin/settings', permission: 'SETTINGS_READ' },
         { name: 'Visit Store', icon: FiExternalLink, path: '/', external: true },

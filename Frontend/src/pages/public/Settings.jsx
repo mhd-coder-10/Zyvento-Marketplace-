@@ -22,7 +22,8 @@ import {
     FiPackage,
     FiTag,
     FiMessageSquare,
-    FiStar
+    FiStar,
+    FiSmartphone
 } from 'react-icons/fi';
 import ApiService from '../../api/ApiService';
 
@@ -163,9 +164,9 @@ const Settings = () => {
 
                     <div className="divide-y divide-slate-100 mt-2">
                         {[
-                            { key: 'email', icon: FiMail, label: 'Email Notifications', desc: 'Order receipts, tracking links, and critical security alerts.' },
-                            { key: 'push', icon: FiBell, label: 'Browser Push Notifications', desc: 'Instant flash deal alerts and live delivery updates on this device.' },
-                            { key: 'sms', icon: FiPhone, label: 'SMS / Text Messages', desc: 'Delivery OTP verification and carrier dispatch alerts.' },
+                            { key: 'in_app', icon: FiBell, label: 'In-App Notifications', desc: 'Activity center alerts, announcements, and order status updates.' },
+                            { key: 'push', icon: FiSmartphone, label: 'Browser & Mobile Push', desc: 'Instant flash deal alerts and live delivery updates on this device.' },
+                            { key: 'email', icon: FiMail, label: 'Email Notifications', desc: 'Order receipts, tracking links, and account statements.' },
                         ].map((item) => {
                             const Icon = item.icon;
                             const isChecked = !!preferences.notifications[item.key];

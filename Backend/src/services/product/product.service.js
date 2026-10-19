@@ -16,6 +16,7 @@ const cloudinaryHelper = require('../../utils/cloudinary.helper');
 const Helpers = require('../../utils/helpers');
 const logger = require('../../utils/logger');
 const constants = require('../../config/constants');
+const notificationEngine = require('../notification/notificationEngine');
 
 class ProductService {
 
@@ -700,16 +701,21 @@ class ProductService {
         product.status = 'active';
         await product.save();
 
-        // Notify seller
-        await Notification.create({
-            user_id: product.seller_id,
-            receiver_type: 'seller',
-            title: 'Product Approved',
-            message: `Your product "${product.product_name}" has been approved and is now live.`,
-            notification_type: 'product',
-            reference_id: product._id,
-            reference_model: 'Product',
-            channel: 'in_app'
+        // Notify seller via NotificationEngine
+        await notificationEngine.sendEvent({
+            event: 'PRODUCT_APPROVED',
+            recipientId: product.seller_id,
+            category: 'PRODUCT',
+            notificationType: 'product_approved',
+            priority: 'high',
+            referenceId: product._id,
+            referenceModel: 'Product',
+            actionUrl: `/seller/products`,
+            actionLabel: 'View Products',
+            variables: {
+                product_name: product.product_name
+            },
+            channels: ['in_app', 'email']
         });
 
         return product;
@@ -728,16 +734,22 @@ class ProductService {
         product.status = 'inactive';
         await product.save();
 
-        // Notify seller
-        await Notification.create({
-            user_id: product.seller_id,
-            receiver_type: 'seller',
-            title: 'Product Rejected',
-            message: `Your product "${product.product_name}" has been rejected. Reason: ${adminComment}`,
-            notification_type: 'product',
-            reference_id: product._id,
-            reference_model: 'Product',
-            channel: 'in_app'
+        // Notify seller via NotificationEngine
+        await notificationEngine.sendEvent({
+            event: 'PRODUCT_REJECTED',
+            recipientId: product.seller_id,
+            category: 'PRODUCT',
+            notificationType: 'product_rejected',
+            priority: 'high',
+            referenceId: product._id,
+            referenceModel: 'Product',
+            actionUrl: `/seller/products`,
+            actionLabel: 'View Products',
+            variables: {
+                product_name: product.product_name,
+                rejection_reason: adminComment
+            },
+            channels: ['in_app', 'email']
         });
 
         return product;

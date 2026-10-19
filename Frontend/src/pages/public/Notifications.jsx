@@ -19,54 +19,18 @@ import {
     FiClock,
     FiAlertCircle,
     FiChevronRight,
-    FiMessageSquare
+    FiMessageSquare,
+    FiShoppingBag,
+    FiCreditCard,
+    FiStar
 } from 'react-icons/fi';
 import ApiService from '../../api/ApiService';
+import { timeAgo } from '../../utils/helper';
 
 const Notifications = () => {
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('all');
-
-    // Default sample fallback if no backend notifications yet
-    const demoNotifications = [
-        {
-            _id: 'notif_1',
-            title: 'Order Dispatched!',
-            message: 'Your order #ORD-982341 has been dispatched via BlueDart. Track package in real time.',
-            type: 'order',
-            is_read: false,
-            created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30m ago
-            link: '/order-tracking'
-        },
-        {
-            _id: 'notif_2',
-            title: 'Weekend Flash Sale is LIVE! 🔥',
-            message: 'Flat 20% off on all wireless audio gear with promo code SOUND20. Limited quantities available.',
-            type: 'promo',
-            is_read: false,
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(), // 4h ago
-            link: '/products'
-        },
-        {
-            _id: 'notif_3',
-            title: 'Account Security Notice',
-            message: 'Your account was accessed from a new browser in Delhi, India. If this was not you, change your password.',
-            type: 'security',
-            is_read: true,
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1d ago
-            link: '/settings'
-        },
-        {
-            _id: 'notif_4',
-            title: 'Seller Responded to Your Query',
-            message: 'TechZone Store replied to your product question regarding Bluetooth 5.3 specifications.',
-            type: 'message',
-            is_read: true,
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2d ago
-            link: '/help-center'
-        },
-    ];
 
     useEffect(() => {
         loadNotifications();
@@ -75,34 +39,33 @@ const Notifications = () => {
     const loadNotifications = async () => {
         setLoading(true);
         try {
-            const response = await ApiService.getAllNotifications();
-            if (response.data?.success && Array.isArray(response.data.data) && response.data.data.length > 0) {
+            const response = await ApiService.getUserNotifications();
+            if (response.data?.success && Array.isArray(response.data.data)) {
                 setNotifications(response.data.data);
             } else {
-                setNotifications(demoNotifications);
+                setNotifications([]);
             }
         } catch (error) {
-            // Use demo fallback gracefully
-            setNotifications(demoNotifications);
+            setNotifications([]);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleMarkAsRead = async (id) => {
+    const handleMarkAsRead = async (id, code) => {
         try {
-            await ApiService.markNotificationAsRead(id);
+            await ApiService.markUserNotificationAsRead(code || id);
         } catch (e) {
             // Graceful fallback
         }
         setNotifications(prev =>
-            prev.map(n => n._id === id ? { ...n, is_read: true } : n)
+            prev.map(n => (n._id === id || n.notification_code === code) ? { ...n, is_read: true } : n)
         );
     };
 
     const handleMarkAllAsRead = async () => {
         try {
-            await ApiService.markAllNotificationsAsRead();
+            await ApiService.markAllUserNotificationsAsRead();
             toast.success('All notifications marked as read');
         } catch (e) {
             toast.success('All notifications marked as read');
@@ -110,49 +73,66 @@ const Notifications = () => {
         setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     };
 
-    const handleDelete = async (id) => {
+    const handleDelete = async (id, code) => {
         try {
-            await ApiService.deleteNotification(id);
+            await ApiService.deleteUserNotification(id || code);
             toast.success('Notification removed');
         } catch (e) {
             toast.success('Notification removed');
         }
-        setNotifications(prev => prev.filter(n => n._id !== id));
+        setNotifications(prev => prev.filter(n => n._id !== id && n.notification_code !== code));
+    };
+
+    const handleClearAll = async () => {
+        if (!window.confirm('Are you sure you want to clear all notifications?')) return;
+        try {
+            await ApiService.clearAllUserNotifications();
+            toast.success('All notifications cleared');
+            setNotifications([]);
+        } catch (e) {
+            toast.error('Failed to clear notifications');
+        }
     };
 
     const unreadCount = notifications.filter(n => !n.is_read).length;
 
     const filteredNotifications = notifications.filter(n => {
         if (activeTab === 'unread') return !n.is_read;
-        if (activeTab === 'orders') return n.type === 'order';
-        if (activeTab === 'promos') return n.type === 'promo';
+        const cat = (n.category || '').toUpperCase();
+        const typ = (n.notification_type || '').toLowerCase();
+        if (activeTab === 'orders') return cat === 'ORDER' || typ.includes('order');
+        if (activeTab === 'promos') return cat === 'PROMOTION' || typ.includes('promo') || typ.includes('offer');
         return true;
     });
 
-    const getTypeIcon = (type) => {
-        switch (type) {
-            case 'order':
-                return { icon: FiPackage, bg: 'bg-blue-50 text-blue-600', ring: 'ring-blue-100' };
-            case 'promo':
-                return { icon: FiTag, bg: 'bg-amber-50 text-amber-600', ring: 'ring-amber-100' };
-            case 'security':
-                return { icon: FiShield, bg: 'bg-rose-50 text-rose-600', ring: 'ring-rose-100' };
-            case 'message':
-                return { icon: FiMessageSquare, bg: 'bg-indigo-50 text-indigo-600', ring: 'ring-indigo-100' };
-            default:
-                return { icon: FiBell, bg: 'bg-slate-100 text-slate-600', ring: 'ring-slate-100' };
+    const getTypeIcon = (item) => {
+        const cat = (item?.category || '').toUpperCase();
+        const typ = (item?.notification_type || '').toLowerCase();
+
+        if (cat === 'ORDER' || typ.includes('order')) {
+            return { icon: FiPackage, bg: 'bg-blue-50 text-blue-600', ring: 'ring-blue-100' };
         }
+        if (cat === 'PROMOTION' || typ.includes('promo') || typ.includes('offer')) {
+            return { icon: FiTag, bg: 'bg-amber-50 text-amber-600', ring: 'ring-amber-100' };
+        }
+        if (cat === 'PRODUCT' || typ.includes('product') || typ.includes('stock')) {
+            return { icon: FiShoppingBag, bg: 'bg-emerald-50 text-emerald-600', ring: 'ring-emerald-100' };
+        }
+        if (cat === 'FINANCE' || typ.includes('payment') || typ.includes('refund')) {
+            return { icon: FiCreditCard, bg: 'bg-teal-50 text-teal-600', ring: 'ring-teal-100' };
+        }
+        if (typ.includes('review') || typ.includes('star')) {
+            return { icon: FiStar, bg: 'bg-amber-50 text-amber-500', ring: 'ring-amber-100' };
+        }
+        if (cat === 'SYSTEM_ALERT' || cat === 'ADMIN_SYSTEM' || typ.includes('security')) {
+            return { icon: FiShield, bg: 'bg-rose-50 text-rose-600', ring: 'ring-rose-100' };
+        }
+        return { icon: FiBell, bg: 'bg-slate-100 text-slate-600', ring: 'ring-slate-100' };
     };
 
     const formatTimestamp = (dateString) => {
         if (!dateString) return 'Just now';
-        const date = new Date(dateString);
-        const now = new Date();
-        const diffHours = Math.round((now - date) / (1000 * 60 * 60));
-        if (diffHours < 1) return 'Few minutes ago';
-        if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-        const diffDays = Math.round(diffHours / 24);
-        return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+        return timeAgo(dateString);
     };
 
     return (
@@ -243,10 +223,11 @@ const Notifications = () => {
                 ) : (
                     <div className="space-y-3.5">
                         {filteredNotifications.map((notif) => {
-                            const { icon: TypeIcon, bg, ring } = getTypeIcon(notif.type);
+                            const { icon: TypeIcon, bg, ring } = getTypeIcon(notif);
+                            const actionTarget = notif.action_url || notif.link;
                             return (
                                 <div
-                                    key={notif._id}
+                                    key={notif._id || notif.notification_code}
                                     className={`bg-white rounded-3xl p-5 sm:p-6 border transition-all duration-300 flex items-start gap-4 ${
                                         !notif.is_read
                                             ? 'border-indigo-200 bg-indigo-50/20 shadow-md shadow-indigo-100/40'
@@ -275,15 +256,15 @@ const Notifications = () => {
 
                                         <div className="flex items-center gap-4 mt-3 text-[11px] text-slate-400 font-medium">
                                             <span className="flex items-center gap-1">
-                                                <FiClock className="text-xs" /> {formatTimestamp(notif.created_at)}
+                                                <FiClock className="text-xs" /> {formatTimestamp(notif.created_at || notif.sent_at)}
                                             </span>
-                                            {notif.link && (
+                                            {actionTarget && (
                                                 <Link
-                                                    to={notif.link}
-                                                    onClick={() => handleMarkAsRead(notif._id)}
+                                                    to={actionTarget}
+                                                    onClick={() => handleMarkAsRead(notif._id, notif.notification_code)}
                                                     className="font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
                                                 >
-                                                    View Details <FiChevronRight />
+                                                    {notif.action_label || 'View Details'} <FiChevronRight />
                                                 </Link>
                                             )}
                                         </div>
@@ -293,7 +274,7 @@ const Notifications = () => {
                                     <div className="flex items-center gap-1.5 flex-shrink-0">
                                         {!notif.is_read && (
                                             <button
-                                                onClick={() => handleMarkAsRead(notif._id)}
+                                                onClick={() => handleMarkAsRead(notif._id, notif.notification_code)}
                                                 className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 flex items-center justify-center transition-colors"
                                                 title="Mark as read"
                                             >
@@ -301,7 +282,7 @@ const Notifications = () => {
                                             </button>
                                         )}
                                         <button
-                                            onClick={() => handleDelete(notif._id)}
+                                            onClick={() => handleDelete(notif._id, notif.notification_code)}
                                             className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-colors"
                                             title="Delete notification"
                                         >

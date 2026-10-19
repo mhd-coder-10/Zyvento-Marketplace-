@@ -262,7 +262,7 @@ const Shipping = () => {
                         </div>
                         <div>
                             <h4 className="font-bold text-slate-900 text-sm">Live GPS Tracking</h4>
-                            <p className="text-xs text-slate-500 mt-1">Milestone status alerts via SMS, WhatsApp & Email.</p>
+                            <p className="text-xs text-slate-500 mt-1">Milestone status alerts via In-App, Push & Email.</p>
                         </div>
                     </div>
 

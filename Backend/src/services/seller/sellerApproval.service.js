@@ -11,6 +11,7 @@ const ApiError = require('../../utils/apiError');
 const emailHelper = require('../../utils/emailHelper');
 const logger = require('../../utils/logger');
 const constants = require('../../config/constants');
+const notificationEngine = require('../notification/notificationEngine');
 
 class SellerApprovalService {
 
@@ -142,25 +143,23 @@ class SellerApprovalService {
             account_status: constants.ACCOUNT_STATUS.ACTIVE
         });
 
-        // Create notification for seller
-        await Notification.create({
-            user_id: seller.user_id,
-            receiver_type: 'seller',
-            title: 'Seller Account Approved',
-            message: `Your seller account "${seller.business_name}" has been approved. You can now start selling.`,
-            notification_type: 'seller',
-            reference_id: seller._id,
-            reference_model: 'Seller',
-            channel: 'in_app',
-            priority: 'high'
+        // Notify seller via NotificationEngine
+        await notificationEngine.sendEvent({
+            event: 'SELLER_APPROVED',
+            recipientId: seller.user_id,
+            category: 'SELLER',
+            notificationType: 'seller_verification',
+            priority: 'critical',
+            referenceId: seller._id,
+            referenceModel: 'Seller',
+            actionUrl: '/seller/dashboard',
+            actionLabel: 'Go to Seller Hub',
+            variables: {
+                seller_name: seller.contact_person_name || seller.business_name,
+                business_name: seller.business_name
+            },
+            channels: ['in_app', 'email']
         });
-
-        // Send email
-        await emailHelper.sendSellerApprovalEmail(
-            seller.email,
-            seller.business_name,
-            'approved'
-        );
 
         // Log audit
         await AuditLog.create({
@@ -206,26 +205,22 @@ class SellerApprovalService {
             account_status: constants.ACCOUNT_STATUS.INACTIVE
         });
 
-        // Create notification for seller
-        await Notification.create({
-            user_id: seller.user_id,
-            receiver_type: 'seller',
-            title: 'Seller Account Rejected',
-            message: `Your seller account "${seller.business_name}" has been rejected. Reason: ${rejectionReason}`,
-            notification_type: 'seller',
-            reference_id: seller._id,
-            reference_model: 'Seller',
-            channel: 'in_app',
-            priority: 'high'
+        // Notify seller via NotificationEngine
+        await notificationEngine.sendEvent({
+            event: 'SELLER_REJECTED',
+            recipientId: seller.user_id,
+            category: 'SELLER',
+            notificationType: 'seller_verification',
+            priority: 'high',
+            referenceId: seller._id,
+            referenceModel: 'Seller',
+            variables: {
+                seller_name: seller.contact_person_name || seller.business_name,
+                business_name: seller.business_name,
+                reason: rejectionReason
+            },
+            channels: ['in_app', 'email']
         });
-
-        // Send email
-        await emailHelper.sendSellerApprovalEmail(
-            seller.email,
-            seller.business_name,
-            'rejected',
-            rejectionReason
-        );
 
         // Log audit
         await AuditLog.create({

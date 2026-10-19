@@ -15,7 +15,12 @@ import {
     FiMail,
     FiShoppingBag,
     FiStar,
+    FiCheckCircle,
+    FiAlertCircle,
+    FiClock,
+    FiShield
 } from 'react-icons/fi';
+import ApiService from '../../api/ApiService';
 
 const AdminHeader = ({
     sidebarOpen,
@@ -59,14 +64,86 @@ const AdminHeader = ({
         }
     };
 
-    const notifications = [
-        { id: 1, title: 'New order received', time: '5 min ago', read: false, icon: FiShoppingBag, color: 'text-blue-500' },
-        { id: 2, title: 'Seller registration pending', time: '1 hour ago', read: false, icon: FiUser, color: 'text-sky-500' },
-        { id: 3, title: 'Payment failed for order #123', time: '3 hours ago', read: true, icon: FiMail, color: 'text-rose-500' },
-        { id: 4, title: 'New review on product', time: '1 day ago', read: true, icon: FiStar, color: 'text-amber-500' },
-    ];
+    const [notifications, setNotifications] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [loadingNotifications, setLoadingNotifications] = useState(false);
 
-    const unreadCount = notifications.filter((n) => !n.read).length;
+    const fetchHeaderNotifications = async () => {
+        try {
+            setLoadingNotifications(true);
+            const res = await ApiService.getAllNotifications({ limit: 8 });
+            if (res.data?.success) {
+                const list = res.data.data || [];
+                setNotifications(list);
+                const unread = list.filter(n => !n.is_read).length;
+                setUnreadCount(unread);
+            }
+        } catch (err) {
+            console.error('Failed to load header notifications', err);
+        } finally {
+            setLoadingNotifications(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchHeaderNotifications();
+        // Periodically refresh notification badge every 60s
+        const interval = setInterval(fetchHeaderNotifications, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const handleMarkAllRead = async () => {
+        try {
+            await ApiService.markAllNotificationsAsRead();
+            setNotifications(prev => prev.map(n => ({ ...n, is_read: true, status: 'read' })));
+            setUnreadCount(0);
+        } catch (err) {
+            console.error('Failed to mark all notifications read', err);
+        }
+    };
+
+    const handleNotificationClick = async (notif) => {
+        try {
+            if (!notif.is_read) {
+                await ApiService.markNotificationAsRead(notif.notification_code);
+                setNotifications(prev =>
+                    prev.map(n => n.notification_code === notif.notification_code ? { ...n, is_read: true, status: 'read' } : n)
+                );
+                setUnreadCount(prev => Math.max(0, prev - 1));
+            }
+            setIsNotificationsOpen(false);
+            if (notif.action_url) {
+                navigate(notif.action_url);
+            } else {
+                navigate(`/admin/notifications/${notif.notification_code}`);
+            }
+        } catch (err) {
+            navigate(`/admin/notifications/${notif.notification_code}`);
+        }
+    };
+
+    const formatTimeAgo = (dateStr) => {
+        if (!dateStr) return 'Just now';
+        const diffSec = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+        if (diffSec < 60) return 'Just now';
+        if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+        if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+        return `${Math.floor(diffSec / 86400)}d ago`;
+    };
+
+    const getNotificationVisual = (category, priority) => {
+        if (priority === 'critical') return { icon: FiAlertCircle, color: 'text-rose-500 bg-rose-50' };
+        switch ((category || '').toLowerCase()) {
+            case 'order': return { icon: FiShoppingBag, color: 'text-emerald-500 bg-emerald-50' };
+            case 'product': return { icon: FiShield, color: 'text-indigo-500 bg-indigo-50' };
+            case 'payment':
+            case 'finance': return { icon: FiCheckCircle, color: 'text-purple-500 bg-purple-50' };
+            case 'customer':
+            case 'seller': return { icon: FiUser, color: 'text-sky-500 bg-sky-50' };
+            case 'system': return { icon: FiAlertCircle, color: 'text-amber-500 bg-amber-50' };
+            default: return { icon: FiBell, color: 'text-blue-500 bg-blue-50' };
+        }
+    };
 
     return (
         <header
@@ -132,7 +209,7 @@ const AdminHeader = ({
                             <FiBell className="w-5 h-5" />
                             {unreadCount > 0 && (
                                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-gradient-to-br from-sky-500 to-blue-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-md shadow-sky-200 ring-2 ring-white">
-                                    {unreadCount}
+                                    {unreadCount > 99 ? '99+' : unreadCount}
                                 </span>
                             )}
                         </button>
@@ -140,45 +217,74 @@ const AdminHeader = ({
                         {isNotificationsOpen && (
                             <div className="fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-[4.25rem] sm:top-auto sm:mt-2 sm:w-96 bg-white rounded-2xl shadow-2xl shadow-sky-100 border border-sky-100 overflow-hidden z-50 animate-fadeIn">
                                 <div className="px-4 py-3 border-b border-sky-100 flex items-center justify-between bg-gradient-to-r from-sky-50 to-white">
-                                    <h3 className="font-bold text-slate-800">Notifications</h3>
-                                    <button className="text-xs font-semibold text-sky-600 hover:text-blue-700 px-2 py-1 rounded-lg hover:bg-sky-50 transition-colors">
-                                        Mark all read
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-slate-800 text-sm">Notifications</h3>
+                                        {unreadCount > 0 && (
+                                            <span className="text-[11px] font-semibold bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">
+                                                {unreadCount} new
+                                            </span>
+                                        )}
+                                    </div>
+                                    {unreadCount > 0 && (
+                                        <button
+                                            onClick={handleMarkAllRead}
+                                            className="text-xs font-semibold text-sky-600 hover:text-blue-700 px-2 py-1 rounded-lg hover:bg-sky-50 transition-colors"
+                                        >
+                                            Mark all read
+                                        </button>
+                                    )}
                                 </div>
-                                <div className="max-h-[60vh] sm:max-h-80 overflow-y-auto">
-                                    {notifications.map((notification) => {
-                                        const Icon = notification.icon;
-                                        return (
-                                            <div
-                                                key={notification.id}
-                                                className={`px-4 py-3 cursor-pointer transition-colors border-b border-sky-50 last:border-0 hover:bg-sky-50/70 ${
-                                                    !notification.read ? 'bg-sky-50/40' : ''
-                                                }`}
-                                            >
-                                                <div className="flex items-start gap-3">
-                                                    <div className={`p-2 rounded-xl flex-shrink-0 ${!notification.read ? 'bg-sky-100' : 'bg-slate-100'}`}>
-                                                        <Icon className={`w-4 h-4 ${notification.color}`} />
+                                <div className="max-h-[60vh] sm:max-h-80 overflow-y-auto divide-y divide-sky-50">
+                                    {notifications.length === 0 ? (
+                                        <div className="py-8 px-4 text-center">
+                                            <FiBell className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                                            <p className="text-xs font-medium text-slate-500">No notifications yet</p>
+                                        </div>
+                                    ) : (
+                                        notifications.map((n) => {
+                                            const visual = getNotificationVisual(n.category || n.notification_type, n.priority);
+                                            const Icon = visual.icon;
+                                            return (
+                                                <div
+                                                    key={n._id || n.notification_code}
+                                                    onClick={() => handleNotificationClick(n)}
+                                                    className={`px-4 py-3 cursor-pointer transition-colors hover:bg-sky-50/70 ${
+                                                        !n.is_read ? 'bg-sky-50/40' : ''
+                                                    }`}
+                                                >
+                                                    <div className="flex items-start gap-3">
+                                                        <div className={`p-2 rounded-xl flex-shrink-0 ${visual.color}`}>
+                                                            <Icon className="w-4 h-4" />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className={`text-xs leading-snug line-clamp-1 ${!n.is_read ? 'font-bold text-slate-800' : 'text-slate-600'}`}>
+                                                                {n.title}
+                                                            </p>
+                                                            <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                                                                {n.message}
+                                                            </p>
+                                                            <p className="text-[10px] text-slate-400 mt-1">
+                                                                {formatTimeAgo(n.createdAt)}
+                                                            </p>
+                                                        </div>
+                                                        {!n.is_read && (
+                                                            <div className="w-2 h-2 bg-sky-500 rounded-full mt-2 flex-shrink-0" />
+                                                        )}
                                                     </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className={`text-sm leading-snug ${!notification.read ? 'font-semibold text-slate-800' : 'text-slate-600'}`}>
-                                                            {notification.title}
-                                                        </p>
-                                                        <p className="text-[11px] text-slate-400 mt-0.5">{notification.time}</p>
-                                                    </div>
-                                                    {!notification.read && (
-                                                        <div className="w-2 h-2 bg-sky-500 rounded-full mt-2 flex-shrink-0" />
-                                                    )}
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })
+                                    )}
                                 </div>
                                 <div className="p-3 border-t border-sky-100 text-center bg-sky-50/50">
                                     <button
-                                        onClick={() => navigate('/admin/notifications')}
-                                        className="text-sm font-semibold text-sky-600 hover:text-blue-700"
+                                        onClick={() => {
+                                            setIsNotificationsOpen(false);
+                                            navigate('/admin/notifications');
+                                        }}
+                                        className="text-xs font-semibold text-sky-600 hover:text-blue-700"
                                     >
-                                        View all notifications
+                                        Open Notification Center →
                                     </button>
                                 </div>
                             </div>

@@ -15,14 +15,27 @@ const notificationValidation = {
         }
     },
 
-    // ============ NOTIFICATION ID PARAM ============
+    getNotifications: {
+        query: {
+            page: Joi.number().integer().min(1).default(1),
+            limit: Joi.number().integer().min(1).max(100).default(10),
+            search: Joi.string().allow('').optional(),
+            type: Joi.string().allow('', null).optional(),
+            is_read: Joi.any().optional(),
+            status: Joi.string().allow('', null).optional(),
+            priority: Joi.string().allow('', null).optional()
+        }
+    },
+
+    // ============ NOTIFICATION ID OR CODE PARAM ============
     notificationIdParam: Joi.object({
         notificationId: Joi.string()
-            .pattern(/^[0-9a-fA-F]{24}$/)
+            .trim()
+            .min(1)
+            .max(100)
             .required()
             .messages({
-                'string.pattern.base': 'Invalid notification ID format',
-                'string.empty': 'Notification ID is required'
+                'string.empty': 'Notification ID or code is required'
             })
     }),
 
@@ -93,7 +106,7 @@ const notificationValidation = {
             }),
 
         channel: Joi.string()
-            .valid('email', 'sms', 'push_notification', 'in_app')
+            .valid('email', 'push_notification', 'push', 'in_app')
             .default('in_app')
             .messages({
                 'any.only': 'Invalid channel'

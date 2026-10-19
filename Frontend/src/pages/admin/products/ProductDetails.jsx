@@ -4,7 +4,8 @@ import { toast } from 'react-toastify';
 import {
     FiArrowLeft, FiRefreshCw, FiCheckCircle, FiXCircle, FiCheck,
     FiClock, FiTrendingUp, FiShoppingBag, FiStar, FiPackage, FiX,
-    FiUser, FiFileText, FiAlertCircle, FiTrash2, FiExternalLink, FiAlertTriangle
+    FiUser, FiFileText, FiAlertCircle, FiTrash2, FiExternalLink, FiAlertTriangle,
+    FiShield, FiMaximize2, FiChevronLeft, FiChevronRight, FiEye
 } from 'react-icons/fi';
 import ApiService from '../../../api/ApiService';
 import AdminTopbar from '../../../components/admin/AdminTopbar';
@@ -18,15 +19,47 @@ const ProductDetails = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Modals
+    // Modals & Image Lightbox
     const [approveConfirm, setApproveConfirm] = useState(false);
     const [rejectModal, setRejectModal] = useState({ open: false, reason: '' });
     const [statusModal, setStatusModal] = useState({ open: false, newStatus: '', reason: '' });
     const [actionLoading, setActionLoading] = useState(false);
+    const [activeImageIndex, setActiveImageIndex] = useState(null);
 
     useEffect(() => {
         fetchProductDetails();
     }, [productCode]);
+
+    // Normalize image list safely
+    const productImages = (
+        Array.isArray(product?.images) && product?.images.length > 0
+            ? product.images.map((img) => (typeof img === 'string' ? img : img?.url || img?.secure_url || ''))
+            : (product?.image ? [product.image] : [])
+    ).filter(Boolean);
+
+    // Keyboard navigation & body scroll lock for image lightbox (Hook MUST be top-level before any early return)
+    useEffect(() => {
+        if (activeImageIndex === null) return;
+
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                setActiveImageIndex(null);
+            } else if (e.key === 'ArrowRight' && productImages.length > 1) {
+                setActiveImageIndex((prev) => (prev === null ? 0 : (prev + 1) % productImages.length));
+            } else if (e.key === 'ArrowLeft' && productImages.length > 1) {
+                setActiveImageIndex((prev) => (prev === null ? 0 : (prev - 1 + productImages.length) % productImages.length));
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.body.style.overflow = originalOverflow;
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [activeImageIndex, productImages.length]);
 
     const fetchProductDetails = async () => {
         setLoading(true);
@@ -224,14 +257,24 @@ const ProductDetails = () => {
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
                     <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                         <div className="flex items-center gap-4">
-                            {product.images?.[0] ? (
-                                <img
-                                    src={product.images[0]}
-                                    alt={product.product_name}
-                                    className="w-20 h-20 rounded-2xl object-cover border border-slate-200 bg-slate-50 shadow-xs"
-                                />
+                            {productImages[0] ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveImageIndex(0)}
+                                    title="Click to view full preview"
+                                    className="group relative w-20 h-20 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shadow-xs cursor-pointer text-left shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <img
+                                        src={productImages[0]}
+                                        alt={product.product_name}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    />
+                                    <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                        <FiMaximize2 className="w-5 h-5 drop-shadow-md" />
+                                    </div>
+                                </button>
                             ) : (
-                                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-600 flex items-center justify-center text-3xl font-bold text-white shadow-xs">
+                                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-600 flex items-center justify-center text-3xl font-bold text-white shadow-xs shrink-0">
                                     {(product.product_name?.[0] || 'P').toUpperCase()}
                                 </div>
                             )}
@@ -422,17 +465,50 @@ const ProductDetails = () => {
                         {product.description || 'No description provided.'}
                     </p>
 
-                    {product.images?.length > 0 && (
+                    {productImages.length > 0 && (
                         <div className="pt-4 border-t border-slate-100">
-                            <h4 className="font-semibold text-slate-800 text-xs mb-3">Product Media ({product.images.length})</h4>
-                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                                {product.images.map((img, idx) => (
-                                    <img
+                            <div className="flex items-center justify-between mb-3">
+                                <h4 className="font-semibold text-slate-800 text-xs">
+                                    Product Media ({productImages.length})
+                                </h4>
+                                <span className="text-[11px] text-slate-400 font-medium">
+                                    Click any image to enlarge and preview
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                                {productImages.map((img, idx) => (
+                                    <button
                                         key={idx}
-                                        src={img}
-                                        alt={`Product Image ${idx + 1}`}
-                                        className="w-full h-24 object-cover rounded-xl border border-slate-200 bg-slate-50"
-                                    />
+                                        type="button"
+                                        onClick={() => setActiveImageIndex(idx)}
+                                        className="group relative h-28 sm:h-32 w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shadow-xs hover:shadow-md hover:border-blue-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer text-left"
+                                        title={`Click to view Image ${idx + 1}`}
+                                    >
+                                        <img
+                                            src={img}
+                                            alt={`Product Image ${idx + 1}`}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                        />
+                                        {/* Overlay with preview icon */}
+                                        <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center gap-1.5 text-white p-2">
+                                            <div className="p-2 rounded-full bg-white/20 backdrop-blur-md">
+                                                <FiMaximize2 className="w-4 h-4 text-white" />
+                                            </div>
+                                            <span className="text-[11px] font-semibold text-white/95">View Image</span>
+                                        </div>
+                                        {/* Index badge */}
+                                        <div className="absolute top-2 left-2 pointer-events-none">
+                                            {idx === 0 ? (
+                                                <span className="px-2 py-0.5 rounded-md bg-blue-600/90 text-white font-bold text-[10px] shadow-xs backdrop-blur-xs">
+                                                    Cover
+                                                </span>
+                                            ) : (
+                                                <span className="px-1.5 py-0.5 rounded-md bg-slate-900/70 text-white font-mono text-[10px] backdrop-blur-xs">
+                                                    #{idx + 1}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </button>
                                 ))}
                             </div>
                         </div>
@@ -605,6 +681,125 @@ const ProductDetails = () => {
                             </button>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* ====== IMAGE PREVIEW LIGHTBOX MODAL ====== */}
+            {activeImageIndex !== null && productImages[activeImageIndex] && (
+                <div
+                    className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex flex-col justify-between p-4 sm:p-6 select-none"
+                    onClick={() => setActiveImageIndex(null)}
+                >
+                    {/* Top Controls Bar */}
+                    <div
+                        className="flex items-center justify-between gap-4 w-full z-10"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center gap-3 text-white min-w-0">
+                            <span className="px-2.5 py-1 rounded-lg bg-white/10 text-xs font-semibold text-white/90 backdrop-blur-md">
+                                {activeImageIndex + 1} / {productImages.length}
+                            </span>
+                            <span className="text-sm font-medium text-slate-200 truncate">
+                                {product.product_name}
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                            <a
+                                href={productImages[activeImageIndex]}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all backdrop-blur-md flex items-center gap-1.5 text-xs font-medium"
+                                title="Open original in new tab"
+                            >
+                                <FiExternalLink className="w-4 h-4" />
+                                <span className="hidden sm:inline">Open Original</span>
+                            </a>
+                            <button
+                                type="button"
+                                onClick={() => setActiveImageIndex(null)}
+                                className="p-2 sm:p-2.5 rounded-xl bg-white/10 text-white hover:bg-rose-600/90 transition-all backdrop-blur-md cursor-pointer"
+                                title="Close preview (Esc)"
+                            >
+                                <FiX className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Main Image Display Area with Nav Controls */}
+                    <div
+                        className="relative flex-1 flex items-center justify-center my-3 sm:my-4 overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Prev Button */}
+                        {productImages.length > 1 && (
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setActiveImageIndex((prev) =>
+                                        prev === 0 ? productImages.length - 1 : prev - 1
+                                    )
+                                }
+                                className="absolute left-2 sm:left-4 z-10 p-3 rounded-full bg-slate-900/70 hover:bg-blue-600 text-white border border-white/15 shadow-2xl backdrop-blur-md transition-all hover:scale-110 active:scale-95 cursor-pointer"
+                                title="Previous image (Left Arrow)"
+                            >
+                                <FiChevronLeft className="w-6 h-6" />
+                            </button>
+                        )}
+
+                        {/* Active Image Container */}
+                        <div className="relative max-h-[75vh] max-w-[88vw] flex items-center justify-center p-2">
+                            <img
+                                key={activeImageIndex}
+                                src={productImages[activeImageIndex]}
+                                alt={`${product.product_name} - preview ${activeImageIndex + 1}`}
+                                className="max-h-[75vh] max-w-[88vw] object-contain rounded-2xl shadow-2xl border border-white/10"
+                            />
+                        </div>
+
+                        {/* Next Button */}
+                        {productImages.length > 1 && (
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setActiveImageIndex((prev) =>
+                                        prev === productImages.length - 1 ? 0 : prev + 1
+                                    )
+                                }
+                                className="absolute right-2 sm:right-4 z-10 p-3 rounded-full bg-slate-900/70 hover:bg-blue-600 text-white border border-white/15 shadow-2xl backdrop-blur-md transition-all hover:scale-110 active:scale-95 cursor-pointer"
+                                title="Next image (Right Arrow)"
+                            >
+                                <FiChevronRight className="w-6 h-6" />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Bottom Thumbnails Strip (if multiple) */}
+                    {productImages.length > 1 && (
+                        <div
+                            className="flex items-center justify-center gap-2 sm:gap-3 overflow-x-auto py-2 px-4 max-w-2xl mx-auto z-10"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {productImages.map((img, idx) => (
+                                <button
+                                    key={`lightbox-thumb-${idx}`}
+                                    type="button"
+                                    onClick={() => setActiveImageIndex(idx)}
+                                    className={`relative w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 shrink-0 transition-all cursor-pointer ${
+                                        activeImageIndex === idx
+                                            ? 'border-blue-500 ring-2 ring-blue-500/50 scale-105 opacity-100'
+                                            : 'border-white/20 opacity-50 hover:opacity-100 hover:border-white/50'
+                                    }`}
+                                >
+                                    <img
+                                        src={img}
+                                        alt={`Thumbnail ${idx + 1}`}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
